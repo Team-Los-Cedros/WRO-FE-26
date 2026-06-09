@@ -1,4 +1,4 @@
-# 🏎️ Proyecto Future Engineers - Team Los Cedros (WRO 2026)
+# Proyecto Future Engineers - Team Los Cedros (WRO 2026)
 
 ¡Hola! Bienvenidos al repositorio oficial del **Team Los Cedros**, integrado por 3 estudiantes del Colegio Los Cedros en Valera, Estado Trujillo, Venezuela. Aquí compartimos el código fuente, los diagramas eléctricos y la documentación técnica de nuestro vehículo autónomo para la **World Robot Olympiad (WRO) 2026**, en la categoría *Future Engineers*.
 
@@ -6,24 +6,24 @@ Este proyecto es el resultado de muchas horas de diseño, pruebas en pista y, so
 
 ---
 
-## 👥 Integrantes del Equipo y Roles
+## Integrantes del Equipo y Roles
 
 El **Team Los Cedros** está conformado por tres estudiantes apasionados por la tecnología, donde cada uno aportó desde su área de especialización para dar vida al vehículo:
 
-* **CARLOS DAVID DIAZ RIVAS** — 🧠 **Estratega de Software (AI & Lidar):** Encargado del desarrollo del código en la Raspberry Pi 5, la implementación de modelos de Inteligencia Artificial aprovechando el acelerador de hardware, algoritmos de visión/Lidar (Clustering y Segmentación) y la lógica de navegación autónoma.
-* **DANIEL DAVID DIAZ RIVAS** — ⚡ **Ingeniero de Hardware, Control y QA:** Responsable del diseño del mapa eléctrico, la calibración de la IMU MPU6050, la programación de los sistemas de bajo nivel en la Raspberry Pi Pico 2, además del plan de **pruebas en pista y gestión de la documentación técnica**.
-* **CARLOS SANTIAGO PINTO ABREU** — 🔧 **Diseñador Mecánico:** Encargado del ensamblaje del chasis, la distribución física de los componentes y la optimización de los sistemas de dirección por servomotor y tracción trasera.
+* **CARLOS DAVID DIAZ RIVAS** — **Estratega de Software (AI & Lidar):** Encargado del desarrollo del código en la Raspberry Pi 5, la implementación de modelos de Inteligencia Artificial aprovechando el acelerador de hardware, algoritmos de visión/Lidar (Clustering y Segmentación) y la lógica de navegación autónoma.
+* **DANIEL DAVID DIAZ RIVAS** — **Ingeniero de Hardware, Control y QA:** Responsable del diseño del mapa eléctrico, la calibración de la IMU MPU6050, la programación de los sistemas de bajo nivel en la Raspberry Pi Pico 2, además del plan de **pruebas en pista y gestión de la documentación técnica**.
+* **CARLOS SANTIAGO PINTO ABREU** — **Diseñador Mecánico:** Encargado del ensamblaje del chasis, la distribución física de los componentes y la optimización de los sistemas de dirección por servomotor y tracción trasera.
 
 ---
 
-## 🧠 Arquitectura de Hardware
+## Arquitectura de Hardware
 
 Para garantizar que el vehículo tome decisiones algorítmicas en milisegundos sin perder el control dinámico, dividimos las tareas operativas utilizando dos controladores interconectados:
 
 1. **Raspberry Pi 5 + AI Hat+ (El Estratega):** Es la unidad central de análisis y cómputo avanzado. La Raspberry Pi 5 se apoya en un módulo de aceleración **Raspberry Pi AI Hat+ de 26 TOPS** (Trillones de Operaciones por Segundo), lo que permite ejecutar lógica compleja e inferencia de IA en tiempo real sin ralentizar el sistema. Se encarga de procesar las nubes de puntos capturadas por el sensor **RPLIDAR C1**. Este dispositivo emite ráfagas láser de alta velocidad que rebotan en las paredes de la pista; al medir el tiempo de vuelo de la luz, calcula la distancia exacta de miles de coordenadas $(X, Y)$ por segundo. El software procesa estos datos crudos ejecutando algoritmos de filtrado de ruido, **Clustering** (agrupación de puntos para identificar obstáculos sólidos) y **Segmentación** para trazar la ruta óptima de navegación.
 2. **Raspberry Pi Pico 2 (El Ejecutor):** Representa los reflejos y el músculo del sistema. Controla directamente el hardware físico de manera síncrona: la modulación de velocidad de tracción, el ángulo de la dirección asistida y la estabilización del chasis mediante la lectura de sensores inerciales.
 
-### 🔌 Componentes Clave
+### Componentes Clave
 * **Procesamiento Base:** Raspberry Pi 5 + Raspberry Pi Pico 2.
 * **Aceleración de IA:** Raspberry Pi AI Hat+ (Capacidad de cómputo neural de 26 TOPS).
 * **Sensor de Entorno:** RPLIDAR C1 (Lidar de escaneo dinámico de alta velocidad conectado por USB a la Pi 5).
@@ -34,7 +34,7 @@ Para garantizar que el vehículo tome decisiones algorítmicas en milisegundos s
 
 ---
 
-## ⚡ Red de Distribución de Energía (Power Delivery) y Robustez Eléctrica
+## Red de Distribución de Energía (Power Delivery) y Robustez Eléctrica
 
 En un prototipo robótico de alta competencia, la estabilidad eléctrica es tan crítica como la optimización del código. Si el servomotor de dirección o el motor de tracción exigen picos elevados de corriente instantánea durante una curva, pueden provocar caídas severas de tensión (*brownouts*) capaces de reiniciar la Raspberry Pi 5, cuyo consumo se eleva al exigir al máximo la placa junto al **AI Hat+ de 26 TOPS**.
 
@@ -59,7 +59,7 @@ Cada línea de voltaje fue calculada en función de su tensión y del amperaje m
 
 ---
 
-## 📡 Mapa de Conexiones (Pinout)
+## Mapa de Conexiones (Pinout)
 
 ### Conexiones de la Raspberry Pi Pico 2
 
@@ -81,7 +81,7 @@ Cada línea de voltaje fue calculada en función de su tensión y del amperaje m
 
 ---
 
-## 📁 Anatomía del Repositorio
+## Anatomía del Repositorio
 
 Cumpliendo rigurosamente las regulaciones internacionales de la WRO, organizamos la estructura de archivos de forma modular y auditable:
 
