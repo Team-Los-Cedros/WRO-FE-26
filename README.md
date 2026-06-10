@@ -65,7 +65,7 @@ Cada línea de voltaje fue calculada en función de su tensión y del amperaje m
 
 | Componente | Pin Físico (Pico 2) | ID del Pin | Tipo de Señal | Función |
 | :--- | :--- | :--- | :--- | :--- |
-| Servo MG996R | Pin 16 | `GP12` | Salida PWM | Control de ángulo de dirección (Giro) |
+| Servo MG996R | Pin 20 | `GP15` | Salida PWM | Control de ángulo de dirección (Giro) |
 | Puente H (PWMB) | Pin 34 | `GP28` | Salida PWM | Control de velocidad del motor de tracción (Canal B) |
 | Puente H (BIN2) | Pin 32 | `GP27` | Salida Digital | Dirección de rotación del motor |
 | Puente H (BIN1) | Pin 31 | `GP26` | Salida Digital | Dirección de rotación del motor |
@@ -90,6 +90,7 @@ Cumpliendo rigurosamente las regulaciones internacionales de la WRO, organizamos
 │   ├── pico/            # Scripts en MicroPython ejecutados en la Pico 2
 │   │   ├── main.py      # Bucle principal de control e interrupciones en tiempo real
 │   │   ├── motores.py   # Controladores PWM para actuadores de tracción y dirección
+│   │   ├── test_motores.py # Script para prueba de Servo y motor
 │   │   └── imu.py       # Algoritmos de lectura y filtrado del MPU6050 (Eje Z)
 │   └── pi5/             # Scripts en Python 3 ejecutados en la Raspberry Pi 5
 │       ├── main_control.py  # Algoritmo principal de navegación, IA y evasión autónoma
