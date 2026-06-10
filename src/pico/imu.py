@@ -1,76 +1,68 @@
 # src/pico/imu.py
 from machine import I2C, Pin
 import time
-import math
 
 class ControlIMU:
     def __init__(self):
-        # Inicializar bus I2C0 usando los pines reales GP16 y GP17
+        # I2C0 en pines GP16/GP17 segun cableado fisico actual en chasis
         self.i2c = I2C(0, sda=Pin(16, Pin.PULL_UP), scl=Pin(17, Pin.PULL_UP), freq=400000)
-        self.address = 0x68 # Dirección I2C estándar del MPU6050
+        self.addr = 0x68
         
-        # Despertar el MPU6050 (Modo sleep a 0)
-        self.i2c.writeto_mem(self.address, 0x6B, b'\x00')
+        # Power management 1: desactivar modo sleep del mpu
+        self.i2c.writeto_mem(self.addr, 0x6B, b'\x00')
         
-        # Configurar el Giroscopio a Full Scale Range de +/- 250 grados/seg
-        self.i2c.writeto_mem(self.address, 0x1B, b'\x00')
+        # Gyro config: FS_SEL=0 (Scale range +/- 250 deg/s -> FS=131.0 LSB/deg/s)
+        self.i2c.writeto_mem(self.addr, 0x1B, b'\x00')
         
-        # Variables para la integración del ángulo Yaw (Eje Z)
         self.yaw = 0.0
-        self.giro_z_offset = 0.0
-        self.last_time = time.ticks_us()
+        self.gz_offset = 0.0
+        self.t_last = time.ticks_us()
         
-        # Calibrar al arrancar
-        self.calibrar_giroscopio()
+        self.init_calibracion()
 
-    def calibrar_giroscopio(self):
-        """Lee el sensor en reposo para calcular el ruido de fondo (offset)"""
-        print("Calibrando IMU")
-        suma = 0
-        muestras = 200
-        for _ in range(muestras):
-            suma += self._leer_giro_z_crudo()
+    def init_calibracion(self):
+        print("[IMU] Calibrando giroscopio... Mantener chasis quieto.")
+        raw_sum = 0
+        samples = 200
+        for _ in range(samples):
+            raw_sum += self._read_raw_gz()
             time.sleep_ms(5)
-        self.giro_z_offset = suma / muestras
-        print("Calibración completada")
-        self.last_time = time.ticks_us()
+        self.gz_offset = raw_sum / samples
+        print(f"[IMU] Calibracion OK. Offset: {self.gz_offset:.2f}")
+        self.t_last = time.ticks_us()
 
-    def _leer_giro_z_crudo(self):
-        """Lee los registros de alta y baja velocidad del eje Z del giroscopio"""
-        data = self.i2c.readfrom_mem(self.address, 0x47, 2)
-        valor = (data[0] << 8) | data[1]
-        if valor >= 32768:
-            valor -= 65536
-        return valor
+    def _read_raw_gz(self):
+        # Registro 0x47: GYRO_ZOUT_H y GYRO_ZOUT_L
+        reg_data = self.i2c.readfrom_mem(self.addr, 0x47, 2)
+        val = (reg_data[0] << 8) | reg_data[1]
+        return val - 65536 if val >= 32768 else val
 
     def actualizar_yaw(self):
-        """Calcula el ángulo Yaw actual basándose en el tiempo transcurrido (dt)"""
-        current_time = time.ticks_us()
-        dt = time.ticks_diff(current_time, self.last_time) / 1000000.0
-        self.last_time = current_time
+        t_now = time.ticks_us()
+        dt = time.ticks_diff(t_now, self.t_last) / 1000000.0
+        self.t_last = t_now
         
-        giro_z_filtrado = self._leer_giro_z_crudo() - self.giro_z_offset
-        velocidad_angular_z = giro_z_filtrado / 131.0
+        # Remocion de offset de ruido estatico
+        gz_filtered = self._read_raw_gz() - self.gz_offset
+        gyro_z_dps = gz_filtered / 131.0
         
-        # Ignorar micro-vibraciones menores a 0.5 grados por segundo
-        if abs(velocidad_angular_z) > 0.5:
-            self.yaw += velocidad_angular_z * dt
+        # Filtro de zona muerta para evitar drift por vibraciones del chasis
+        if abs(gyro_z_dps) > 0.45:
+            self.yaw += gyro_z_dps * dt
             
         return self.yaw
 
     def reset_yaw(self):
         self.yaw = 0.0
 
-# =========================================================================
-# BUCLE DE PRUEBA EN TIEMPO REAL (Solo para validar en Thonny)
-# =========================================================================
+# DEBUG LOCAL
 if __name__ == '__main__':
-    # Instanciamos la clase de control de la IMU
-    imu_sistema = ControlIMU()
-    
-    print("Iniciando lecturas de telemetría. Gira el coche en la mesa...")
-    while True:
-        angulo_actual = imu_sistema.actualizar_yaw()
-        # Imprime el valor con dos decimales
-        print("Ángulo Yaw (Eje Z): {:.2f}°".format(angulo_actual))
-        time.sleep_ms(50)
+    imu = ControlIMU()
+    print("[DEBUG] Inicializando loop de telemetria basica...")
+    try:
+        while True:
+            y = imu.actualizar_yaw()
+            print(f"YAW: {y:+.2f} deg")
+            time.sleep_ms(40)
+    except KeyboardInterrupt:
+        print("\n[DEBUG] Test detenido por usuario.")
