@@ -2,6 +2,12 @@
 import time
 from lidar_handler import LidarHandler
 
+# Intentar importar serial para la comunicación con la Pico 2
+try:
+    import serial
+except ImportError:
+    serial = None
+
 # Configuración de umbrales de proximidad (en cm)
 DIST_CRITICA_FRENTE = 40.0  
 DIST_MIN_LATERAL = 20.0     
@@ -18,35 +24,54 @@ class CarController:
         self.lidar = LidarHandler()
         self.estado_actual = "INIT"
         self.corriendo = True
+        self.pico = None
+        
+        # Configuración del puerto serial hacia la Raspberry Pi Pico 2
+        # Cambiar '/dev/ttyACM0' si el puerto de la Pico cambia en la Pi 5
+        try:
+            if serial and int(time.time()) % 1 == 0: # Simulación flexible de puerto
+                import os
+                if os.path.exists('/dev/ttyACM0'):
+                    self.pico = serial.Serial('/dev/ttyACM0', 115200, timeout=0.05)
+                    print("Conectado a la Raspberry Pi Pico 2.")
+                else:
+                    print("Pico 2 física no detectada. Comandos seriales en modo simulación.")
+        except Exception as e:
+            print(f"Error al inicializar puerto de la Pico: {e}")
 
     def determinar_estado(self, frontal, izquierda, derecha):
-        # Monitoreo de colisión o bloqueo en pasillo
         if frontal < DIST_CRITICA_FRENTE and izquierda < DIST_MIN_LATERAL and derecha < DIST_MIN_LATERAL:
             return "BLOQUEADO"
-        # Detección de pared al frente (curva)
         if frontal < DIST_CRITICA_FRENTE:
             return "GIRO_EVASIVO"
-        # Comportamiento estándar en recta
         return "CRUCERO_CENTRADO"
 
     def calcular_angulo_servo(self, izq, der):
-        # Cálculo del error de centrado respecto a las paredes laterales
         error = izq - der
-        
-        # Aplicación del control P para corregir la trayectoria
         ajuste = error * KP
         angulo = SERVO_CENTRO - ajuste
-        
-        # Restricción de límites para protección mecánica del servo
         angulo = max(SERVO_MAX_IZQ, min(angulo, SERVO_MAX_DER))
         return round(angulo, 1)
+
+    def enviar_comandos_pico(self, velocidad, angulo):
+        """ Envía la telemetría formateada a la Pico 2 por Serial """
+        # Formato de trama simple y directo para parsear en MicroPython en la Pico: "V,A\n"
+        trama = f"{velocidad},{angulo}\n"
+        
+        if self.pico and self.pico.is_open:
+            try:
+                self.pico.write(trama.encode('utf-8'))
+            except Exception as e:
+                print(f"Error de envío serial: {e}")
+        else:
+            # Output de depuración en laptop para verificar que la trama es correcta
+            pass 
 
     def procesar_navegacion(self):
         try:
             print("Bucle de control activo.")
             
             while self.corriendo:
-                # Lectura de datos desde el manejador del Lidar
                 lecturas = self.lidar.obtener_distancias_zonas()
                 frente = lecturas['frontal']
                 izq = lecturas['izquierda']
@@ -63,7 +88,6 @@ class CarController:
                 elif self.estado_actual == "GIRO_EVASIVO":
                     velocidad_motor = 45  
                     modo_manejo = "EVASION"
-                    # Asignación de giro al lado con mayor espacio libre
                     angulo_servo = SERVO_MAX_IZQ if izq > der else SERVO_MAX_DER
                         
                 elif self.estado_actual == "BLOQUEADO":
@@ -71,16 +95,19 @@ class CarController:
                     angulo_servo = SERVO_CENTRO
                     modo_manejo = "REVERSA"
 
+                # Envío de datos al hardware
+                self.enviar_comandos_pico(velocidad_motor, angulo_servo)
+
                 # Salida de telemetría para depuración
                 print(f"| F: {frente:5.1f}cm | I: {izq:5.1f}cm | D: {der:5.1f}cm "
                       f"| ESTADO: {self.estado_actual:16} "
-                      f"| MODO: {modo_manejo:10} "
-                      f"| MTR: {velocidad_motor:4} | SRV: {angulo_servo}°")
+                      f"| MTR: {velocidad_motor:4} | SRV: {angulo_servo}° | TRAMA: {velocidad_motor},{angulo_servo}")
                 
-                time.sleep(0.15) # Frecuencia del ciclo de control a ~6.6 Hz
+                time.sleep(0.15) 
                 
         except KeyboardInterrupt:
             print("\nDeteniendo controlador...")
+            self.enviar_comandos_pico(0, SERVO_CENTRO) # Parar motor antes de salir
             self.lidar.detener()
             self.corriendo = False
 
