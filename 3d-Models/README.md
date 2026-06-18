@@ -9,12 +9,12 @@ El diseño está compuesto por las siguientes piezas clave, las cuales se pueden
 ### 1. Estructura y Energía
 
 #### Chasis
-<img src="Chasis.jpg" width="450" alt="Chasis del Robot">
+<img src="Chasis.png" width="450" alt="Chasis del Robot">
 
 * **`Chasis.jpg`**: Es la columna vertebral del robot. Cuenta con un gran espacio central recortado para aligerar peso y organizar cables, además de una torre posterior elevada y reforzada para montar electrónica o módulos adicionales.
 
 #### Portapillas
-<img src="Portapillas.jpg" width="450" alt="Portapillas">
+<img src="Portapillas.png" width="450" alt="Portapillas">
 
 * **`Portapillas.jpg`**: Contenedor doble diseñado para albergar dos celdas de energía (pilas/baterías). Incluye ranuras en la base trasera para pasar las pletinas y cables de contacto eléctrico de manera segura.
 
@@ -23,17 +23,17 @@ El diseño está compuesto por las siguientes piezas clave, las cuales se pueden
 ### 2. Dirección y Articulación Frontal
 
 #### Base Servo
-<img src="base_servo.jpg" width="450" alt="Base del Servo">
+<img src="base_servo.png" width="450" alt="Base del Servo">
 
 * **`base_servo.jpg`**: Soporte que se fija al frente del chasis. Eleva dos columnas cuadradas que sirven de punto de giro elevado para el sistema de dirección y suspensión delantera.
 
 #### Eje de la Llanta
-<img src="Eje_llanta.jpg" width="300" alt="Eje de la Llanta">
+<img src="Eje_llanta.png" width="300" alt="Eje de la Llanta">
 
 * **`Eje_llanta.jpg`**: El componente de transmisión de movimiento. En la parte inferior cuenta con un perfil estriado (tipo engranaje) para acoplar la rueda con máxima tracción, y en la superior una cabeza plana con dos orificios para conectar los brazos de dirección.
 
 #### Base de la Llanta
-<img src="Base_llanta.jpg" width="350" alt="Base de la Llanta">
+<img src="Base_llanta.png" width="350" alt="Base de la Llanta">
 
 * **`Base_llanta.jpg`**: Una pieza cilíndrica estabilizadora con dos pestañas paralelas. Funciona como el buje receptor que abraza la cabeza del `Eje_llanta` para permitir el pivotaje.
 
@@ -42,12 +42,12 @@ El diseño está compuesto por las siguientes piezas clave, las cuales se pueden
 ### 3. Soportes de Fijación
 
 #### Soporte Interior del Eje
-<img src="SopoteInterior_Eje.jpg" width="400" alt="Soporte Interior">
+<img src="SopoteInterior_Eje.png" width="400" alt="Soporte Interior">
 
-* **`SoporteInterior_Eje.jpg`**: Bloque en forma de "T" invertida con un conducto circular interno. Sirve para guiar el eje desde la cara interna del mecanismo.
+* **`SopoteInterior_Eje.jpg`**: Bloque en forma de "T" invertida con un conducto circular interno. Sirve para guiar el eje desde la cara interna del mecanismo.
 
 #### Soporte Exterior del Eje
-<img src="SoporteExterior_eje.jpg" width="400" alt="Soporte Exterior">
+<img src="SoporteExterior_eje.png" width="400" alt="Soporte Exterior">
 
 * **`SoporteExterior_eje.jpg`**: Pletina de sujeción redondeada con orejetas laterales y agujeros pasantes, diseñada para cerrar y asegurar el conjunto del eje por la parte externa contra el chasis.
 
