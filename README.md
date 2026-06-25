@@ -5,6 +5,123 @@ Bienvenidos al repositorio oficial del Team Los Cedros, integrado por 3 estudian
 Este proyecto es el resultado de muchas horas de diseño, pruebas en pista y sobre todo, pasión por la robótica. Para la competencia de este año, desarrollamos un vehículo basado en una arquitectura de procesamiento dual: un "Cerebro" encargado del procesamiento del entorno mediante fusión de sensores y visión artificial (Raspberry Pi 3B), y un "Actuador" (Raspberry Pi Pico 2) dedicado al control de movimiento de baja latencia y estabilidad de variables críticas en tiempo real.
 
 ---
+## 📌 Índice
+1. [Introducción](#1-introducción)
+   - 1.1 [Foto del Equipo](#11-foto-del-equipo)
+   - 1.2 [Rol e Integrantes del Team](#12-rol-e-integrantes-del-team)
+2. [Arquitectura del Sistema](#2-arquitectura-del-sistema)
+   - 2.1 [Lista de Componentes y Funciones](#21-lista-de-componentes-y-funciones)
+   - 2.2 [Sistema de Dirección Utilizado](#22-sistema-de-dirección-utilizado)
+   - 2.3 [Análisis Visual y Ángulos de Dirección](#23-análisis-visual-y-ángulos-de-dirección)
+   - 2.4 [Diseño de la Placa PCB](#24-diseño-de-la-placa-pcb)
+   - 2.5 [Galería de Componentes](#25-galería-de-componentes)
+3. [Software y Lenguajes de Programación](#3-software-y-lenguajes-de-programación)
+   - 3.1 [Raspberry Pi 3B: Lenguaje de Programación](#31-raspberry-pi-3b-lenguaje-de-programación)
+   - 3.2 [Raspberry Pi 3B: Función en el Robot](#32-raspberry-pi-3b-función-en-el-robot)
+   - 3.3 [Raspberry Pi 3B: Lógica de Funcionamiento](#33-raspberry-pi-3b-lógica-de-funcionamiento)
+   - 3.4 [Raspberry Pi Pico 2: Lenguaje de Programación](#34-raspberry-pi-pico-2-lenguaje-de-programación)
+   - 3.5 [Raspberry Pi Pico 2: Función en el Robot](#35-raspberry-pi-pico-2-función-en-el-robot)
+   - 3.6 [Raspberry Pi Pico 2: Lógica de Funcionamiento](#36-raspberry-pi-pico-2-lógica-de-funcionamiento)
+
+---
+
+## 1. Introducción
+
+### 1.1 Foto del Equipo
+![Foto del Equipo](ruta/a/tu/foto-equipo.jpg)
+*Pie de foto: Integrantes del equipo de desarrollo.*
+
+### 1.2 Rol e Integrantes del Team
+| Integrante | Rol / Especialidad | Contribución Principal |
+| :--- | :--- | :--- |
+| **Nombre Apellido** | Líder de Proyecto / Hardware | Diseño de PCB y ensamblaje mecánico. |
+| **Nombre Apellido** | Desarrollador de Software | Programación de la lógica en Raspberry Pi 3B. |
+| **Nombre Apellido** | Especialista en Control | Firmware y calibración de la Raspberry Pi Pico 2. |
+
+---
+
+## 2. Arquitectura del Sistema
+
+### 2.1 Lista de Componentes y Funciones
+
+| Componente | Cantidad | Función Principal |
+| :--- | :---: | :--- |
+| Raspberry Pi 3B | 1 | Cerebro central, procesamiento de alto nivel y lógica principal. |
+| Raspberry Pi Pico 2 | 1 | Control de motores en tiempo real y lectura de sensores (Microcontrolador). |
+| [Nombre de Motor] | X | Propulsión del robot. |
+| [Nombre de Servomotor] | X | Control del sistema de dirección. |
+| [Nombre de Batería] | X | Alimentación del sistema. |
+
+### 2.2 Sistema de Dirección Utilizado
+> **Tipo de Dirección:** [Ej. Dirección Ackerman / Diferencial / Omnidireccional]
+>
+> **¿Por qué se eligió este sistema?**
+> Explica aquí brevemente las ventajas de este sistema para tu robot (ej. estabilidad, radio de giro, facilidad de control, etc.).
+
+### 2.3 Análisis Visual y Ángulos de Dirección
+A continuación se muestran los diagramas del sistema de dirección y los límites angulares configurados:
+
+| Vista Frontal / Superior | Diagrama de Ángulos de Giro |
+| :---: | :---: |
+| ![Sistema de Dirección](ruta/a/foto-direccion.jpg) | ![Ángulos de Giro](ruta/a/foto-angulos.jpg) |
+
+### 2.4 Diseño de la Placa PCB
+El circuito electrónico y las conexiones fueron consolidadas en una placa PCB personalizada.
+
+* **Software de diseño utilizado:** [Ej. KiCad / EasyEDA / Altium]
+* **Esquema de la PCB:**
+
+![Diseño PCB](ruta/a/foto-pcb.jpg)
+
+### 2.5 Galería de Componentes
+Aquí se pueden observar en detalle los componentes principales antes del ensamblaje final:
+
+| Componente A | Componente B |
+| :---: | :---: |
+| ![Componente A](ruta/a/foto-comp1.jpg) | ![Componente B](ruta/a/foto-comp2.jpg) |
+
+---
+
+## 3. Software y Lenguajes de Programación
+
+### 🧠 Sección: Raspberry Pi 3B
+
+#### 3.1 Raspberry Pi 3B: Lenguaje de Programación
+* **Lenguaje Principal:** `Python` 🐍 (o el que aplique, ej. C++)
+* **Entorno/Framework:** [Ej. ROS, OpenCV, etc.]
+
+#### 3.2 Raspberry Pi 3B: Función en el Robot
+La Raspberry Pi 3B actúa como la **unidad de procesamiento central (CPU)**. Se encarga de las tareas pesadas que no requieren respuestas en tiempo real estricto, tales como:
+* [Tarea 1: Ej. Procesamiento de imágenes con cámara]
+* [Tarea 2: Ej. Toma de decisiones y algoritmos de navegación]
+* [Tarea 3: Ej. Comunicación inalámbrica (Wi-Fi/Bluetooth)]
+
+#### 3.3 Raspberry Pi 3B: Lógica de Funcionamiento
+[Inicio] ➔ [Inicializar Sensores/Cámara] ➔ [Procesar Datos Ambientales]
+│
+[Enviar Comandos a RPi Pico 2] 🖚 ─── [Calcular Siguiente Movimiento]
+
+*(Puedes cambiar el diagrama de arriba o explicar paso a paso el bucle principal de tu código aquí).*
+
+---
+
+### 🕹️ Sección: Raspberry Pi Pico 2
+
+#### 3.4 Raspberry Pi Pico 2: Lenguaje de Programación
+* **Lenguaje Principal:** `MicroPython` / `C++` (vía Arduino IDE o Pico SDK)
+
+#### 3.5 Raspberry Pi Pico 2: Función en el Robot
+La Raspberry Pi Pico 2 actúa como el **controlador de bajo nivel (MCU)**, garantizando la ejecución de tareas críticas en tiempo real:
+* Generación de señales PWM para los motores y servos de dirección.
+* Lectura directa de sensores de proximidad/encoders.
+* Ejecución de paradas de emergencia (Fail-safe).
+
+#### 3.6 Raspberry Pi Pico 2: Lógica de Funcionamiento
+Explica detalladamente cómo interactúa con la Pi 3B. Por ejemplo:
+1. Queda a la espera de comandos seriales (UART/I2C) provenientes de la Raspberry Pi 3B.
+2. Al recibir una instrucción de movimiento, traduce los datos a señales de hardware específicas.
+3. Monitorea constantemente los sensores perimetrales en un ciclo de alta velocidad.
+
 
 ## Integrantes del Equipo y Roles
 
