@@ -1,8 +1,8 @@
-# Proyecto Future Engineers - Team Los Cedros (WRO 2026)
+ # Proyecto Future Engineers - Team Los Cedros (WRO 2026)
 
 Bienvenidos al repositorio oficial del Team Los Cedros, integrado por 3 estudiantes del Colegio Los Cedros en Valera, Estado Trujillo, Venezuela. Aquí compartimos el código fuente, los diagramas eléctricos y la documentación técnica de nuestro vehículo autónomo para la World Robot Olympiad (WRO) 2026, en la categoría Future Engineers.
 
-Este proyecto es el resultado de muchas horas de diseño, pruebas en pista y, sobre todo, pasión por la robótica. Para la competencia de este año, desarrollamos un vehículo basado en una arquitectura de procesamiento dual: un "Cerebro" encargado del procesamiento del entorno mediante fusión de sensores y visión artificial (Raspberry Pi 3B), y un "Actuador" (Raspberry Pi Pico 2) dedicado al control de movimiento de baja latencia y estabilidad de variables críticas en tiempo real.
+Este proyecto es el resultado de muchas horas de diseño, pruebas en pista y sobre todo, pasión por la robótica. Para la competencia de este año, desarrollamos un vehículo basado en una arquitectura de procesamiento dual: un "Cerebro" encargado del procesamiento del entorno mediante fusión de sensores y visión artificial (Raspberry Pi 3B), y un "Actuador" (Raspberry Pi Pico 2) dedicado al control de movimiento de baja latencia y estabilidad de variables críticas en tiempo real.
 
 ---
 
@@ -17,9 +17,11 @@ El Team Los Cedros está conformado por tres estudiantes:
 
 ---
 
-* **CARLOS DAVID DIAZ RIVAS** — PROGRAMADOR PRRINCIPAL0: Encargado del desarrollo del código en la Raspberry Pi 3B, algoritmos de visión artificial con la cámara Arducam de 12MP (segmentación de color y detección de señales) y la lógica de navegación autónoma.
-* **DANIEL DAVID DIAZ RIVAS** — ENCARGADO DEL HARDWARE: Responsable del diseño del mapa eléctrico, la calibración de la IMU MPU6050, la programación de los sistemas de bajo nivel en la Raspberry Pi Pico 2, el control de potencia de los motores, además del plan de pruebas en pista y gestión de la documentación técnica.
-* **CARLOS SANTIAGO PINTO ABREU** — INGENIERO MECANICO: Encargado del ensamblaje del chasis, la distribución física de los componentes y la optimización de los sistemas de dirección por servomotor y tracción trasera de alta potencia mediante modelado 3D.
+* **CARLOS DAVID DIAZ RIVAS** — PROGRAMADOR PRRINCIPAL0.
+* **DANIEL DAVID DIAZ RIVAS** — ENCARGADO DEL HARDWARE.
+* **Carlos Alejandro Pinto Abreu** — INGENIERO MECANICO.
+
+
 
 ## Arquitectura de Sistema Distribuida
 
