@@ -8,11 +8,7 @@ Este proyecto es el resultado de muchas horas de diseño, pruebas en pista y, so
 
 ## Integrantes del Equipo y Roles
 
-El Team Los Cedros está conformado por tres estudiantes apasionados por la tecnología, donde cada uno aportó desde su área de especialización para dar vida al vehículo:
-
-* **CARLOS DAVID DIAZ RIVAS** — Estratega de Software (Visión & Lidar): Encargado del desarrollo del código de alto nivel en la Raspberry Pi 3B, procesamiento de nubes de puntos del Lidar, algoritmos de visión artificial con la cámara Arducam de 12MP (segmentación de color y detección de señales) y la lógica de navegación autónoma.
-* **DANIEL DAVID DIAZ RIVAS** — Ingeniero de Hardware, Control y QA: Responsable del diseño del mapa eléctrico, la calibración de la IMU MPU6050, la programación de los sistemas de bajo nivel en la Raspberry Pi Pico 2, el control de potencia de los motores, además del plan de pruebas en pista y gestión de la documentación técnica.
-* **CARLOS SANTIAGO PINTO ABREU** — Diseñador Mecánico: Encargado del ensamblaje del chasis, la distribución física de los componentes y la optimización de los sistemas de dirección por servomotor y tracción trasera de alta potencia mediante modelado 3D.
+El Team Los Cedros está conformado por tres estudiantes:
 
 ### Foto Oficial del Equipo
 <p align="center">
@@ -20,6 +16,10 @@ El Team Los Cedros está conformado por tres estudiantes apasionados por la tecn
 </p>
 
 ---
+
+* **CARLOS DAVID DIAZ RIVAS** — Estratega de Software (Visión & Lidar): Encargado del desarrollo del código de alto nivel en la Raspberry Pi 3B, procesamiento de nubes de puntos del Lidar, algoritmos de visión artificial con la cámara Arducam de 12MP (segmentación de color y detección de señales) y la lógica de navegación autónoma.
+* **DANIEL DAVID DIAZ RIVAS** — Ingeniero de Hardware, Control y QA: Responsable del diseño del mapa eléctrico, la calibración de la IMU MPU6050, la programación de los sistemas de bajo nivel en la Raspberry Pi Pico 2, el control de potencia de los motores, además del plan de pruebas en pista y gestión de la documentación técnica.
+* **CARLOS SANTIAGO PINTO ABREU** — Diseñador Mecánico: Encargado del ensamblaje del chasis, la distribución física de los componentes y la optimización de los sistemas de dirección por servomotor y tracción trasera de alta potencia mediante modelado 3D.
 
 ## Arquitectura de Sistema Distribuida
 
