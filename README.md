@@ -25,11 +25,11 @@ El Team Los Cedros está conformado por tres estudiantes:
 
 ## Arquitectura de Sistema Distribuida
 
-Para cumplir con las demandas dinámicas de la competencia, implementamos una arquitectura distribuida de dos capas. Esta topología desacopla el procesamiento perceptivo de alto nivel de las tareas de control síncrono en tiempo real, optimizando el ancho de banda y eliminando cuellos de botella informáticos.
+- **Capa de Percepción (Raspberry Pi 3B)**: Centraliza el procesamiento visual y espacial. Captura datos de un sensor RPLIDAR C1 (UART-USB a 460,800 baudios) y de una cámara Raspherry Pi Cam Modulo 3, 12 MP. Mediante filtros de media móvil, procesa el flujo en memoria y sintetiza la pista en tres vectores geométricos esenciales (Frontal, Izquierdo y Derecho). Esto reduce el ruido informático y minimiza la latencia de transferencia al enviar solo datos sintetizados.
 
-1. **Raspberry Pi 3B (Capa Corporativa/Estratégica):** Unidad central de análisis y percepción visual. Se conecta al sensor RPLIDAR C1 mediante una comunicación serial binaria cruda (UART a USB a 460,800 bps) para capturar nubes de puntos y a una cámara Arducam de 12MP (a través de la interfaz CSI flex nativa) para procesar el flujo de video en tiempo real. La Pi 3B procesa el flujo en memoria mediante filtros de mediana móvil y segmenta la pista en tres vectores espaciales críticos (Frontal, Izquierda y Derecha), además de clasificar los elementos visuales del circuito. Esto reduce drásticamente el ruido informático y alivia la latencia del canal al transferir solo datos geométricos sintetizados al actuador.
 
-2. **Raspberry Pi Pico 2 (Capa Ejecutora de Tiempo Real):** Unidad de control síncrono basada en microcontrolador. Al estar libre del procesamiento pesado del Lidar y la cámara, la Pico 2 ejecuta un bucle de control de alta frecuencia que procesa de forma no bloqueante la telemetría inercial de la IMU (extrayendo el ángulo Yaw integrado en tiempo real) y recibe las directrices de proximidad espacial calculadas por la Pi 3B. Controla directamente las señales PWM del servo de dirección MG996R y la etapa de potencia de alta corriente BTS7960 para el motor de tracción trasera.
+
+- **Capa de Control (Raspberry Pi Pico 2)**: Ejecuta un bucle síncrono no bloqueante de alta frecuencia. Integra la telemetría de una IMU (extrayendo el ángulo Yaw en tiempo real) con las directrices espaciales de la Pi 3B. Controla directamente, mediante señales PWM, el servo de dirección "   " y la etapa de potencia "   " del motor de tracción.
 
 ---
 
