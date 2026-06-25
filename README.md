@@ -17,15 +17,16 @@ El Team Los Cedros está conformado por tres estudiantes:
 
 ---
 
-* **CARLOS DAVID DIAZ RIVAS** — Estratega de Software (Visión & Lidar): Encargado del desarrollo del código de alto nivel en la Raspberry Pi 3B, procesamiento de nubes de puntos del Lidar, algoritmos de visión artificial con la cámara Arducam de 12MP (segmentación de color y detección de señales) y la lógica de navegación autónoma.
-* **DANIEL DAVID DIAZ RIVAS** — Ingeniero de Hardware, Control y QA: Responsable del diseño del mapa eléctrico, la calibración de la IMU MPU6050, la programación de los sistemas de bajo nivel en la Raspberry Pi Pico 2, el control de potencia de los motores, además del plan de pruebas en pista y gestión de la documentación técnica.
-* **CARLOS SANTIAGO PINTO ABREU** — Diseñador Mecánico: Encargado del ensamblaje del chasis, la distribución física de los componentes y la optimización de los sistemas de dirección por servomotor y tracción trasera de alta potencia mediante modelado 3D.
+* **CARLOS DAVID DIAZ RIVAS** — PROGRAMADOR PRRINCIPAL0: Encargado del desarrollo del código en la Raspberry Pi 3B, algoritmos de visión artificial con la cámara Arducam de 12MP (segmentación de color y detección de señales) y la lógica de navegación autónoma.
+* **DANIEL DAVID DIAZ RIVAS** — ENCARGADO DEL HARDWARE: Responsable del diseño del mapa eléctrico, la calibración de la IMU MPU6050, la programación de los sistemas de bajo nivel en la Raspberry Pi Pico 2, el control de potencia de los motores, además del plan de pruebas en pista y gestión de la documentación técnica.
+* **CARLOS SANTIAGO PINTO ABREU** — INGENIERO MECANICO: Encargado del ensamblaje del chasis, la distribución física de los componentes y la optimización de los sistemas de dirección por servomotor y tracción trasera de alta potencia mediante modelado 3D.
 
 ## Arquitectura de Sistema Distribuida
 
 Para cumplir con las demandas dinámicas de la competencia, implementamos una arquitectura distribuida de dos capas. Esta topología desacopla el procesamiento perceptivo de alto nivel de las tareas de control síncrono en tiempo real, optimizando el ancho de banda y eliminando cuellos de botella informáticos.
 
 1. **Raspberry Pi 3B (Capa Corporativa/Estratégica):** Unidad central de análisis y percepción visual. Se conecta al sensor RPLIDAR C1 mediante una comunicación serial binaria cruda (UART a USB a 460,800 bps) para capturar nubes de puntos y a una cámara Arducam de 12MP (a través de la interfaz CSI flex nativa) para procesar el flujo de video en tiempo real. La Pi 3B procesa el flujo en memoria mediante filtros de mediana móvil y segmenta la pista en tres vectores espaciales críticos (Frontal, Izquierda y Derecha), además de clasificar los elementos visuales del circuito. Esto reduce drásticamente el ruido informático y alivia la latencia del canal al transferir solo datos geométricos sintetizados al actuador.
+
 2. **Raspberry Pi Pico 2 (Capa Ejecutora de Tiempo Real):** Unidad de control síncrono basada en microcontrolador. Al estar libre del procesamiento pesado del Lidar y la cámara, la Pico 2 ejecuta un bucle de control de alta frecuencia que procesa de forma no bloqueante la telemetría inercial de la IMU (extrayendo el ángulo Yaw integrado en tiempo real) y recibe las directrices de proximidad espacial calculadas por la Pi 3B. Controla directamente las señales PWM del servo de dirección MG996R y la etapa de potencia de alta corriente BTS7960 para el motor de tracción trasera.
 
 ---
