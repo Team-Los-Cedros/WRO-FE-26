@@ -27,18 +27,25 @@ Este proyecto es el resultado de muchas horas de diseño, pruebas en pista y sob
 
 ## 1. Introducción
 
+El Team Los Cedros está conformado por tres estudiantes:
+
 ### 1.1 Foto del Equipo
-![Foto del Equipo](ruta/a/tu/foto-equipo.jpg)
+<p align="center">
+  <img src="t-photos/Photo_Team.jpeg" alt="Team Los Cedros - WRO 2026" width="600px"/>
+</p>
+
 *Pie de foto: Integrantes del equipo de desarrollo.*
 
 ### 1.2 Rol e Integrantes del Team
 | Integrante | Rol / Especialidad | Contribución Principal |
 | :--- | :--- | :--- |
-| **Nombre Apellido** | Líder de Proyecto / Hardware | Diseño de PCB y ensamblaje mecánico. |
-| **Nombre Apellido** | Desarrollador de Software | Programación de la lógica en Raspberry Pi 3B. |
-| **Nombre Apellido** | Especialista en Control | Firmware y calibración de la Raspberry Pi Pico 2. |
+| **Daniel David Díaz Rivas** | Líder de Proyecto / Hardware | Diseño de PCB y ensamblaje mecánico. |
+| **Carlos David Díaz Rivas** | Desarrollador de Software | Programación de la lógica en Raspberry Pi 3B. |
+| **Carlos Santiago Pinto Abreu** | Especialista en Control | Firmware y calibración de la Raspberry Pi Pico 2. |
 
 ---
+
+
 
 ## 2. Arquitectura del Sistema
 
@@ -52,11 +59,14 @@ Este proyecto es el resultado de muchas horas de diseño, pruebas en pista y sob
 | [Nombre de Servomotor] | X | Control del sistema de dirección. |
 | [Nombre de Batería] | X | Alimentación del sistema. |
 
+
+
+
 ### 2.2 Sistema de Dirección Utilizado
 > **Tipo de Dirección:** [Ej. Dirección Ackerman / Diferencial / Omnidireccional]
 >
 > **¿Por qué se eligió este sistema?**
-> Explica aquí brevemente las ventajas de este sistema para tu robot (ej. estabilidad, radio de giro, facilidad de control, etc.).
+> Explicaremos aquí brevemente las ventajas de este sistema para el robot (ej. estabilidad, radio de giro, facilidad de control, etc.).
 
 ### 2.3 Análisis Visual y Ángulos de Dirección
 A continuación se muestran los diagramas del sistema de dirección y los límites angulares configurados:
@@ -82,13 +92,21 @@ Aquí se pueden observar en detalle los componentes principales antes del ensamb
 
 ---
 
+
+
+
+
+
+
+
+
 ## 3. Software y Lenguajes de Programación
 
-### 🧠 Sección: Raspberry Pi 3B
+###  Sección: Raspberry Pi 3B
 
 #### 3.1 Raspberry Pi 3B: Lenguaje de Programación
-* **Lenguaje Principal:** `Python` 🐍 (o el que aplique, ej. C++)
-* **Entorno/Framework:** [Ej. ROS, OpenCV, etc.]
+* **Lenguaje Principal:** `Python`  (o el que aplique, ej. C++)
+* **Entorno/Framework:** 
 
 #### 3.2 Raspberry Pi 3B: Función en el Robot
 La Raspberry Pi 3B actúa como la **unidad de procesamiento central (CPU)**. Se encarga de las tareas pesadas que no requieren respuestas en tiempo real estricto, tales como:
@@ -101,14 +119,19 @@ La Raspberry Pi 3B actúa como la **unidad de procesamiento central (CPU)**. Se 
 │
 [Enviar Comandos a RPi Pico 2] 🖚 ─── [Calcular Siguiente Movimiento]
 
-*(Puedes cambiar el diagrama de arriba o explicar paso a paso el bucle principal de tu código aquí).*
+*(Puede q cambiemos el diagrama de arriba paro explicar paso a paso el bucle principal del código aquí).*
 
 ---
 
-### 🕹️ Sección: Raspberry Pi Pico 2
+
+
+
+
+
+###  Sección: Raspberry Pi Pico 2
 
 #### 3.4 Raspberry Pi Pico 2: Lenguaje de Programación
-* **Lenguaje Principal:** `MicroPython` / `C++` (vía Arduino IDE o Pico SDK)
+* **Lenguaje Principal:** `MicroPython` / `C++` (via . . . )
 
 #### 3.5 Raspberry Pi Pico 2: Función en el Robot
 La Raspberry Pi Pico 2 actúa como el **controlador de bajo nivel (MCU)**, garantizando la ejecución de tareas críticas en tiempo real:
@@ -117,26 +140,26 @@ La Raspberry Pi Pico 2 actúa como el **controlador de bajo nivel (MCU)**, garan
 * Ejecución de paradas de emergencia (Fail-safe).
 
 #### 3.6 Raspberry Pi Pico 2: Lógica de Funcionamiento
-Explica detalladamente cómo interactúa con la Pi 3B. Por ejemplo:
-1. Queda a la espera de comandos seriales (UART/I2C) provenientes de la Raspberry Pi 3B.
-2. Al recibir una instrucción de movimiento, traduce los datos a señales de hardware específicas.
-3. Monitorea constantemente los sensores perimetrales en un ciclo de alta velocidad.
+Explicación detallada de cómo interactúa con la Pi 3B.
 
 
-## Integrantes del Equipo y Roles
 
-El Team Los Cedros está conformado por tres estudiantes:
 
-### Foto Oficial del Equipo
-<p align="center">
-  <img src="t-photos/Photo_Team.jpeg" alt="Team Los Cedros - WRO 2026" width="600px"/>
-</p>
 
----
 
-* **Carlos David Díaz Rivas** — PROGRAMADOR PRRINCIPAL.
-* **Daniel David Díaz Rivas** — ENCARGADO DEL HARDWARE.
-* **Carlos Alejandro Pinto Abreu** — INGENIERO MECANICO.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
