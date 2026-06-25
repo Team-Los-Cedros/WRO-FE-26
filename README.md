@@ -17,7 +17,7 @@ El Team Los Cedros está conformado por tres estudiantes:
 
 ---
 
-* **Carlos David Díaz Rivas** — PROGRAMADOR PRRINCIPAL0.
+* **Carlos David Díaz Rivas** — PROGRAMADOR PRRINCIPAL.
 * **Daniel David Díaz Rivas** — ENCARGADO DEL HARDWARE.
 * **Carlos Alejandro Pinto Abreu** — INGENIERO MECANICO.
 
