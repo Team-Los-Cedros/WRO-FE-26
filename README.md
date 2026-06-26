@@ -64,7 +64,7 @@ El Team Los Cedros está conformado por tres estudiantes:
 
 ### 2.2 Sistema de Dirección Utilizado
 
-Utilizamos el Sistema de Direccion Anckermann
+En nuestro vehículo utilizamos sistema de dirección Ackermann ya que este permite que las ruedas interiores y exteriores giren en ángulos diferentes alrededor de un único centro geométrico común, evitando el deslizamiento lateral de los neumáticos. Esta rodadura pura elimina la fricción innecesaria y proporciona una trayectoria altamente predecible, lo que facilita que los algoritmos de navegación calculen la posición exacta del vehículo mediante odometría precisa, optimizando además el consumo de energía y reduciendo el desgaste mecánico.
 
 ### 2.3 Análisis Visual y Ángulos de Dirección
 A continuación se muestran los diagramas del sistema de dirección y los límites angulares configurados:
