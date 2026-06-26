@@ -51,22 +51,20 @@ El Team Los Cedros está conformado por tres estudiantes:
 
 ### 2.1 Lista de Componentes y Funciones
 
-| Componente | Cantidad | Función Principal |
-| :--- | :---: | :--- |
-| Raspberry Pi 3B | 1 | Cerebro central, procesamiento de alto nivel y lógica principal. |
-| Raspberry Pi Pico 2 | 1 | Control de motores en tiempo real y lectura de sensores (Microcontrolador). |
-| [Nombre de Motor] | X | Propulsión del robot. |
-| [Nombre de Servomotor] | X | Control del sistema de dirección. |
-| [Nombre de Batería] | X | Alimentación del sistema. |
+| Componente | Cantidad | Función Principal | Imagenes |
+| :--- | :---: | :--- | :--- |
+| Raspberry Pi 3B | 1 | Cerebro central, procesamiento de alto nivel y lógica principal. | <img src="v-photos/Rspr3B.jpg" alt="Raspherry Pi 3B" width="200px"/> |
+| Raspberry Pi Pico 2 | 1 | Control de motores en tiempo real y lectura de sensores (Microcontrolador). | <img src="v-photos/Pico2.jpg" alt="Raspherry Pi 3B" width="200px"/>|
+| [Nombre de Motor] | X | Propulsión del robot. | |
+| [Nombre de Servomotor] | X | Control del sistema de dirección. | |
+| [Nombre de Batería] | X | Alimentación del sistema. | |
 
 
 
 
 ### 2.2 Sistema de Dirección Utilizado
-> **Tipo de Dirección:** [Ej. Dirección Ackerman / Diferencial / Omnidireccional]
->
-> **¿Por qué se eligió este sistema?**
-> Explicaremos aquí brevemente las ventajas de este sistema para el robot (ej. estabilidad, radio de giro, facilidad de control, etc.).
+
+Utilizamos el Sistema de Direccion Anckermann
 
 ### 2.3 Análisis Visual y Ángulos de Dirección
 A continuación se muestran los diagramas del sistema de dirección y los límites angulares configurados:
