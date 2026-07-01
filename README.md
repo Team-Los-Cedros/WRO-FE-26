@@ -53,11 +53,11 @@ El Team Los Cedros está conformado por tres estudiantes:
 
 | Componente | Cantidad | Función Principal | Imagenes |
 | :--- | :---: | :--- | :--- |
-| Raspberry Pi 3B | 1 | Cerebro central, procesamiento de alto nivel y lógica principal. | <img src="v-photos/Rspr3B.jpg" alt="Raspherry Pi 3B" width="200px"/> |
-| Raspberry Pi Pico 2 | 1 | Control de motores en tiempo real y lectura de sensores (Microcontrolador). | <img src="v-photos/Pico2.jpg" alt="Raspherry Pi 3B" width="200px"/>|
-| [Nombre de Motor] | X | Propulsión del robot. | |
-| [Nombre de Servomotor] | X | Control del sistema de dirección. | |
-| [Nombre de Batería] | X | Alimentación del sistema. | |
+| Raspberry Pi 3B | 1 | Cerebro central, procesamiento de alto nivel y lógica principal. | <img src="v-photos/Componentes/Rspr3B.jpg" alt="Raspherry Pi 3B" width="200px"/> |
+| Raspberry Pi Pico 2 | 1 | Control de motores en tiempo real y lectura de sensores (Microcontrolador). | <img src="v-photos/Componentes/Pico2.jpg" alt="Raspherry Pi 3B" width="200px"/> |
+| Geekservo Motor DC | 1 | Propulsión del robot. | <img src="v-photos/Componentes/GeekservoDC.png" alt="Raspherry Pi 3B" width="200px"/> |
+| Geeservo Servo | 1 | Control del sistema de dirección. | <img src="v-photos/Componentes/GeekservoServo.png" alt="Raspherry Pi 3B" width="200px"/> |
+| Baterias de litio 21700 | 2 | Alimentación del sistema. | <img src="v-photos/Componentes/baterias.jpg" alt="Raspherry Pi 3B" width="200px"/> |
 
 
 
@@ -73,8 +73,8 @@ A continuación se muestran los diagramas del sistema de dirección y los límit
 | :---: | :---: |
 | ![Sistema de Dirección](ruta/a/foto-direccion.jpg) | ![Ángulos de Giro](ruta/a/foto-angulos.jpg) |
 
-### 2.4 Diseño de la Placa PCB
-El circuito electrónico y las conexiones fueron consolidadas en una placa PCB personalizada.
+### 2.4 Diseño de la Placa Electronica
+El circuito electrónico y las conexiones fueron consolidadas en una placa perforada personalizada.
 
 * **Software de diseño utilizado:** [Ej. KiCad / EasyEDA / Altium]
 * **Esquema de la PCB:**
@@ -103,8 +103,8 @@ Aquí se pueden observar en detalle los componentes principales antes del ensamb
 ###  Sección: Raspberry Pi 3B
 
 #### 3.1 Raspberry Pi 3B: Lenguaje de Programación
-* **Lenguaje Principal:** `Python`  (o el que aplique, ej. C++)
-* **Entorno/Framework:** 
+* **Lenguaje Principal:** `Python`
+* **Entorno/Framework:**  `Visual Studio, Micro`
 
 #### 3.2 Raspberry Pi 3B: Función en el Robot
 La Raspberry Pi 3B actúa como la **unidad de procesamiento central (CPU)**. Se encarga de las tareas pesadas que no requieren respuestas en tiempo real estricto, tales como:
@@ -221,8 +221,8 @@ Cada línea de voltaje fue calculada en función de su tensión y del amperaje m
 | Fuente / Regulador | V. Entrada | V. Salida | Corriente Máx. | Destino Principal y Justificación Técnico |
 | :--- | :--- | :--- | :--- | :--- |
 | Baterías 21700 (2S) | N/A | 7.4V - 8.4V | 30A (Descarga) | Línea directa a los pines de potencia `B+` y `B-` del Puente H BTS7960. Maneja los picos exigidos por la tracción sin degradar la electrónica lógica. |
-| Regulador XL1509 | 7.4V - 8.4V | 6.0V | 2.0A | `VCC` de potencia del Servo MG996R. Evita que el torque dinámico máximo afecte la electrónica de control. |
-| Regulador XL4015 | 7.4V - 8.4V | 5.1V | 5.0A | Entrada de alimentación microUSB/GPIO de la Raspberry Pi 3B, la cámara Arducam y el sensor RPLIDAR C1. Entrega corriente limpia y constante bajo alta carga de procesamiento. |
+| Regulador XL1509 | 7.4V - 8.4V | 6.0V | 2.0A | `VCC` de potencia del Servo Geekservo. Evita que el torque dinámico máximo afecte la electrónica de control. |
+| Regulador XL4015 | 7.4V - 8.4V | 5.1V | 5.0A | Entrada de alimentación microUSB/GPIO de la Raspberry Pi 3B, la cámara Raspberry module 3 y el sensor RPLIDAR C1. Entrega corriente limpia y constante bajo alta carga de procesamiento. |
 | Pin 3V3_OUT (Pico 2) | 5.0V (Int.) | 3.3V | 300mA | `VCC` de la IMU MPU6050 y alimentación lógica (`VCC`) de las entradas del BTS7960, aislándolo por completo del ruido eléctrico de los motores. |
 
 ### 2. Referencia y Masa Unificada (Anti-Ruido)
