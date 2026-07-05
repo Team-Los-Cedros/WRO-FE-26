@@ -71,7 +71,7 @@ Para evidenciar la transformación del vehículo y el rediseño de los tres ejes
 <div style="display: flex; gap: 10px; align-items: center;">
   <div style="text-align: center; flex: 1;">
     <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+    <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" style="max-height: 250px; width: 800px; border-radius: 5px;"/>
   </div>
   <div style="text-align: center; flex: 1;">
     <p><b>Prototipo Actual (V2) - 613g</b></p>
@@ -99,7 +99,7 @@ Para evidenciar la transformación del vehículo y el rediseño de los tres ejes
 <div style="display: flex; gap: 10px; align-items: center;">
   <div style="text-align: center; flex: 1;">
     <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/backview.jpeg" alt="V1 Trasera" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+    <img src="v-photos/V1/Backview.jpeg" alt="V1 Trasera" style="max-height: 250px; width: auto; border-radius: 5px;"/>
   </div>
   <div style="text-align: center; flex: 1;">
     <p><b>Prototipo Actual (V2) - 613g</b></p>
@@ -141,7 +141,7 @@ Para evidenciar la transformación del vehículo y el rediseño de los tres ejes
 <div style="display: flex; gap: 10px; align-items: center;">
   <div style="text-align: center; flex: 1;">
     <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/rightview.jpeg" alt="V1 Derecha" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+    <img src="v-photos/V1/Rightview.jpeg" alt="V1 Derecha" style="max-height: 250px; width: auto; border-radius: 5px;"/>
   </div>
   <div style="text-align: center; flex: 1;">
     <p><b>Prototipo Actual (V2) - 613g</b></p>
@@ -364,7 +364,11 @@ Nuestra arquitectura de software aborda las dos disciplinas del torneo de forma 
 
 La meta en la Ronda Abierta es mantener la velocidad lineal máxima constante reduciendo el desplazamiento angular innecesario.
 
-* **Lógica del Algoritmo:** El RPLIDAR C1 barre en ventanas angulares simétricas a cada lado del vehículo. Al calcular el error de descentrado entre las distancias mínimas detectadas contra las paredes laterales ($e(t) = \text{dist\_izquierda} - \text{dist\_derecha}$), el script aplica una ganancia proporcional (`KP_LATERAL`) para enviar micro-correcciones de dirección a la Pico 2.
+* **Lógica del Algoritmo:** El RPLIDAR C1 barre en ventanas angulares simétricas a cada lado del vehículo. Al calcular el error de descentrado entre las distancias mínimas detectadas contra las paredes laterales:
+
+$$e(t) = \text{dist}_{\text{izquierda}} - \text{dist}_{\text{derecha}}$$
+
+el script aplica una ganancia proporcional (`KP_LATERAL`) para enviar micro-correcciones de dirección a la Pico 2.
 * **Manejo de Casos Extremos (Puntos de Fallo):** Si el vehículo entra muy sesgado en una curva y el LiDAR pierde temporalmente la lectura de una de las paredes, el software activa un estado "Inercial". En este modo, el script ignora las lecturas nulas y congela el último ángulo de giro válido, confiando en la integración del giroscopio de la Pico 2 para completar el giro de la esquina de forma segura sin colisionar.
 
 #### B. Ronda Cerrada (Fusión Sensorial Visión Artificial + LiDAR)
@@ -376,9 +380,7 @@ En la Ronda Cerrada, la presencia de pilares de obstáculos (bloques rojos y ver
 1. Si el bloque es **Verde**, el carro debe evadir por el carril **izquierdo**. El software inyecta un offset angular negativo a la dirección.
 2. Si el bloque es **Rojo**, el carro debe evadir por el carril **derecho**. El software inyecta un offset angular positivo.
 
-
 * **Validación de Cercanía con LiDAR:** Para evitar giros falsos causados por reflejos distantes, la decisión de esquivar se valida cruzando los datos con la distancia del LiDAR. La maniobra de evasión se ejecuta activamente solo cuando el LiDAR confirma que el pilar está a una distancia crítica menor a $45\,\text{cm}$. Una vez que el contorno del bloque sale del campo de visión de la cámara, el algoritmo proporcional vuelve a estabilizar el coche guiándose por las paredes libres.
-
 ---
 
 ## 6. Capa de Control de Bajo Nivel (Raspberry Pi Pico 2)
@@ -399,7 +401,10 @@ Donde:
 
 * $180^\circ$ representa el punto central calibrado por software para la marcha en línea recta del servomotor.
 * $\theta_{\text{objetivo}}$ es el ángulo macro de guiado espacial solicitado dinámicamente por el script de la Raspberry Pi 3B.
-* $\omega_z$ es la velocidad angular instantánea sobre el eje de rotación vertical (Yaw), obtenida tras sustraer el offset estático de calibración: $\omega_z = \text{Gyro\_Z} - \text{Offset}_z$.
+* $\omega_z$ es la velocidad angular instantánea sobre el eje de rotación vertical (Yaw), obtenida tras sustraer el offset estático de calibración: 
+
+$$\omega_z = \text{Gyro}_{z} - \text{Offset}_{z}$$
+
 * $K_D$ es la ganancia derivativa de amortiguación inercial calibrada en $0.12$, encargada de absorber momentos angulares bruscos en curvas.
 
 ### 6.3 Funciones Maestras de Control Físico
@@ -469,12 +474,12 @@ while True:
                 except:
                     pass
 
-        # Aplicación de ley de control inercial amortiguado
-        angulo_servo = 90 + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
+        # Aplicación de ley de control inercial amortiguado (Centro en 180°)
+        angulo_servo = 180 + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
         
         # Límites estrictos de protección mecánica del chasis Ackermann
-        # (Saturación segura: LIMITE_DER = 140, LIMITE_IZQ = 240)
-        angulo_servo = max(LIMITE_DER, min(LIMITE_IZQ, angulo_servo))
+        # (Saturación segura con centro en 180°: LIMITE_DER = 140, LIMITE_IZQ = 220)
+        angulo_servo = max(140, min(240, angulo_servo))
         mover_servo(angulo_servo)
         
         # Control dinámico de la etapa de potencia de tracción
@@ -493,9 +498,8 @@ while True:
     except KeyboardInterrupt:
         controlar_motor(0)
         stby.value(0)
-        mover_servo(90)
+        mover_servo(180)  # Retornar a línea recta (180°) en caso de parada
         break
-
 ```
 
 ---
@@ -523,19 +527,19 @@ Donde:
 A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis:
 
 <p align="center">
-  <img src="3d-Models/render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
+  <img src="3d-Models/Render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
 </p>
 
 ### 7.3 Límites Angulares Calibrados y Protección Mecánica
 
 Para salvaguardar la integridad de las articulaciones, uniones y vigas de LEGO contra esfuerzos de torsión excesivos generados por el servomotor de alta velocidad, se implementaron límites simétricos de saturación estricta por software.
 
-El rango operativo del actuador Geekservo se restringe a los siguientes umbrales de PWM mapeados en la Raspberry Pi Pico 2:
+El rango operativo del actuador Geekservo se restringe a los siguientes umbrales mapeados en el firmware de la Raspberry Pi Pico 2:
 
-| Ángulo Límite Derecho (Saturación Mínima) | Centro Geométrico Calibrado | Ángulo Límite Izquierdo (Saturación Máxima) |
-| --- | --- | --- |
-| **$140^\circ$** | **$180^\circ$** | **$240^\circ$** |
-| *Restricción estricta ante comandos de giro a la derecha.* | *Alineación de marcha lineal en pista ($0.00\,\text{v}$ de error).* | *Restricción estricta ante comandos de giro a la izquierda.* |
+| Ángulo Límite Derecho (Giro Máximo) | Centro Geométrico Calibrado | Ángulo Límite Izquierdo (Giro Máximo) |
+| :---: | :---: | :---: |
+| **140°** | **180°** | **240°** |
+| *Restricción estricta ante comandos de giro a la derecha.* | *Alineación de marcha lineal en pista (0.00° de error).* | *Restricción estricta ante comandos de giro a la izquierda.* |
 
 > **Ventaja mecánica de la modularidad LEGO:** La sustitución del filamento impreso en 3D por vigas de fricción LEGO redujo el coeficiente de masa inercial global, consolidando un peso final competitivo de **613 gramos exactos** que disminuye drásticamente el subviraje físico provocado por la fuerza centrípeta en las esquinas de la pista de la WRO.
 
