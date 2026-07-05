@@ -41,7 +41,7 @@ def controlar_motor(velocidad_porcentaje):
         bin1.value(1)
         bin2.value(1)
         vel = 0
-       
+        
     duty_u16 = int((vel / 100.0) * 65535)
     pwmb.duty_u16(duty_u16)
 
@@ -52,7 +52,7 @@ class MPU6050:
         self.i2c.writeto_mem(self.addr, 0x6B, b'\x00') # Despertar sensor
         # Cambio de Rango: Configura el giroscopio a +-2000 °/s para evitar saturación
         self.i2c.writeto_mem(self.addr, 0x1B, b'\x18')
-       
+        
     def get_gyro_z(self):
         data = self.i2c.readfrom_mem(self.addr, 0x47, 2)
         val = (data[0] << 8) | data[1]
@@ -61,7 +61,7 @@ class MPU6050:
 
 try:
     sensor = MPU6050(i2c)
-    mover_servo(90)
+    mover_servo(180)
     controlar_motor(0)
 except Exception as e:
     pass
@@ -81,7 +81,7 @@ velocidad_comandada = 0
 
 # Limtes Mecanicos Ackermann (Protección de chasis)
 LIMITE_DER = 140 # Valor Anterior: 75 
-LIMITE_IZQ = 240  # Valor Anterior: 105
+LIMITE_IZQ = 220  # Valor Anterior: 105
 
 # Contraste de Amortiguacion: Evita que el coche devane o curve de golpe
 KD_ESTABILIDAD = 0.12  
@@ -95,12 +95,12 @@ while True:
         tiempo_actual = time.ticks_ms()
         dt = time.ticks_diff(tiempo_actual, ultima_lectura) / 1000.0
         ultima_lectura = tiempo_actual
-       
+        
         try:
             velocidad_z = sensor.get_gyro_z() - giro_z_offset
         except:
             velocidad_z = 0.0
-           
+            
         if abs(velocidad_z) > 0.15:
             angulo_acumulado += velocidad_z * dt
 
@@ -119,12 +119,12 @@ while True:
         # Logica de direccion (LiDAR Proporcional + Amortiguador Gyro)
         # El comando de la Pi actua directamente sobre el centro (90°)
         # Restamos la velocidad angular multiplicada por KD para absorber inercias bruscas
-        angulo_servo = 90 + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
-       
+        angulo_servo = 180 + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
+        
         # Limitacion fisica estricta
         angulo_servo = max(LIMITE_DER, min(LIMITE_IZQ, angulo_servo))
         mover_servo(angulo_servo)
-       
+        
         # Ajustar velocidad de motores
         if velocidad_comandada == 0:
             controlar_motor(0)
@@ -137,9 +137,9 @@ while True:
             ultimo_envio_telemetria = tiempo_actual
 
         time.sleep(0.005)
-       
+        
     except KeyboardInterrupt:
         controlar_motor(0)
         stby.value(0)
-        mover_servo(90)
+        mover_servo(180)
         break
