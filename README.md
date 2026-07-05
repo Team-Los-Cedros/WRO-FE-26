@@ -71,7 +71,7 @@ Para evidenciar la transformación del vehículo y el rediseño de los tres ejes
 <div style="display: flex; gap: 10px; align-items: center;">
   <div style="text-align: center; flex: 1;">
     <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+    <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" style="max-height: 250px; width: 800px; border-radius: 5px;"/>
   </div>
   <div style="text-align: center; flex: 1;">
     <p><b>Prototipo Actual (V2) - 613g</b></p>
