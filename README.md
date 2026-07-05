@@ -51,22 +51,107 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 
 El desarrollo de nuestro vehículo autónomo no fue un proceso lineal. Para alcanzar la estabilidad actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento y fallos mecánicos en pista.
 
-### 3.1 Cuadro Comparativo de Evolución Técnica
+### 3.1 Cuadro Comparativo Avanzado de Evolución e Iteración Técnica
 
-| Criterio Técnico | Prototipo Inicial (V1) | Prototipo de Producción Actual (V2) | Justificación de Ingeniería |
-| --- | --- | --- | --- |
-| **Material del Chasis** | Impresión 3D (Filamento) | Componentes Estructurales LEGO | Reducción drástica de la masa inercial. El chasis de LEGO absorbe mejor las vibraciones de alta frecuencia y permite iteraciones de geometría rápidas en los boxes. |
-| **Sistema de Visión** | Arducam Module 3 | Raspberry Pi Camera Module 3 | El hardware anterior sufrió una falla crítica de hardware (daño por impacto). Se migró al módulo nativo para asegurar compatibilidad total de drivers a nivel de kernel. |
-| **Dinámica en Pista** | Mayor subviraje por inercia física | Agilidad de giro y aceleración óptima | Al aligerar el prototipo, el servomotor requiere menos torque para vencer el coeficiente de fricción estática en las curvas Ackermann. |
+Para alcanzar la estabilidad operativa actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento dinámico, telemetría inercial y análisis de fallos mecánicos destructivos en pista:
 
-### 3.2 Registro Fotográfico de la Evolución Histórica
+| Criterio Técnico | Prototipo Inicial (V1) | Prototipo de Producción Actual (V2) | Justificación de Ingeniería / Análisis de Fatiga |
+| :--- | :--- | :--- | :--- |
+| **Arquitectura Estructural** | Monocasco impreso en 3D (PLA / Filamento) | Chasis Híbrido de Vigas de Fricción LEGO | **Mitigación de Resonancia:** El filamento rígido transmitía las vibraciones mecánicas de alta frecuencia de los motores directo a la cámara, descalibrando el software de visión. El chasis LEGO absorbe el ruido vibracional por flexión elástica y permite reconfiguraciones geométricas inmediatas en boxes. |
+| **Masa Inercial Global** | $\approx 800\,\text{g}$ (Diseño robusto impreso) | **613 gramos exactos** (Reducción del $23.37\%$) | **Optimización Dinámica:** Al remover casi una cuarta parte del peso total, se redujo drásticamente la inercia lineal ($I$). El servomotor requiere menor torque para vencer la fricción estática en las curvas de Ackermann, eliminando por completo el subviraje físico. |
+| **Sistema de Visión** | Módulo Arducam 3 (Estructura Expuesta) | Raspberry Pi Camera Module 3 Integrada | **Análisis de Riesgos:** El hardware V1 sufrió una falla crítica por impacto directo contra el perímetro. En la V2 se rediseñó el centro de masa retrasando el soporte óptico, protegiendo el sensor y aprovechando los drivers nativos a nivel de kernel de la Pi 3B. |
+| **Eficiencia de Tracción** | Llantas rígidas de plástico (Bajo agarre) | Neumáticos de Caucho LEGO ($36\,\text{mm}$ diámetro) | **Transferencia de Potencia:** Las ruedas plásticas patinaban al acelerar bruscamente a PWM máximos, disipando energía por calor. El compuesto de caucho incrementa el coeficiente de fricción ($\mu_e \approx 0.85$), garantizando un grip total sin derrapes laterales. |
+| **Topología de Potencia** | Regulador único lineal (Sujeto a picos) | Desacoplamiento por etapas (XL4016 + XL1509) | **Blindaje Electrónico:** La conmutación del motor causaba caídas de tensión lógicas (*brownouts*). Al meter el **XL4016 de $8.0\,\text{A}$** dedicado a la Pi 3B, la etapa de control trabaja fría y con un margen de seguridad del **$73.25\%$**. |
 
-A continuación se documenta el salto técnico entre ambas versiones del robot:
+### 3.2 Registro Fotográfico de la Evolución e Iteración Geométrica (Matriz V1 vs. V2)
 
-| Versión Anterior (V1) - Chasis Impreso Completo | Versión Actual (V2) - Optimización Estructural |
-| --- | --- |
-|  <img src="v-photos/V1/Versión Anterior.jpeg" alt="Anterior" height="500px"/> |  <img src="v-photos/Robot_photos/DSC_0126.png" alt="Actual" height="500px"/> |
-| *Fallas identificadas: Exceso de peso, rigidez extrema ante impactos y fatiga de material en soportes.* | *Mejoras: Distribución de pesos equilibrada, flexibilidad ante impactos y modularidad total en BrickLink CAD.* |
+Para evidenciar la transformación del vehículo y el rediseño de los tres ejes espaciales, se presenta el registro fotográfico emparejado de ambas iteraciones del prototipo:
+
+#### Vista Superior
+<div style="display: flex; gap: 10px; align-items: center;">
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
+    <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Actual (V2) - 613g</b></p>
+    <img src="v-photos/Topview.jpeg" alt="V2 Superior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+</div>
+
+---
+
+#### Vista Frontal
+<div style="display: flex; gap: 10px; align-items: center;">
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
+    <img src="v-photos/V1/Frontview.jpeg" alt="V1 Frontal" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Actual (V2) - 613g</b></p>
+    <img src="v-photos/frontview.jpeg" alt="V2 Frontal" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+</div>
+
+---
+
+#### Vista Trasera
+<div style="display: flex; gap: 10px; align-items: center;">
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
+    <img src="v-photos/V1/backview.jpeg" alt="V1 Trasera" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Actual (V2) - 613g</b></p>
+    <img src="v-photos/backview.jpeg" alt="V2 Trasera" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+</div>
+
+---
+
+#### Vista Inferior
+<div style="display: flex; gap: 10px; align-items: center;">
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
+    <img src="v-photos/V1/butview.jpeg" alt="V1 Inferior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Actual (V2) - 613g</b></p>
+    <img src="v-photos/Bottomview.jpeg" alt="V2 Inferior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+</div>
+
+---
+
+#### Lateral Izquierda
+<div style="display: flex; gap: 10px; align-items: center;">
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
+    <img src="v-photos/V1/leftview.jpeg" alt="V1 Izquierda" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Actual (V2) - 613g</b></p>
+    <img src="v-photos/Leftview.jpeg" alt="V2 Izquierda" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+</div>
+
+---
+
+#### Lateral Derecha
+<div style="display: flex; gap: 10px; align-items: center;">
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
+    <img src="v-photos/V1/rightview.jpeg" alt="V1 Derecha" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+  <div style="text-align: center; flex: 1;">
+    <p><b>Prototipo Actual (V2) - 613g</b></p>
+    <img src="v-photos/Rightview.jpeg" alt="V2 Derecha" style="max-height: 250px; width: auto; border-radius: 5px;"/>
+  </div>
+</div>
+
+<br>
+
+---
 ### 3.3 Galería de Inspección Técnica Obligatoria (Las 6 Capturas Reglamentarias)
 
 De acuerdo con las normativas de la WRO, se presentan las 6 capturas ortogonales del prototipo de producción actual (V2) depositadas en la carpeta `v-photos/`. Estas imágenes permiten la verificación técnica y garantizan la reproducibilidad completa de nuestro hardware:
