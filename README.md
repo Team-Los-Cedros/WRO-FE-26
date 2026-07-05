@@ -86,15 +86,21 @@ De acuerdo con las normativas de la WRO, se presentan las 6 capturas ortogonales
 | <img src="v-photos/Topview.jpeg" alt="Vista Superior V2" width="300px"/> | <img src="v-photos/Bottomview.jpeg" alt="Vista Inferior V2" width="300px"/> |
 | *Disposición central de la Raspberry Pi 3B y la Pico 2.* | *Estructura base del chasis de vigas de fricción LEGO.* |
 
-### 3.4 Justificación de Ingeniería para la Selección de Componentes (Trade-offs)
+### 3.4 Justificación de Ingeniería para la Selección de Componentes y Arquitectura de Sistemas (Trade-offs)
 
-De acuerdo con las restricciones de peso e inercia física evaluadas durante las pruebas de pista, el equipo aplicó el pensamiento sistémico para balancear el torque (par motor) y la velocidad punta del coche:
+De acuerdo con las rigurosas restricciones de peso, inercia de rotación y estabilidad dinámica evaluadas en pista, el equipo aplicó los principios del pensamiento sistémico para balancear de forma óptima las variables físicas del prototipo. A diferencia de las arquitecturas convencionales de manufactura aditiva masiva (chasis impresos en 3D multicapa que elevan el peso por encima de los $1000\,\text{g}$), nuestro diseño optimiza la relación potencia-masa:
 
-* **Por qué elegimos Baterías 21700 (2S) en lugar de LiPo clásicas o 18650 :**
-  Las celdas de iones de litio 21700 proporcionan una alta densidad de descarga continua ($30\,\text{A}$) en comparación con las celdas AA convencionales, que sufren caídas severas de voltaje bajo carga. A diferencia de las baterías LiPo planas, la carcasa cilíndrica de las 21700 ofrece mayor protección estructural ante los inevitables impactos mecánicos contra las paredes del circuito de la WRO, mitigando riesgos de perforación térmica.
-* **Compensación de Velocidad/Par en la Transmisión:**
-  El motor DC de tracción acoplado al puente H **TB6612FNG** fue seleccionado tras realizar pruebas empíricas de aceleración. Al optimizar el diseño, logramos reducir la masa total del vehículo a un peso ultraligero de **613 gramos exactos**. Esta reducción drástica de masa disminuye considerablemente la inercia lineal del prototipo. Sin embargo, se mantuvo una reductora mecánica integrada en el motor de tracción para garantizar el torque inicial necesario para vencer la fricción estática de los neumáticos de $36\,\text{mm}$ al salir de curvas cerradas, permitiendo una aceleración explosiva inmediata sin demandar picos destructivos de corriente al puente H.
+* **Ventaja Cinemática de la Reducción de Masa (613 gramos exactos):**
+  Al descartar un chasis totalmente impreso en 3D y migrar a una estructura de vigas de fricción LEGO, logramos consolidar una masa total ultraligera de **613 gramos**. En física de aceleración y curvas, la fuerza centrípeta que intenta sacar al carro del carril responde a la ecuación $F_c = \frac{m \cdot v^2}{r}$. Al reducir la masa ($m$) prácticamente a la mitad en comparación con prototipos pesados de la competencia, disminuimos la fuerza de deriva lateral de forma lineal. Esto nos permite trazar las esquinas a velocidades tangenciales significativamente más altas sin sufrir subviraje mecánico ni deslizamiento por pérdida de adherencia (*grip*).
 
+* **Fusión Sensorial Avanzada (LiDAR C1 vs. Ultrasonidos Tradicionales):**
+  Se descartaron los sensores de proximidad por ultrasonido (tipo HC-SR04) debido a sus limitaciones físicas inherentes: retrasos por eco acústico (tiempo de vuelo en aire abierto), conos de dispersión muy amplios que generan falsos positivos y la necesidad de ejecutar bucles de lectura bloqueantes que saturan la CPU. En su lugar, implementamos un escáner láser **RPLIDAR C1 (ToF)** operando a una frecuencia de muestreo masiva por bus USB. Esto nos otorga una firma espacial geométrica de 360° en tiempo real, permitiendo que la Raspberry Pi 3B ejecute cálculos de centrado reactivo mediante micro-correcciones proporucionales inmediatas.
+
+* **Procesamiento de Visión Nativo OpenCV contra Sensores Embebidos Cerrados:**
+  Muchos equipos optan por cámaras inteligentes con procesadores integrados de firmware cerrado (como HuskyLens). Aunque simplifican la conexión, restringen severamente la flexibilidad algorítmica. Nuestra arquitectura utiliza la **Pi Camera Module 3** conectada por la interfaz CSI de alta velocidad directo al procesador de la **Raspberry Pi 3B**. El procesamiento se realiza a nivel de software mediante código propio en **OpenCV**, permitiendo la manipulación directa de la matriz de píxeles en el dominio HSV, la aplicación de filtros morfológicos personalizados para eliminar el ruido lumínico de los boxes y la inyección dinámica de offsets angulares directo al servomotor Ackermann.
+
+* **Por qué elegimos Baterías 21700 (2S) en lugar de LiPo clásicas o celdas 18650:**
+  Las celdas de iones de litio 21700 proporcionan una densidad de corriente de descarga continua masiva de hasta $30\,\text{A}$. Al alimentar nuestro regulador de alta potencia **XL4016 (capacidad de hasta $8.0\,\text{A}$)**, garantizamos un blindaje eléctrico absoluto contra caídas de tensión (*brownouts*). Toda la etapa lógica (Raspberry Pi 3B, Pico 2 y LiDAR) opera de manera holgada con un **margen de seguridad del $73.25\%$**, previniendo reinicios críticos del sistema operativo cuando el motor demanda torque de arranque máximo al salir de las curvas.
 ---
 
 ## 4. Arquitectura Eléctrica y Distribución de Señales
