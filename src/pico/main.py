@@ -1,4 +1,3 @@
-# src/pico/main.py
 import sys
 import select
 from machine import Pin, I2C, PWM
@@ -8,7 +7,7 @@ import time
 poller = select.poll()
 poller.register(sys.stdin, select.POLLIN)
 
-# Configuracion del Mpu6050
+# --- CONFIGURACIÓN DE HARDWARE ---
 i2c = I2C(0, sda=Pin(16), scl=Pin(17), freq=400000)
 
 servo = PWM(Pin(12))
@@ -50,18 +49,18 @@ class MPU6050:
         self.i2c = i2c
         self.addr = addr
         self.i2c.writeto_mem(self.addr, 0x6B, b'\x00') # Despertar sensor
-        # Cambio de Rango: Configura el giroscopio a +-2000 °/s para evitar saturación
+        # Configura el giroscopio a +-2000 °/s para evitar saturación
         self.i2c.writeto_mem(self.addr, 0x1B, b'\x18')
         
     def get_gyro_z(self):
         data = self.i2c.readfrom_mem(self.addr, 0x47, 2)
         val = (data[0] << 8) | data[1]
         if val >= 32768: val -= 65536
-        return val / 16.4 # Factor de escala correcto para +-2000 °/s
+        return val / 16.4 # Factor de escala para +-2000 °/s
 
 try:
     sensor = MPU6050(i2c)
-    mover_servo(180)
+    mover_servo(90)
     controlar_motor(0)
 except Exception as e:
     pass
@@ -79,17 +78,17 @@ angulo_acumulado = 0.0
 angulo_objetivo = 0.0
 velocidad_comandada = 0
 
-# Limtes Mecanicos Ackermann (Protección de chasis)
-LIMITE_DER = 140 # Valor Anterior: 75 
-LIMITE_IZQ = 220  # Valor Anterior: 105
+# Límites Mecánicos de Seguridad (Protección de chasis)
+LIMITE_DER = 75  
+LIMITE_IZQ = 105  
 
-# Contraste de Amortiguacion: Evita que el coche devane o curve de golpe
+# Constante de Amortiguación: Evita que el coche devane o curve de golpe
 KD_ESTABILIDAD = 0.12  
 
 ultima_lectura = time.ticks_ms()
 ultimo_envio_telemetria = time.ticks_ms()
 
-# Bucle Principal
+# --- BUCLE DE CONTROL EN TIEMPO REAL ---
 while True:
     try:
         tiempo_actual = time.ticks_ms()
@@ -116,12 +115,12 @@ while True:
                 except:
                     pass
 
-        # Logica de direccion (LiDAR Proporcional + Amortiguador Gyro)
-        # El comando de la Pi actua directamente sobre el centro (90°)
+        # Lógica de dirección (LiDAR Proporcional + Amortiguador Gyro)
+        # El comando de la Pi actúa directamente sobre el centro (90°)
         # Restamos la velocidad angular multiplicada por KD para absorber inercias bruscas
-        angulo_servo = 180 + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
+        angulo_servo = 90 + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
         
-        # Limitacion fisica estricta
+        # Limitación física estricta
         angulo_servo = max(LIMITE_DER, min(LIMITE_IZQ, angulo_servo))
         mover_servo(angulo_servo)
         
@@ -131,7 +130,7 @@ while True:
         else:
             controlar_motor(velocidad_comandada)
 
-        # Enviar telemetria de vuelta para conteo de vueltas en la Pi 3B
+        # Enviar telemetría de vuelta para conteo de vueltas en la Pi 3B
         if time.ticks_diff(tiempo_actual, ultimo_envio_telemetria) > 50:
             sys.stdout.write(f"IMU:{angulo_acumulado:.2f}\n")
             ultimo_envio_telemetria = tiempo_actual
@@ -141,5 +140,5 @@ while True:
     except KeyboardInterrupt:
         controlar_motor(0)
         stby.value(0)
-        mover_servo(180)
+        mover_servo(90)
         break
