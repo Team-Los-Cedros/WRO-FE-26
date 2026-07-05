@@ -1,142 +1,96 @@
-# Guía de Usuario: Sistema de Control de Acceso (Solo Botones)
+# Módulo de Alto Nivel y Orquestación (Raspberry Pi 3B)
 
-Esta guía describe el funcionamiento, la arquitectura y el mantenimiento del script orquestador simplificado para la Raspberry Pi, diseñado exclusivamente para escuchar pulsaciones de botones físicos y ejecutar scripts secundarios de automatización (`open_round.py` y `close_round.py`).
+Este submódulo contiene la lógica de alto nivel encargada de la percepción espacial, procesamiento de visión artificial y la orquestación síncrona de las fases de carrera para el vehículo autónomo del **Team Los Cedros (WRO 2026)**.
+
+El componente central es el script maestro `controlador_inicio.py`, diseñado para operar de manera pasiva y ultra-ligera en segundo plano dentro de **Raspberry Pi OS Lite (64-bit)**, dedicando el 100% de los recursos lógicos a la escucha inmediata de eventos de hardware.
 
 ---
 
-## 1. Vista General del Sistema
+## 1. Arquitectura de Orquestación
 
-Para garantizar la máxima velocidad, estabilidad y compatibilidad con sistemas Linux (Raspberry Pi OS Lite 64 bits). El sistema opera de manera pasiva y ultra ligera, dedicando el 100% de los recursos a la escucha inmediata de los eventos de entrada.
+Para garantizar que el vehículo sea 100% autónomo desde el momento en que se conecta la batería en la pista (requisito estricto de las regulaciones de la WRO), el sistema se divide en tres capas asíncronas:
 
-### Componentes Principales
-1. **`controlador_inicio.py`**: El script orquestador en Python que corre de fondo en bucle infinito de alta velocidad.
-2. **`controlador.service`**: El (`systemd`) que asegura que el script inicie automáticamente con la Raspberry Pi y se autorecupere ante fallos.
-3. **Scripts Externos**: `open_round.py` y `close_round.py`, encargados de las acciones físicas finales.
+1. **`controlador_inicio.py`**: Script demonio en Python que corre en un bucle infinito de alta frecuencia monitoreando los pines de entrada.
+2. **`wro_start.service`**: Unidad de servicio nativa de Linux (`systemd`) que fuerza el auto-arranque del script maestro inmediatamente después de inicializar el kernel.
+3. **Scripts de Carrera**: `Open_round.py` (Control proporcional guiado por RPLIDAR C1) y `Close_round.py` (Procesamiento matricial OpenCV HSV para evasión de pilares).
 
 ---
 
 ## 2. Mapa de Conexión de Hardware (Pines GPIO)
 
-El script utiliza la numeración estándar **BCM (Broadcom)**. Las conexiones físicas deben realizarse referenciando los pines del conector de la placa tal como se detalla a continuación:
+El script utiliza la asignación estándar de numeración **BCM (Broadcom)**. Las conexiones físicas deben realizarse referenciando los pines del conector de 40 pines de la Raspberry Pi 3B:
 
-| Función | Identificador BCM (Código) | Pin Físico en la Placa | Tipo de Señal |
-| :--- | :---: | :---: | :--- |
-| **Botón de Apertura (OPEN)** | `GPIO 21` | **Pin 29** | Entrada digital con Pull-Up interno |
-| **Botón de Cierre (CLOSE)** | `GPIO 20` | **Pin 38** o **Pin 40** (Según cableado) | Entrada digital con Pull-Up interno |
-| **Referencia de Tierra** | `GND` | **Pin 39** | Tierra Común Eléctrica |
+| Componente de Carrera | Identificador BCM (Código) | Pin Físico en la Placa | Tipo de Señal Lógica | Evento Asociado |
+| :--- | :---: | :---: | :--- | :--- |
+| **Botón de Ronda Abierta (OPEN)** | `GPIO 21` | **Pin 40** | Entrada Digital con Pull-Up | Ejecuta `Open_round.py` |
+| **Botón de Ronda Cerrada (CLOSE)** | `GPIO 20` | **Pin 38** | Entrada Digital con Pull-Up | Ejecuta `Close_round.py` |
+| **Referencia Electrónica** | `GND` | **Pin 39** | Tierra Común (Estrella) | Cierre de circuito de disparo |
 
-> **Nota Crítica de Hardware:** Al utilizar la resistencia interna de acoplamiento `PULL_UP`, los botones deben conectarse de tal forma que al ser presionados **unan directamente el pin GPIO con un pin de Tierra (GND)**. El script detecta el estado `LOW` (0V) como una pulsación válida.
-
----
-
-## 3. Código Fuente del Orquestador (`/home/pi/controlador_inicio.py`)
-
-```python
-# /home/pi/controlador_inicio.py
-import RPi.GPIO as GPIO
-import time
-import subprocess
-import os
-
-# Configuración de Botones (BCM)
-BOTON_OPEN = 21
-BOTON_CLOSE = 20
-
-RUTA_BASE = "/home/pi"
-SCRIPT_OPEN = os.path.join(RUTA_BASE, "open_round.py")
-SCRIPT_CLOSE = os.path.join(RUTA_BASE, "close_round.py")
-
-def main():
-    # Configuración limpia de pines para los botones con resistencia Pull-Up
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
-    GPIO.setup(BOTON_OPEN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(BOTON_CLOSE, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    
-    print("Controlador iniciado, Esperando Señal de botones (GP21 y GP20)")
-    
-    try:
-        while True:
-            # Leer el botón OPEN
-            if GPIO.input(BOTON_OPEN) == GPIO.LOW:
-                print("Botón Open, Ejecutando script")
-                subprocess.run(["python3", SCRIPT_OPEN])
-                time.sleep(1) # Anti-rebote para evitar que se ejecute dos veces seguidas
-                
-            # Leer el botón CLOSE
-            elif GPIO.input(BOTON_CLOSE) == GPIO.LOW:
-                print("¡Botón CLOSE detectado! Ejecutando script...")
-                subprocess.run(["python3", SCRIPT_CLOSE])
-                time.sleep(1) # Anti-rebote
-                
-            time.sleep(0.05)
-            
-    except KeyboardInterrupt:
-        print("\nPrograma terminado manualmente.")
-    finally:
-        GPIO.cleanup()
-
-if __name__ == "__main__":
-    main()
-```
+> **Nota de Seguridad Eléctrica:** Al configurar internamente el acoplamiento `pull_up_down=GPIO.PUD_UP`, los interruptores físicos deben conmutar directamente a la línea de masa (`GND`). El procesador interpreta la caída de tensión a un estado lógico `LOW` ($0\,\text{V}$) como una pulsación válida, eliminando interferencias por ruido electromagnético parásito.
 
 ---
 
-## 4. Gestión del Servicio del Sistema (`systemd`)
+## 3. Demonio de Arranque Autónomo (`systemd`)
 
-El orquestador está integrado en las capas del sistema operativo como un servicio nativo, lo que permite su ejecución sin intervención del usuario.
-
-### Archivo de Configuración (`/etc/systemd/system/controlador.service`)
+La integración en las capas del sistema operativo como un demonio de Linux se realiza mediante el archivo de configuración localizado en `/etc/systemd/system/wro_start.service`:
 
 ```ini
 [Unit]
-Description=Controlador de Botones y Rutinas de Inicio
-After=multi-user.target
+Description=Servicio Maestro de Inicio - Team Los Cedros WRO
+After=multi-user.target serial-getty@ttyAMA0.service
 
 [Service]
 Type=simple
-User=root
+User=pi
 WorkingDirectory=/home/pi
 ExecStart=/usr/bin/python3 /home/pi/controlador_inicio.py
 Restart=on-failure
+RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
-```
-
-### Comandos Esenciales de Control de Terminal (SSH)
-
-* **Iniciar el servicio:**
-```
-sudo systemctl start controlador.service
-```
-
-
-* **Detener el servicio (Para realizar tareas de mantenimiento):**
 
 ```
-sudo systemctl stop controlador.service
+
+### Comandos Esenciales de Control de Terminal (Vía SSH)
+
+Para realizar tareas de depuración en los boxes o mantenimiento de código, se utilizan los siguientes comandos nativos de Linux:
+
+* **Iniciar el entorno autónomo manualmente:**
+```bash
+sudo systemctl start wro_start.service
+
 ```
 
 
-* **Reiniciar el servicio (Aplica cambios realizados en el código):**
+* **Detener el demonio para edición de código:**
+```bash
+sudo systemctl stop wro_start.service
 
 ```
-sudo systemctl restart controlador.service
+
+
+* **Recargar el script tras aplicar optimizaciones:**
+```bash
+sudo systemctl restart wro_start.service
+
 ```
 
 
-* **Verificar el estado y los logs de ejecución en tiempo real:**
+* **Inspeccionar logs de ejecución y telemetría en tiempo real:**
+```bash
+sudo systemctl status wro_start.service
+
 ```
-sudo systemctl status controlador.service
-```
+
+
 
 ---
 
-## 5. Diagnóstico de Problemas 
+## 4. Diagnóstico de Problemas en Pista (Failsafe y Triage)
 
-### El botón se presiona pero no pasa nada
+### El botón físico es pulsado pero el vehículo no inicia la marcha
 
-1. Ejecute `sudo systemctl status controlador.service` y observe las últimas líneas de salida en la terminal. Debería ver impreso `Boton OPEN detectado` o `Boton CLOSE detectado`.
-2. Si los logs muestran la detección del botón pero los motores/mecanismos no se mueven, el problema está localizado dentro de `open_round.py` o `close_round.py` (ej. rutas de archivos, permisos, o llamadas bloqueantes de GPIO heredadas).
-3. Si los logs no muestran la pulsación, verifique con un multímetro o un cable directo que el pin físico correspondiente (GP21 o GP20) esté haciendo contacto sólido con un pin GND al cerrarse el interruptor.
+1. **Validación de Capa de Software:** Ejecute `sudo journalctl -u wro_start.service -n 20` en la terminal. Verifique si el kernel de Linux imprimió en los logs las cadenas de texto `Botón Open, Ejecutando script` o `¡Botón CLOSE detectado!`.
+2. **Aislamiento de Errores Hijos:** Si los logs del sistema operativo confirman la pulsación pero el vehículo permanece estático, el fallo no se encuentra en este submódulo, sino en los scripts de carrera (`Open_round.py`/`Close_round.py`), provocado por excepciones lógicas en los drivers de comunicación UART con la Pico 2 o bloqueos de lectura en el buffer del RPLIDAR C1.
+3. **Aislamiento de Capa Física:** Si el demonio de Linux no registra ningún evento, verifique con un multímetro la continuidad física del interruptor o reemplace los jumpers conectados a los pines lógicos `GP21`/`GP20` y al común `GND`.

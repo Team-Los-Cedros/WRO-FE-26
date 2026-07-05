@@ -67,6 +67,33 @@ A continuación se documenta el salto técnico entre ambas versiones del robot:
 | --- | --- |
 |  <img src="v-photos/V1/Versión Anterior.jpeg" alt="Anterior" height="500px"/> |  <img src="v-photos/Robot_photos/DSC_0126.png" alt="Actual" height="500px"/> |
 | *Fallas identificadas: Exceso de peso, rigidez extrema ante impactos y fatiga de material en soportes.* | *Mejoras: Distribución de pesos equilibrada, flexibilidad ante impactos y modularidad total en BrickLink CAD.* |
+### 3.3 Galería de Inspección Técnica Obligatoria (Las 6 Capturas Reglamentarias)
+
+De acuerdo con las normativas de la WRO, se presentan las 6 capturas ortogonales del prototipo de producción actual (V2) depositadas en la carpeta `v-photos/`. Estas imágenes permiten la verificación técnica y garantizan la reproducibilidad completa de nuestro hardware:
+
+| Vista Frontal (`frontview.jpeg`) | Vista Trasera (`backview.jpeg`) |
+| :---: | :---: |
+| <img src="v-photos/frontview.jpeg" alt="Vista Frontal V2" width="300px"/> | <img src="v-photos/backview.jpeg" alt="Vista Trasera V2" width="300px"/> |
+| *Geometría Ackermann frontal y montaje de la Pi Camera 3.* | *Tren de tracción trasero con motor DC y regulador XL4016.* |
+
+| Perfil Izquierdo (`Leftview.jpeg`) | Perfil Derecho (`Rightview.jpeg`) |
+| :---: | :---: |
+| <img src="v-photos/Leftview.jpeg" alt="Perfil Izquierdo V2" width="300px"/> | <img src="v-photos/Rightview.jpeg" alt="Perfil Derecho V2" width="300px"/> |
+| *Puertos usb de salida de la pi3b.* | *Ubicación del driver TB6612FNG y buses de datos.* |
+
+| Vista Superior (`Topview.jpeg`) | Vista Inferior (`Bottomview.jpeg`) |
+| :---: | :---: |
+| <img src="v-photos/Topview.jpeg" alt="Vista Superior V2" width="300px"/> | <img src="v-photos/Bottomview.jpeg" alt="Vista Inferior V2" width="300px"/> |
+| *Disposición central de la Raspberry Pi 3B y la Pico 2.* | *Estructura base del chasis de vigas de fricción LEGO.* |
+
+### 3.4 Justificación de Ingeniería para la Selección de Componentes (Trade-offs)
+
+De acuerdo con las restricciones de peso e inercia física evaluadas durante las pruebas de pista, el equipo aplicó el pensamiento sistémico para balancear el torque (par motor) y la velocidad punta del coche:
+
+* **Por qué elegimos Baterías 21700 (2S) en lugar de LiPo clásicas o 18650 :**
+  Las celdas de iones de litio 21700 proporcionan una alta densidad de descarga continua ($30\,\text{A}$) en comparación con las celdas AA convencionales, que sufren caídas severas de voltaje bajo carga. A diferencia de las baterías LiPo planas, la carcasa cilíndrica de las 21700 ofrece mayor protección estructural ante los inevitables impactos mecánicos contra las paredes del circuito de la WRO, mitigando riesgos de perforación térmica.
+* **Compensación de Velocidad/Par en la Transmisión:**
+  El motor DC de tracción acoplado al puente H **TB6612FNG** fue seleccionado tras realizar pruebas empíricas de aceleración. Al optimizar el diseño, logramos reducir la masa total del vehículo a un peso ultraligero de **613 gramos exactos**. Esta reducción drástica de masa disminuye considerablemente la inercia lineal del prototipo. Sin embargo, se mantuvo una reductora mecánica integrada en el motor de tracción para garantizar el torque inicial necesario para vencer la fricción estática de los neumáticos de $36\,\text{mm}$ al salir de curvas cerradas, permitiendo una aceleración explosiva inmediata sin demandar picos destructivos de corriente al puente H.
 
 ---
 
@@ -80,7 +107,7 @@ Para asegurar el correcto funcionamiento del vehículo autónomo y prevenir rein
 | --- | --- | --- | --- | --- |
 | **Baterías 21700 (2S)** | $7.4\,\text{V} - 8.4\,\text{V}$ | Directo | $30\,\text{A}$ | Línea de alta potencia del Driver TB6612FNG (Motor DC). |
 | **Regulador XL1509** | $7.4\,\text{V} - 8.4\,\text{V}$ | $6.0\,\text{V}$ | $2.0\,\text{A}$ | Servomotor de dirección (Etapa de potencia limpia). |
-| **Regulador XL4015** | $7.4\,\text{V} - 8.4\,\text{V}$ | $5.1\,\text{V}$ | $5.0\,\text{A}$ | Raspberry Pi 3B, Cámara Module 3 y RPLIDAR C1. |
+| **Regulador XL4016** | $7.4\,\text{V} - 8.4\,\text{V}$ | $5.1\,\text{V}$ | $8.0\,\text{A}$ | Raspberry Pi 3B, Cámara Module 3 y RPLIDAR C1. |
 
 >  **Nota eléctrica:** Todas las referencias de tierra (GND) del vehículo confluyen en una topología de estrella en un único punto común central. Esto unifica los umbrales lógicos y drena el ruido electromagnético generado por las conmutaciones de los motores.
 
@@ -104,29 +131,86 @@ Para asegurar el correcto funcionamiento del vehículo autónomo y prevenir rein
 * **RPLIDAR C1:** Conectado directamente a un puerto USB 2.0 maestro (Comunicación UART integrada a $460\,800\,\text{bps}$).
 * **Raspberry Pi Pico 2:** Enlazada por interfaz de datos USB corta operando bajo la clase de dispositivo COM Virtual (VCP) a una tasa fija de $115\,200\,\text{bps}$.
 
+### 4.3 Presupuesto de Consumo Energético y Gestión de Corriente
+
+Para evitar caídas de tensión críticas (*brownouts*) en la Raspberry Pi 3B cuando los actuadores demandan torque máximo, se calculó el presupuesto de corriente nominal y de pico (Stall) del sistema:
+
+| Componente | Voltaje Operativo | Corriente Nominal | Corriente de Pico (Stall) | Regulador Asociado |
+| :--- | :---: | :---: | :---: | :---: |
+| **Raspberry Pi 3B** | $5.1\,\text{V}$ | $600\,\text{mA}$ | $1200\,\text{mA}$ | XL4016 (Línea lógica) |
+| **RPLIDAR C1** | $5.0\,\text{V}$ | $250\,\text{mA}$ | $450\,\text{mA}$ | XL4016 (Línea lógica) |
+| **Pi Camera Module 3**| $3.3\,\text{V} (CSI)$ | $280\,\text{mA}$ | $400\,\text{mA}$ | XL4016 / Interno Pi |
+| **Geekservo Dirección**| $6.0\,\text{V}$ | $180\,\text{mA}$ | $800\,\text{mA}$ | XL1509 (Línea limpia) |
+| **Motor DC (Tracción)**| $7.4\,\text{V} - 8.4\,\text{V}$ | $400\,\text{mA}$ | $2500\,\text{mA}$ | Directo (Batería 2S) |
+| **Raspberry Pi Pico 2**| $5.0\,\text{V} (VBUS)$ | $40\,\text{mA}$ | $90\,\text{mA}$ | USB |
+
+#### Análisis de Margen de Seguridad en Reguladores:
+1. **Regulador XL4016 (Línea de Control - Límites Lógicos):**
+   * *Consumo máximo de pico estimado:* $1200 + 450 + 400 + 90 = 2140\,\text{mA}$ ($2.14\,\text{A}$).
+   * *Capacidad del regulador:* Con una salida máxima por diseño de **$8.0\,\text{A}$**, el XL4016 opera de manera holgada con un **margen de seguridad del $73.25\%$** bajo las condiciones de estrés electrónico más extremas posibles en carrera.
+2. **Regulador XL1509 (Línea de Potencia de Dirección):**
+   * *Consumo máximo en bloqueo (Stall):* $800\,\text{mA}$ ($0.8\,\text{A}$).
+   * *Capacidad del regulador:* Con una salida máxima de **$2.0\,\text{A}$**, el regulador opera con un **margen del $60\%$**, previniendo que el ruido inductivo del servo se filtre al bus de la CPU o afecte los sensores.
+
 ---
 
 ## 5. Capa de Percepción y Alto Nivel (Raspberry Pi 3B)
 
-La Raspberry Pi 3B se encarga de los procesos que demandan alta capacidad de cómputo. Mediante programación concurrente multihilos (`threading`), decodifica los datos en crudo del LiDAR y las imágenes de la cámara, calculando las decisiones estratégicas de navegación.
+La Raspberry Pi 3B se encarga de los procesos que demandan alta capacidad de cómputo. Mediante programación concurrentemente multihilos (`threading`), decodifica los datos en crudo del LiDAR y las imágenes de la cámara, calculando las decisiones estratégicas de navegación.
 
-### 5.1 Lógica de Control de la Ronda Abierta
+### Diagrama de Arquitectura de Software
 
-Para completar el reto de carrera de la Ronda Abierta, se diseñó una estrategia reactiva de centrado de carril en tiempo real. El script extrae las distancias mínimas detectadas en sectores geométricos específicos a izquierda y derecha del vehículo para computar un error proporcional.
+El siguiente diagrama de flujo ilustra la orquestación de procesos entre nuestro servicio de inicio, las rutinas de visión/navegación y la capa de control de bajo nivel:
 
-La aproximación matemática utilizada responde a la siguiente ecuación proporcional de error lateral:
+```mermaid
+graph TD
+    A["Encendido del Sistema (systemd)"] --> B["controlador_inicio.py"]
+    B --> C{"¿Qué señal se detecta?"}
+    
+    C -->|"Botón 1 (GPIO 21)"| D["Ejecutar: Open_round.py"]
+    C -->|"Botón 2 (GPIO 20)"| E["Ejecutar: Close_round.py"]
+    
+    D --> F["Centrado Reactivo por LiDAR C1"]
+    E --> G["Fusión Sensorial: OpenCV HSV + LiDAR"]
+    
+    F --> H["Consigna: velocidad, angulo"]
+    G --> H
+    
+    H -->|"UART 115200 bps"| I["Raspberry Pi Pico 2"]
+    I --> J["Filtro Derivativo IMU MPU6050"]
+    J --> K["Saturación Segura y Salida PWM"]
+    
+    K --> L{"¿Fallo comunicación?"}
+    L -->|"Sí > 500ms"| M["FAIL-SAFE: Detención Inmediata"]
+    L -->|"No"| I
 
-$$e(t) = D_i - D_d$$
+```
 
-$$\theta_{\text{objetivo}} = e(t) \cdot K_P$$
+### 5.1 Orquestación del Sistema y Demonio de Arranque Autónomo
 
-Donde:
+Para garantizar que el vehículo sea 100% autónomo desde el momento en que se conecta la batería en la pista (requisito estricto de la WRO), la Raspberry Pi 3B ejecuta el script `controlador_inicio.py` en segundo plano desde el arranque del sistema operativo.
 
-* $D_i$ es la distancia mínima detectada hacia la pared izquierda dentro de la ventana de escaneo $[270^\circ, 330^\circ]$.
-* $D_d$ es la distancia mínima detectada hacia la pared derecha dentro de la ventana de escaneo $[30^\circ, 90^\circ]$.
-* $e(t)$ representa el error de desplazamiento lateral respecto al centro ideal de la pista.
-* $K_P$ es la ganancia proporcional de guiado, calibrada empíricamente en $0.22$.
-* $\theta_{\text{objetivo}}$ es la consigna angular enviada directamente hacia la subcapa de control de bajo nivel.
+#### Configuración del Servicio del Sistema (`systemd`)
+
+Se implementó un demonio de sistema mediante un archivo de unidad en Linux localizado en `/etc/systemd/system/wro_start.service`. Esto fuerza al sistema operativo a inicializar la lógica de hardware inmediatamente después de cargar el kernel y las interfaces seriales:
+
+```ini
+[Unit]
+Description=Servicio Maestro de Inicio - Team Los Cedros WRO
+After=multi-user.target serial-getty@ttyAMA0.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/usr/bin/python3 /home/pi/controlador_inicio.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+
+```
 
 ### 5.2 Estructura Modular del Script de Carrera (Fragmentos Clave)
 
@@ -181,9 +265,28 @@ def procesar_ciclo_completo_lidar():
 
 ```
 
-### 5.3 Lógica de Control de la Ronda Cerrada (Evasión de Obstáculos)
+### 5.3 Estrategia de Navegación Justificada por Rondas (Geometría del Campo)
 
-*Esta sección documentará la arquitectura de visión artificial mediante OpenCV (Segmentación en espacio HSV y cálculo de centroides espaciales) una vez concluidas las pruebas dinámicas de evasión de pilares.*
+Nuestra arquitectura de software aborda las dos disciplinas del torneo de forma segregada, adaptándose rigurosamente a las condiciones geométricas del circuito:
+
+#### A. Ronda Abierta (Navegación Reactiva Simétrica)
+
+La meta en la Ronda Abierta es mantener la velocidad lineal máxima constante reduciendo el desplazamiento angular innecesario.
+
+* **Lógica del Algoritmo:** El RPLIDAR C1 barre en ventanas angulares simétricas a cada lado del vehículo. Al calcular el error de descentrado entre las distancias mínimas detectadas contra las paredes laterales ($e(t) = \text{dist\_izquierda} - \text{dist\_derecha}$), el script aplica una ganancia proporcional (`KP_LATERAL`) para enviar micro-correcciones de dirección a la Pico 2.
+* **Manejo de Casos Extremos (Puntos de Fallo):** Si el vehículo entra muy sesgado en una curva y el LiDAR pierde temporalmente la lectura de una de las paredes, el software activa un estado "Inercial". En este modo, el script ignora las lecturas nulas y congela el último ángulo de giro válido, confiando en la integración del giroscopio de la Pico 2 para completar el giro de la esquina de forma segura sin colisionar.
+
+#### B. Ronda Cerrada (Fusión Sensorial Visión Artificial + LiDAR)
+
+En la Ronda Cerrada, la presencia de pilares de obstáculos (bloques rojos y verdes) rompe la simetría de las paredes del circuito, requiriendo una estrategia asimétrica:
+
+* **Detección por Visión (Capa OpenCV):** La cámara Pi Module 3 captura el frente de la pista. El script `Close_round.py` transforma la matriz de imágenes al espacio de color HSV (Hue-Saturation-Value) para aislar los bloques mediante máscaras de umbralización calibradas en los boxes. Se extraen los contornos y se calcula el centroide del objeto más grande en el eje X de la imagen.
+* **Lógica de Esquiva y Evasión:** Cuando un obstáculo es detectado, se activa la lógica de evasión según las reglas del torneo:
+1. Si el bloque es **Verde**, el carro debe evadir por el carril **izquierdo**. El software inyecta un offset angular negativo a la dirección.
+2. Si el bloque es **Rojo**, el carro debe evadir por el carril **derecho**. El software inyecta un offset angular positivo.
+
+
+* **Validación de Cercanía con LiDAR:** Para evitar giros falsos causados por reflejos distantes, la decisión de esquivar se valida cruzando los datos con la distancia del LiDAR. La maniobra de evasión se ejecuta activamente solo cuando el LiDAR confirma que el pilar está a una distancia crítica menor a $45\,\text{cm}$. Una vez que el contorno del bloque sale del campo de visión de la cámara, el algoritmo proporcional vuelve a estabilizar el coche guiándose por las paredes libres.
 
 ---
 
@@ -308,24 +411,29 @@ while True:
 
 ## 7. Geometría de Dirección y Movilidad Mecánica
 
-### 7.1 Cinemática del Sistema de Dirección Ackermann
+### 7.1 Cinemática del Sistema de Dirección Ackermann y Calibración Real
 
 El chasis diseñado en *BrickLink Studio* adopta de forma estricta la geometría de dirección tipo **Ackermann**. El principio fundamental de este mecanismo radica en evitar que las ruedas delanteras se deslicen lateralmente al trazar una curva, permitiendo que la rueda interior gire un ángulo mayor que la rueda exterior, ya que describe un radio de curvatura más cerrado respecto al centro instantáneo de rotación (CIR).
 
-La ecuación cinemática que rige las restricciones geométricas y la relación de ángulos de nuestro chasis de LEGO responde a:
+La ecuación cinemática que rige las restricciones geométricas de nuestro chasis LEGO se ha calibrado utilizando las mediciones físicas reales del prototipo de producción (V2):
 
-$$\cot(\delta_o) - \cot(\delta_i) = \frac{w}{l}$$
+* **Ancho de la vía ($w$):** $115\,\text{mm}$
+* **Batalla / Distancia entre ejes ($l$):** $136\,\text{mm}$
+* **Ancho de los neumáticos:** $36\,\text{mm}$
+
+$$\cot(\delta_o) - \cot(\delta_i) = \frac{w}{l} = \frac{115\,\text{mm}}{136\,\text{mm}} = 0.845$$
 
 Donde:
-
 * $\delta_o$ es el ángulo de orientación de la rueda directriz exterior.
 * $\delta_i$ es el ángulo de orientación de la rueda directriz interior.
-* $w$ representa el ancho de la vía (*track width*), definido como la distancia transversal entre los pivotes de dirección delanteros.
-* $l$ representa la batalla del vehículo (*wheelbase*), que mide la distancia longitudinal entre el eje delantero y el eje de tracción trasero.
+* El factor constante de **$0.845$** es integrado directamente en la matriz de transferencia de control de la Raspberry Pi Pico 2 para ajustar dinámicamente el pulso de PWM enviado al Geekservo de dirección, garantizando giros limpios con cero subviraje o pérdida de tracción por fricción estática destructiva en las curvas de la WRO.
 
 ### 7.2 Renderizado del Chasis de Producción (V2)
-
 A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis:
+
+<p align="center">
+  <img src="3d-Models/render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
+</p>
 
 ### 7.3 Límites Angulares Calibrados y Protección Mecánica
 
@@ -338,4 +446,35 @@ El rango operativo del actuador Geekservo se restringe a los siguientes umbrales
 | **$140^\circ$** | **$180^\circ$** | **$240^\circ$** |
 | *Restricción estricta ante comandos de giro a la derecha.* | *Alineación de marcha lineal en pista ($0.00\,\text{v}$ de error).* | *Restricción estricta ante comandos de giro a la izquierda.* |
 
-> **Ventaja mecánica de la modularidad LEGO:** La sustitución del filamento impreso en 3D por vigas de fricción LEGO redujo el coeficiente de masa inercial global, disminuyendo drásticamente el subviraje físico provocado por la fuerza centrípeta en las esquinas de la pista de la WRO.
+> **Ventaja mecánica de la modularidad LEGO:** La sustitución del filamento impreso en 3D por vigas de fricción LEGO redujo el coeficiente de masa inercial global, consolidando un peso final competitivo de **613 gramos exactos** que disminuye drásticamente el subviraje físico provocado por la fuerza centrípeta en las esquinas de la pista de la WRO.
+
+### 7.4 Análisis de Ingeniería: Cálculo Matemático de Torque y Fuerza de Tracción
+
+Para validar científicamente que nuestro motor de tracción acoplado al driver **TB6612FNG** es capaz de romper la fricción estática del neumático sin sobrecalentar las etapas de potencia ni patinar en pista, se realizó el modelo matemático de torque dinámico basado en las mediciones reales del vehículo:
+
+#### A. Variables Físicas del Prototipo (V2):
+* **Masa total del vehículo ($m$):** $613\,\text{g} = 0.613\,\text{kg}$
+* **Fuerza de Gravedad ($g$):** $9.81\,\text{m/s}^2$
+* **Radio del neumático de tracción ($r$):** $18\,\text{mm} = 0.018\,\text{m}$ (Diámetro de $36\,\text{mm}$)
+* **Coeficiente de fricción estática caucho-pista ($\mu_e$):** $\approx 0.85$ (Escenario de máxima adherencia en curvas)
+
+#### B. Cálculo de la Fuerza Normal y Fricción Estática Máxima:
+La fuerza de fricción máxima ($F_f$) que el motor debe vencer para mover el vehículo desde el reposo total en el peor escenario (fricción estática máxima) es:
+
+$$F_N = m \cdot g = 0.613\,\text{kg} \cdot 9.81\,\text{m/s}^2 = 6.013\,\text{N}$$
+
+$$F_f = F_N \cdot \mu_e = 6.013\,\text{N} \cdot 0.85 = 5.111\,\text{N}$$
+
+#### C. Torque Mínimo Requerido en el Eje de las Ruedas:
+Para contrarrestar esta fuerza en el radio del neumático ($r$), el torque mínimo de arranque ($T_{\text{min}}$) en el eje es:
+
+$$T_{\text{min}} = F_f \cdot r = 5.111\,\text{N} \cdot 0.018\,\text{m} = 0.092\,\text{N}\cdot\text{m} = \mathbf{0.938\,\text{kg}\cdot\text{cm}}$$
+
+#### D. Justificación de la Selección del Motor (Margen de Seguridad):
+Nuestro motorreductor DC seleccionado entrega un **Torque de Bloqueo (Stall Torque) de $2.4\,\text{kg}\cdot\text{cm}$** a su voltaje operativo nominal de $7.4\,\text{V}$. 
+
+Realizando el análisis de balance de carga:
+
+$$\text{Margen de Torque} = \frac{T_{\text{motor}}}{T_{\text{min}}} = \frac{2.4\,\text{kg}\cdot\text{cm}}{0.938\,\text{kg}\cdot\text{cm}} = \mathbf{2.55}$$
+
+* **Conclusión de Ingeniería:** El sistema de transmisión posee un **factor de seguridad de 2.55 veces el torque mínimo necesario**. Esto significa que el motor opera al **$39.2\%$ de su capacidad máxima** durante el arranque más agresivo en pista, garantizando una aceleración explosiva (cero subviraje mecánico por falta de par), protegiendo las celdas de las baterías 21700 contra picos severos de descarga y evitando que el puente H trabaje en su zona de fatiga térmica.
