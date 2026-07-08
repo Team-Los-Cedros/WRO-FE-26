@@ -7,7 +7,7 @@ import time
 poller = select.poll()
 poller.register(sys.stdin, select.POLLIN)
 
-# --- CONFIGURACIÓN DE HARDWARE ---
+# Configuracion de bus I2C para el MPU6050
 i2c = I2C(0, sda=Pin(16), scl=Pin(17), freq=400000)
 
 servo = PWM(Pin(12))
@@ -22,8 +22,14 @@ pwmb.freq(2000)
 
 stby.value(1)
 
+# Limites de giro del servo calibrados
+CENTRO = 90
+LIMITE_DER = 70    # Máximo giro a la derecha
+LIMITE_IZQ = 115   # Máximo giro a la izquierda
+
 def mover_servo(angulo):
-    angulo = max(0, min(180, angulo))
+    # Protegemos el servo usando tus límites calibrados en lugar de 0 y 180
+    angulo = max(LIMITE_DER, min(LIMITE_IZQ, angulo))
     duty = int(1638 + (angulo / 180.0) * (8192 - 1638))
     servo.duty_u16(duty)
 
@@ -48,7 +54,7 @@ class MPU6050:
     def __init__(self, i2c, addr=0x68):
         self.i2c = i2c
         self.addr = addr
-        self.i2c.writeto_mem(self.addr, 0x6B, b'\x00') # Despertar sensor
+        self.i2c.writeto_mem(self.addr, 0x6B, b'\x00') # Activar sensor
         # Configura el giroscopio a +-2000 °/s para evitar saturación
         self.i2c.writeto_mem(self.addr, 0x1B, b'\x18')
         
@@ -60,7 +66,7 @@ class MPU6050:
 
 try:
     sensor = MPU6050(i2c)
-    mover_servo(90)
+    mover_servo(CENTRO) # Arranca alineado al centro calibrado
     controlar_motor(0)
 except Exception as e:
     pass
@@ -78,17 +84,13 @@ angulo_acumulado = 0.0
 angulo_objetivo = 0.0
 velocidad_comandada = 0
 
-# Límites Mecánicos de Seguridad (Protección de chasis)
-LIMITE_DER = 75  
-LIMITE_IZQ = 105  
-
 # Constante de Amortiguación: Evita que el coche devane o curve de golpe
 KD_ESTABILIDAD = 0.12  
 
 ultima_lectura = time.ticks_ms()
 ultimo_envio_telemetria = time.ticks_ms()
 
-# --- BUCLE DE CONTROL EN TIEMPO REAL ---
+# Bucle principal de control
 while True:
     try:
         tiempo_actual = time.ticks_ms()
@@ -116,11 +118,10 @@ while True:
                     pass
 
         # Lógica de dirección (LiDAR Proporcional + Amortiguador Gyro)
-        # El comando de la Pi actúa directamente sobre el centro (90°)
-        # Restamos la velocidad angular multiplicada por KD para absorber inercias bruscas
-        angulo_servo = 90 + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
+        # El comando de la Pi actúa directamente sobre tu CENTRO calibrado
+        angulo_servo = CENTRO + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
         
-        # Limitación física estricta
+        # Limitación física estricta con tus nuevos parámetros
         angulo_servo = max(LIMITE_DER, min(LIMITE_IZQ, angulo_servo))
         mover_servo(angulo_servo)
         
@@ -140,5 +141,5 @@ while True:
     except KeyboardInterrupt:
         controlar_motor(0)
         stby.value(0)
-        mover_servo(90)
+        mover_servo(CENTRO)
         break
