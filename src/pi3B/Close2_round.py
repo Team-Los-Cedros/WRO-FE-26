@@ -89,6 +89,12 @@ MAX_ANGULO_EVASION = 32.0
 ANGULO_BASE_DETECTADO   = 15.0
 ANGULO_BASE_ESQUIVANDO  = 28.0
 
+# Tiempo máximo en DETECTADO antes de forzar ESQUIVANDO como red de
+# seguridad, solo si el LiDAR nunca confirma el cluster ni cruza los
+# umbrales de distancia (600mm/400mm). En el escenario normal, la
+# confirmación por distancia real ocurre bastante antes de este límite.
+TIMEOUT_DETECTADO = 1.2
+
 CONFIRMACIONES_PARA_ENTRAR = 2
 CONFIRMACIONES_PARA_SALIR  = 4
 
@@ -759,8 +765,12 @@ def procesar_ciclo_completo_lidar():
             tiempo_detectado = time.time() - tiempo_inicio_evasion
 
             # Transición a ESQUIVANDO si el tracker confirma Y el obstáculo está a <600mm,
-            # o si el obstáculo está muy cerca (por seguridad), o tras 0.3s (fallback).
-            if (trk_confirmado and frontal < 600) or frontal < 400 or tiempo_detectado > 0.3:
+            # o si el obstáculo está muy cerca (por seguridad), o tras TIMEOUT_DETECTADO
+            # (red de seguridad si el LiDAR nunca llega a confirmar el cluster -- antes
+            # era 0.3s, tan corto que casi siempre ganaba él antes que la confirmación
+            # real de distancia, haciendo que el robot evadiera "a ciegas" sin esperar
+            # al LiDAR).
+            if (trk_confirmado and frontal < 600) or frontal < 400 or tiempo_detectado > TIMEOUT_DETECTADO:
                 estado_evasion        = "ESQUIVANDO"
                 tiempo_inicio_evasion = time.time()
                 lado_str = "IZQUIERDA" if EVADIR_POR_IZQUIERDA else "DERECHA"
