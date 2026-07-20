@@ -1,12 +1,13 @@
 # Video de Desempeño en Pista
 
-**Estado: pendiente de grabación final.**
+## Ronda Abierta
 
-Esta carpeta y este archivo están reservados para el enlace público (YouTube/Drive, no listado) del video reglamentario que muestra al vehículo completando de forma 100% autónoma:
+**[https://youtu.be/69h0BPew7_Y](https://youtu.be/69h0BPew7_Y)** (No listado)
 
-1. Tres vueltas de la **Ronda Abierta** sin tocar las paredes.
-2. Tres vueltas de la **Ronda Cerrada** evadiendo los pilares rojos/verdes según su color.
+Vuelta autónoma completa del vehículo guiada por RPLiDAR C1 con control proporcional y corrección inercial por IMU (MPU6050).
+
+## Ronda Cerrada
+
+**Estado: pendiente de grabación final.** Se está validando en pista la corrección aplicada a la lógica de evasión de obstáculos (ver historial de commits de `src/pi3B/Close2_round.py` en la rama `dev-close_round`) antes de grabar la corrida oficial.
 
 En `video/video-drafts/` se encuentran las grabaciones preliminares de las pruebas de desarrollo (`P1`–`P5`, aperturas y cierres de cada iteración), usadas internamente por el equipo para depurar el algoritmo de evasión antes de la grabación oficial.
-
-> Enlace oficial: `<pendiente>`
