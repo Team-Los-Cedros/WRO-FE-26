@@ -95,6 +95,12 @@ ANGULO_BASE_ESQUIVANDO  = 28.0
 # confirmación por distancia real ocurre bastante antes de este límite.
 TIMEOUT_DETECTADO = 1.2
 
+# Tiempo máximo para que RECENTRANDO corrija el rumbo antes de rendirse.
+# En pista se observaron errores de hasta ~68 grados que no alcanzaban a
+# corregirse en 1.5s, dejando al robot desalineado y disparando la
+# emergencia anti-colisión justo al volver a CARRERA.
+TIMEOUT_RECENTRANDO = 3.0
+
 CONFIRMACIONES_PARA_ENTRAR = 2
 CONFIRMACIONES_PARA_SALIR  = 4
 
@@ -819,7 +825,7 @@ def procesar_ciclo_completo_lidar():
             error_heading      = abs(heading_base_evasion - angulo_acumulado_robot)
             tiempo_recentrando = time.time() - tiempo_inicio_evasion
 
-            if error_heading < 4.0 or tiempo_recentrando > 1.5:
+            if error_heading < 4.0 or tiempo_recentrando > TIMEOUT_RECENTRANDO:
                 estado_evasion = "CARRERA"
                 ANGULO_MIN_FRONTAL = 350
                 ANGULO_MAX_FRONTAL = 10
@@ -910,9 +916,15 @@ def procesar_ciclo_completo_lidar():
             velocidad_base = VELOCIDAD_EVASION
 
         elif estado_evasion == "RECENTRANDO":
-            # Control P más agresivo para volver al heading original
+            # Control P más agresivo para volver al heading original. Antes se
+            # capaba a +-25 grados y el estado se rendia por timeout (1.5s) sin
+            # converger en errores grandes (~68 grados vistos en pista), dejando
+            # al robot desalineado y disparando emergencias en cadena al volver
+            # a CARRERA. Ahora usa el mismo limite MAX_ANGULO_EVASION que el
+            # resto de la maniobra y tiene mas tiempo (TIMEOUT_RECENTRANDO) para
+            # converger de verdad antes de rendirse.
             error_h = heading_base_evasion - angulo_acumulado_robot
-            angulo_objetivo_crudo = max(-25.0, min(25.0, error_h * KP_IMU * 1.2))
+            angulo_objetivo_crudo = max(-MAX_ANGULO_EVASION, min(MAX_ANGULO_EVASION, error_h * KP_IMU * 1.2))
             velocidad_base = VELOCIDAD_EVASION
 
         else:
