@@ -1,0 +1,14 @@
+[Unit]
+Description=Servicio Maestro de Inicio - Team Los Cedros WRO
+After=multi-user.target serial-getty@ttyAMA0.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/usr/bin/python3 /home/pi/controlador_inicio.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

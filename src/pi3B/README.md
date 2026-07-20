@@ -14,7 +14,8 @@ Para garantizar que el vehículo sea 100% autónomo desde el momento en que se c
 2. **`wro_start.service`**: Unidad de servicio nativa de Linux (`systemd`) que fuerza el auto-arranque del script maestro inmediatamente después de inicializar el kernel.
 3. **Scripts de Carrera**: `Open_round.py` (Control proporcional guiado por RPLIDAR C1) y `Close_round.py` (Procesamiento matricial OpenCV HSV para evasión de pilares).
 4. **`calibrar_hsv.py`**: Herramienta de calibración interactiva (no se ejecuta en carrera). Levanta un servidor TCP en el puerto `5000` que recibe el streaming JPEG de la Pi Camera y expone sliders de OpenCV (`H/S/V Min/Max` por color) en la laptop del equipo para ajustar en vivo los umbrales de segmentación de los bloques verde y rojo antes de cada ronda.
-5. **`requirements.txt`**: Dependencias Python congeladas del entorno de la Raspberry Pi 3B (OpenCV, pyserial, RPi.GPIO, numpy) para garantizar reproducibilidad del entorno de ejecución.
+5. **`requirements.txt`**: Dependencias Python del entorno de la Raspberry Pi 3B (OpenCV, pyserial, RPi.GPIO, numpy) — instalar con `pip install -r requirements.txt` para garantizar reproducibilidad del entorno de ejecución.
+6. **`wro_start.service`**: Copia real del archivo de unidad `systemd`. Para reproducir el arranque autónomo en una Pi nueva: `sudo cp wro_start.service /etc/systemd/system/ && sudo systemctl enable wro_start.service`.
 
 > **Nota de desarrollo activo:** `Close2_round.py` y `Close2_round - Prueba1.py` son iteraciones experimentales de la lógica de Ronda Cerrada, desarrolladas en la rama `dev-close_round` como banco de pruebas antes de fusionar mejoras a `Close_round.py`. Esto documenta el ciclo real de iteración y prueba del equipo, no son scripts huérfanos.
 

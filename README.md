@@ -47,7 +47,8 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │       ├── Close_round.py        # Algoritmo de visión y evasión para la Ronda Cerrada
 │       ├── Close2_round.py       # Iteración experimental de Close_round.py (rama dev-close_round)
 │       ├── calibrar_hsv.py       # Herramienta de calibración interactiva de umbrales HSV
-│       └── requirements.txt      # Dependencias Python del entorno de la Pi 3B
+│       ├── requirements.txt      # Dependencias Python del entorno de la Pi 3B
+│       └── wro_start.service     # Unidad systemd real para el arranque autónomo
 ├── 3d-Models/                    # Modelos mecánicos: STL del chasis V1 (archivado) y CAD LEGO del V2
 │   ├── Chasis-LEGO-V2/           # Archivo .io (BrickLink Studio), render y listado de piezas del chasis actual
 │   └── V1/                       # STL, catálogo y guía de ensamblaje del chasis impreso archivado
@@ -363,7 +364,7 @@ Para garantizar que el vehículo sea 100% autónomo desde el momento en que se c
 
 #### Configuración del Servicio del Sistema (`systemd`)
 
-Se implementó un demonio de sistema mediante un archivo de unidad en Linux localizado en `/etc/systemd/system/wro_start.service`. Esto fuerza al sistema operativo a inicializar la lógica de hardware inmediatamente después de cargar el kernel y las interfaces seriales:
+Se implementó un demonio de sistema mediante un archivo de unidad en Linux localizado en `/etc/systemd/system/wro_start.service`. El archivo real, listo para copiar durante la reproducción del sistema, está incluido en el repositorio en [`src/pi3B/wro_start.service`](src/pi3B/wro_start.service):
 
 ```ini
 [Unit]
