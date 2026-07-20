@@ -2,6 +2,17 @@
 
 Bienvenidos al repositorio oficial del **Team Los Cedros**, integrado por estudiantes del Colegio Los Cedros en Valera, Estado Trujillo, Venezuela. Aquí compartimos la documentación técnica, diseños de hardware, esquemas eléctricos y el software modular de nuestro vehículo autónomo para la World Robot Olympiad (WRO) 2026.
 
+### Índice
+
+1. [Introducción y Equipo](#1-introducción-y-equipo)
+2. [Anatomía del Repositorio](#2-anatomía-del-repositorio)
+3. [Diseño Evolutivo y Ciclos de Iteración](#3-diseño-evolutivo-y-ciclos-de-iteración)
+4. [Arquitectura Eléctrica y Distribución de Señales](#4-arquitectura-eléctrica-y-distribución-de-señales)
+5. [Capa de Percepción y Alto Nivel (Raspberry Pi 3B)](#5-capa-de-percepción-y-alto-nivel-raspberry-pi-3b)
+6. [Capa de Control de Bajo Nivel (Raspberry Pi Pico 2)](#6-capa-de-control-de-bajo-nivel-raspberry-pi-pico-2)
+7. [Geometría de Dirección y Movilidad Mecánica](#7-geometría-de-dirección-y-movilidad-mecánica)
+8. [Análisis de Riesgos y Registro de Iteraciones](#8-análisis-de-riesgos-y-registro-de-iteraciones)
+
 ---
 
 ## 1. Introducción y Equipo
@@ -26,24 +37,46 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 
 ```
 
-├── src/                        # Código fuente de la arquitectura distribuida
-│   ├── pico/                   # Firmware embebido (MicroPython - Raspberry Pi Pico 2)
-│   │   ├── main.py             # Bucle principal de control en tiempo real y actuadores
-│   │   └── serial_receiver.py  # Parser serial no bloqueante para comandos de dirección
-│   └── pi3b/                   # Scripts de alto nivel (Python 3 - Raspberry Pi 3B)
+├── src/                          # Código fuente de la arquitectura distribuida
+│   ├── pico/                     # Firmware embebido (MicroPython - Raspberry Pi Pico 2)
+│   │   ├── main.py               # Bucle principal de control en tiempo real y actuadores
+│   │   └── Mpu6050.py             # Driver I2C standalone para el sensor inercial MPU6050
+│   └── pi3B/                     # Scripts de alto nivel (Python 3 - Raspberry Pi 3B)
 │       ├── controlador_inicio.py # Orquestador central (Ejecutado como servicio del sistema OS)
-│       ├── Open_round.py       # Algoritmo secuencial para la Ronda Abierta
-│       └── Close_round.py      # Algoritmo de visión y evasión para la Ronda Cerrada
-├── 3d-Models/                  # Modelos mecánicos en formato STL y renders PNG
-├── t-photos/                   # Fotos de las jornadas de desarrollo del equipo
-├── v-photos/                   # Las 6 capturas reglamentarias del coche
-├── video/                      # Archivo video.md con el enlace a la vuelta en pista
-├── schemes/                    # Diagramas eléctricos y mapas electrónicos
-└── README.md                   # Documentación técnica principal (este archivo)
+│       ├── Open_round.py         # Algoritmo de navegación reactiva para la Ronda Abierta
+│       ├── Close_round.py        # Algoritmo de visión y evasión para la Ronda Cerrada
+│       ├── Close2_round.py       # Iteración experimental de Close_round.py (rama dev-close_round)
+│       ├── calibrar_hsv.py       # Herramienta de calibración interactiva de umbrales HSV
+│       └── requirements.txt      # Dependencias Python del entorno de la Pi 3B
+├── 3d-Models/                    # Modelos mecánicos: STL del chasis V1 (archivado) y CAD LEGO del V2
+│   ├── Chasis-LEGO-V2/           # Archivo .io (BrickLink Studio), render y listado de piezas del chasis actual
+│   └── V1/                       # STL, catálogo y guía de ensamblaje del chasis impreso archivado
+├── t-photos/                     # Fotos de las jornadas de desarrollo del equipo
+├── v-photos/                     # Las 6 capturas reglamentarias, fotos V1 vs V2 y componentes
+│   ├── Componentes/               # Foto individual de cada componente electrónico usado
+│   └── Ackermann/                 # Evidencia fotográfica de los límites de giro calibrados
+├── video/                        # Enlace oficial del video de pista y borradores de prueba
+├── schemes/                      # Diagrama de cableado y fotos de la placa perforada
+└── README.md                     # Documentación técnica principal (este archivo)
 
 ```
 
 > **Nota de Software de Inicio:** El script `controlador_inicio.py` actúa como el orquestador maestro en la Raspberry Pi 3B, configurado explícitamente como un servicio de `systemd` en Linux para garantizar el autoarranque inmediato del coche al encender la batería.
+
+### 2.1 Historial de Versiones y Control de Cambios
+
+El repositorio mantiene un historial de commits granular (70+ confirmaciones) que documenta el proceso real de ingeniería, no solo el resultado final. Los hitos principales, en orden cronológico:
+
+| Etapa | Commits representativos | Qué cambió |
+| :--- | :--- | :--- |
+| **Estructura inicial** | `chore: crear estructura de carpetas oficiales para WRO 2026`, `docs: inicializar README.md` | Se define el esqueleto reglamentario del repositorio (`src/`, `v-photos/`, `schemes/`, etc.). |
+| **Firmware base Pico 2** | `feat(pico2): script nativo en MicroPython`, `feat(control): implementar máquina de estados base`, `feat(pico): implementar parser serial no bloqueante` | Primera versión funcional del control de bajo nivel y protocolo serial Pi↔Pico. |
+| **Integración de sensores** | `feat(pi5): implementar procesamiento crudo de bytes para rplidar`, `feat(pico): corregir mapeo de pines I2C de la IMU` | Se resuelven conflictos de canales PWM y se estabiliza la lectura del LiDAR y del giroscopio. |
+| **Migración de chasis V1 → V2** | `Estructura base y hardware V2 en LEGO`, `justificar ventajas cinemáticas del chasis LEGO de 613g frente a impresión 3D` | Rediseño completo de la plataforma mecánica (ver sección 3). |
+| **Corrección de calibración de dirección** | `Arreglo de angulo central del robot de 90 a 180 grados` → `Arreglo en equivocacion de angulo central` | Se probó un centro de servo a 180° y se revirtió a **90°** tras validar en pista que generaba error de alineación (ver sección 6 y 7.3 — el README refleja el valor vigente). |
+| **Ronda Cerrada (en curso)** | `Añadimos codigos de Calibracion HSV para la ronda cerrada`, rama `dev-close_round` | Desarrollo activo del algoritmo de evasión de obstáculos con herramienta de calibración HSV dedicada. |
+
+> **Nota de reproducibilidad:** Se puede auditar la evolución exacta de cualquier archivo con `git log --follow -p -- <archivo>`, por ejemplo `git log --follow -p -- src/pico/main.py` muestra el cambio de calibración del ángulo central documentado arriba.
 
 ---
 
@@ -202,7 +235,54 @@ Para asegurar el correcto funcionamiento del vehículo autónomo y prevenir rein
 
 >  **Nota eléctrica:** Todas las referencias de tierra (GND) del vehículo confluyen en una topología de estrella en un único punto común central. Esto unifica los umbrales lógicos y drena el ruido electromagnético generado por las conmutaciones de los motores.
 
-### 4.2 Mapa de Conexiones Calibrado (Pinout)
+#### Diagrama de Cableado Oficial
+
+Diagrama de referencia usado por el equipo durante el ensamblaje, verificado contra el pinout real de `src/pico/main.py` y `src/pi3B/controlador_inicio.py`:
+
+<p align="center">
+  <img src="schemes/Alimentacion_y_Logica.png" alt="Diagrama de cableado: Pico 2, XL4016, XL1509 y GPIO de la Pi 3B" width="700px"/>
+</p>
+
+#### Implementación Física: Placa Perforada
+
+La integración electrónica de la Pico 2, el driver TB6612FNG y el MPU6050 se soldó sobre una placa perforada (protoboard permanente) para eliminar el riesgo de falsos contactos por vibración que sí existía con conexiones de jumpers sueltos:
+
+<div style="display: flex; gap: 10px; align-items: center;">
+  <div style="text-align: center; flex: 1;">
+    <p><b>Capa Superior — Pico 2 + MPU6050</b></p>
+    <img src="schemes/Placa_Perforada/Top_Layer_Placa.jpeg" alt="Capa superior de la placa perforada" style="max-height: 280px; width: auto; border-radius: 5px;"/>
+  </div>
+  <div style="text-align: center; flex: 1;">
+    <p><b>Capa Inferior — Soldadura y buses</b></p>
+    <img src="schemes/Placa_Perforada/Bottom_Layer_Placa.jpeg" alt="Capa inferior de la placa perforada" style="max-height: 280px; width: auto; border-radius: 5px;"/>
+  </div>
+</div>
+
+### 4.2 Catálogo de Componentes y Justificación de Selección
+
+Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específico ligado a la geometría del campo de la WRO. La justificación comparativa completa (por qué se descartaron alternativas como ultrasonido o HuskyLens) está en la sección 3.4; aquí se documenta la selección final con evidencia fotográfica:
+
+| Componente | Foto | Justificación de selección y ubicación |
+| :--- | :---: | :--- |
+| **RPLiDAR C1** | <img src="v-photos/Componentes/RPLiDAR_C1.png" width="90"/> | Montado en el punto más alto del chasis (torre trasera) para obtener un barrido de 360° sin obstrucciones del propio cuerpo del robot; su altura se fijó por encima de los pilares de obstáculos para que la Ronda Cerrada no confunda un pilar con una pared del carril. |
+| **Pi Camera Module 3** | <img src="v-photos/Componentes/Camara.png" width="90"/> | Ubicada al frente y retrasada respecto al parachoques (ver sección 3.4) para proteger el sensor de impactos directos, con el ángulo de inclinación fijo calibrado para que el horizonte de la pista quede en el tercio superior del frame y maximice el área útil para detectar bloques de color. |
+| **MPU6050 (IMU)** | <img src="v-photos/Componentes/MPU6050.png" width="90"/> | Montado rígidamente sobre la placa perforada, alineado con el eje longitudinal del chasis para que la lectura del eje Z corresponda exactamente al *yaw* del vehículo sin necesidad de compensar desalineación mecánica. |
+| **Geekservo Servo (Dirección)** | <img src="v-photos/Componentes/GeekservoServo.png" width="90"/> | Acoplado directo al `base_servo` del eje delantero; se eligió por compatibilidad mecánica nativa con las vigas Technic, evitando adaptadores impresos que añaden holgura al sistema de dirección. |
+| **Geekservo DC (Tracción)** | <img src="v-photos/Componentes/GeekservoDC.png" width="90"/> | Seleccionado por su torque de bloqueo de $2.4\,\text{kg}\cdot\text{cm}$, validado matemáticamente en la sección 7.4 con un margen de seguridad de 2.55×. |
+| **Driver TB6612FNG** | <img src="v-photos/Componentes/TB6612FNG.png" width="90"/> | Preferido sobre el clásico L298N por su topología MOSFET (menor caída de tensión y disipación térmica), crítico dado el presupuesto de corriente ajustado del sistema (sección 4.3). |
+| **Raspberry Pi 3B** | <img src="v-photos/Componentes/Rspr3B.jpg" width="90"/> | Capa de alto nivel: único módulo del kit con soporte nativo de interfaz CSI (cámara) y suficiente cómputo para correr OpenCV en tiempo real. |
+| **Raspberry Pi Pico 2** | <img src="v-photos/Componentes/Pico2.jpg" width="90"/> | Capa de bajo nivel de tiempo real: descarga a la Pi 3B de la generación de PWM y la integración del giroscopio, evitando que el *jitter* del sistema operativo Linux afecte la estabilidad del lazo de control físico. |
+| **Reguladores XL1509 / XL4016** | <img src="v-photos/Componentes/Xl1509.png" width="90"/> <img src="v-photos/Componentes/Xl4016.png" width="90"/> | Ver arquitectura de desacoplamiento por etapas en la sección 4.1 y análisis de margen de seguridad en la sección 4.3. |
+| **Baterías 21700 (2S)** | <img src="v-photos/Componentes/baterias.jpg" width="90"/> | Ver justificación de densidad de corriente en la sección 3.4. |
+| **Botón físico (x2)** | <img src="v-photos/Componentes/Boton.png" width="90"/> | Selección de ronda (Abierta/Cerrada) por hardware puro (GPIO con pull-up) en vez de un menú por software, para minimizar el tiempo entre el arranque de la batería y el inicio de la marcha, tal como exige el reglamento. |
+
+#### Método de Calibración de Sensores
+
+* **IMU (MPU6050):** Al energizar la Pico 2, `src/pico/main.py` promedia 100 lecturas del giroscopio en el eje Z (~1 segundo, con una espera de 10 ms entre muestras) para calcular `giro_z_offset` antes de entrar al bucle de control. Esto elimina el *bias* estático de fabricación del MEMS sin necesidad de recalibración manual entre carreras.
+* **Cámara (Segmentación HSV):** `calibrar_hsv.py` transmite el feed de la Pi Camera por socket TCP a la laptop del equipo y expone sliders interactivos de OpenCV para ajustar en vivo los rangos `H/S/V` de verde y rojo (el rojo requiere dos rangos por el *wraparound* del matiz en 0°/180°). Los umbrales resultantes se copian manualmente a `Close_round.py` antes de cada jornada de pruebas, ya que la iluminación de los boxes varía respecto a la de la pista oficial.
+* **Puntos de fallo considerados:** si la IMU se satura o pierde el bus I2C, `main.py` captura la excepción y fuerza `velocidad_z = 0.0` (el coche sigue guiándose solo por LiDAR en vez de trabar el bucle de control); si el LiDAR pierde la lectura de una pared, la Pi 3B congela el último ángulo válido (modo "Inercial", sección 5.3) en lugar de enviar un comando basado en datos corruptos.
+
+### 4.3 Mapa de Conexiones Calibrado (Pinout)
 
 #### Interfaces Digitales de la Raspberry Pi Pico 2
 
@@ -222,7 +302,7 @@ Para asegurar el correcto funcionamiento del vehículo autónomo y prevenir rein
 * **RPLIDAR C1:** Conectado directamente a un puerto USB 2.0 maestro (Comunicación UART integrada a $460\,800\,\text{bps}$).
 * **Raspberry Pi Pico 2:** Enlazada por interfaz de datos USB corta operando bajo la clase de dispositivo COM Virtual (VCP) a una tasa fija de $115\,200\,\text{bps}$.
 
-### 4.3 Presupuesto de Consumo Energético y Gestión de Corriente
+### 4.4 Presupuesto de Consumo Energético y Gestión de Corriente
 
 Para evitar caídas de tensión críticas (*brownouts*) en la Raspberry Pi 3B cuando los actuadores demandan torque máximo, se calculó el presupuesto de corriente nominal y de pico (Stall) del sistema:
 
@@ -381,6 +461,23 @@ En la Ronda Cerrada, la presencia de pilares de obstáculos (bloques rojos y ver
 2. Si el bloque es **Rojo**, el carro debe evadir por el carril **derecho**. El software inyecta un offset angular positivo.
 
 * **Validación de Cercanía con LiDAR:** Para evitar giros falsos causados por reflejos distantes, la decisión de esquivar se valida cruzando los datos con la distancia del LiDAR. La maniobra de evasión se ejecuta activamente solo cuando el LiDAR confirma que el pilar está a una distancia crítica menor a $45\,\text{cm}$. Una vez que el contorno del bloque sale del campo de visión de la cámara, el algoritmo proporcional vuelve a estabilizar el coche guiándose por las paredes libres.
+
+### 5.4 Parámetros de Control y Proceso de Ajuste
+
+Los valores numéricos vigentes en `Open_round.py`, obtenidos empíricamente mediante prueba y error directamente en pista (sin instrumentación de *logging* de datos, por lo que el método de validación fue observacional: repetir vueltas hasta eliminar oscilación visible contra las paredes):
+
+| Parámetro | Valor Vigente | Efecto observado al ajustarlo |
+| :--- | :---: | :--- |
+| `KP_LATERAL` | `0.22` | Ganancia proporcional del centrado. Valores mayores generaban zigzag (sobrecorrección) en los tramos rectos; valores menores dejaban al coche "flotando" sin corregir a tiempo antes de una curva cerrada. |
+| `KD_ESTABILIDAD` | `0.12` | Amortiguación derivativa en la Pico 2 (sección 6.2). Compensa el sobregiro que el término proporcional introduce al salir de una curva. |
+| `VELOCIDAD_CRUCERO` | `100` | Velocidad de PWM en tramo recto/curva estándar. |
+| `VELOCIDAD_PARQUEO` | `60` | Velocidad reducida durante la búsqueda de la posición de estacionamiento final, priorizando precisión sobre velocidad. |
+| `TIMEOUT_BUSQUEDA_PARQUEO` | `4.0 s` | Límite de seguridad: si la firma espacial de estacionamiento no coincide en 4 segundos, el sistema fuerza la detención igualmente para no exceder el tiempo de carrera reglamentario. |
+| Umbral de distancia de evasión | `45 cm` | Distancia LiDAR a la que se activa la maniobra de esquiva; se eligió para dar margen de reacción mecánica sin iniciar el giro tan temprano que el coche invada el carril contrario de forma innecesaria. |
+| Umbral de coincidencia de estacionamiento | `80 mm` | Tolerancia entre la firma espacial inicial y la actual (`match_firma_original`) para considerar que el coche volvió a su punto de partida. |
+
+* **Proceso de ajuste:** El equipo itera cambiando un parámetro a la vez, corriendo 2-3 vueltas consecutivas en la pista de práctica y observando el comportamiento cualitativo (oscilación lateral, choque con paredes, retraso en la reacción a curvas). No se registran tiempos de vuelta cuantitativos en este repositorio — es una limitación conocida del proceso actual que el equipo planea instrumentar (registro de `error_lateral` a un archivo `.csv` por vuelta) antes de la competencia final.
+
 ---
 
 ## 6. Capa de Control de Bajo Nivel (Raspberry Pi Pico 2)
@@ -395,11 +492,11 @@ Para contrarrestar los efectos dinámicos del subviraje y estabilizar el coche a
 
 La ecuación en lazo cerrado que calcula la posición angular final del servomotor responde a:
 
-$$\theta_{\text{servo}} = 180^\circ + \theta_{\text{objetivo}} - (\omega_z \cdot K_D)$$
+$$\theta_{\text{servo}} = 90^\circ + \theta_{\text{objetivo}} - (\omega_z \cdot K_D)$$
 
 Donde:
 
-* $180^\circ$ representa el punto central calibrado por software para la marcha en línea recta del servomotor.
+* $90^\circ$ (constante `CENTRO` en `src/pico/main.py`) representa el punto central calibrado por software para la marcha en línea recta del servomotor. Este valor se validó y corrigió en pista: el equipo probó inicialmente $180^\circ$ como centro (ver historial de versiones, sección 2.1) y lo revirtió a $90^\circ$ tras detectar desalineación física del servo con ese offset.
 * $\theta_{\text{objetivo}}$ es el ángulo macro de guiado espacial solicitado dinámicamente por el script de la Raspberry Pi 3B.
 * $\omega_z$ es la velocidad angular instantánea sobre el eje de rotación vertical (Yaw), obtenida tras sustraer el offset estático de calibración: 
 
@@ -410,12 +507,16 @@ $$\omega_z = \text{Gyro}_{z} - \text{Offset}_{z}$$
 ### 6.3 Funciones Maestras de Control Físico
 
 ```python
-# Módulo de funciones clave extraído de src/pico/main.py
+# Funciones clave extraídas literalmente de src/pico/main.py
+
+# Límites de giro del servo calibrados en pista
+CENTRO = 90
+LIMITE_DER = 70    # Máximo giro a la derecha
+LIMITE_IZQ = 115   # Máximo giro a la izquierda
 
 def mover_servo(angulo):
-    """ Convierte el ángulo geométrico (0-180) a ciclo de trabajo de hardware (16-bit) """
-    angulo = max(0, min(180, angulo))
-    # Mapeo lineal para generar los tiempos de pulso correctos del actuador
+    # Protegemos el servo usando los límites calibrados en lugar de 0 y 180
+    angulo = max(LIMITE_DER, min(LIMITE_IZQ, angulo))
     duty = int(1638 + (angulo / 180.0) * (8192 - 1638))
     servo.duty_u16(duty)
 
@@ -444,6 +545,16 @@ def controlar_motor(velocidad_porcentaje):
 El bucle principal regula las restricciones de la geometría de dirección física y transmite ráfagas de telemetría inercial acumulada cada $50\,\text{ms}$ para el conteo predictivo de vueltas:
 
 ```python
+# Calibración del offset del giroscopio al arrancar (src/pico/main.py)
+# Promedia 100 muestras (~1s) para eliminar el bias estático del MEMS
+giro_z_offset = 0.0
+for _ in range(100):
+    try:
+        giro_z_offset += sensor.get_gyro_z()
+    except: pass
+    time.sleep(0.01)
+giro_z_offset /= 100.0
+
 # Segmento del bucle de ejecución de bajo nivel (src/pico/main.py)
 
 while True:
@@ -474,12 +585,12 @@ while True:
                 except:
                     pass
 
-        # Aplicación de ley de control inercial amortiguado (Centro en 180°)
-        angulo_servo = 180 + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
+        # Aplicación de ley de control inercial amortiguado (Centro en 90°)
+        angulo_servo = CENTRO + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
         
         # Límites estrictos de protección mecánica del chasis Ackermann
-        # (Saturación segura con centro en 180°: LIMITE_DER = 140, LIMITE_IZQ = 220)
-        angulo_servo = max(140, min(240, angulo_servo))
+        # (Saturación segura: LIMITE_DER = 70°, CENTRO = 90°, LIMITE_IZQ = 115°)
+        angulo_servo = max(LIMITE_DER, min(LIMITE_IZQ, angulo_servo))
         mover_servo(angulo_servo)
         
         # Control dinámico de la etapa de potencia de tracción
@@ -498,7 +609,7 @@ while True:
     except KeyboardInterrupt:
         controlar_motor(0)
         stby.value(0)
-        mover_servo(180)  # Retornar a línea recta (180°) en caso de parada
+        mover_servo(CENTRO)  # Retornar a línea recta (90°) en caso de parada
         break
 ```
 
@@ -524,22 +635,37 @@ Donde:
 * El factor constante de **$0.845$** es integrado directamente en la matriz de transferencia de control de la Raspberry Pi Pico 2 para ajustar dinámicamente el pulso de PWM enviado al Geekservo de dirección, garantizando giros limpios con cero subviraje o pérdida de tracción por fricción estática destructiva en las curvas de la WRO.
 
 ### 7.2 Renderizado del Chasis de Producción (V2)
-A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis:
+A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis. El archivo fuente reproducible (`.io` de BrickLink Studio) y el listado completo de las 83 piezas Technic están en [`3d-Models/Chasis-LEGO-V2/`](3d-Models/Chasis-LEGO-V2/README.md):
 
 <p align="center">
-  <img src="3d-Models/Render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
+  <img src="3d-Models/Chasis-LEGO-V2/Render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
 </p>
 
 ### 7.3 Límites Angulares Calibrados y Protección Mecánica
 
-Para salvaguardar la integridad de las articulaciones, uniones y vigas de LEGO contra esfuerzos de torsión excesivos generados por el servomotor de alta velocidad, se implementaron límites simétricos de saturación estricta por software.
+Para salvaguardar la integridad de las articulaciones, uniones y vigas de LEGO contra esfuerzos de torsión excesivos generados por el servomotor de alta velocidad, se implementaron límites de saturación estricta por software en `src/pico/main.py`.
 
 El rango operativo del actuador Geekservo se restringe a los siguientes umbrales mapeados en el firmware de la Raspberry Pi Pico 2:
 
 | Ángulo Límite Derecho (Giro Máximo) | Centro Geométrico Calibrado | Ángulo Límite Izquierdo (Giro Máximo) |
 | :---: | :---: | :---: |
-| **140°** | **180°** | **240°** |
-| *Restricción estricta ante comandos de giro a la derecha.* | *Alineación de marcha lineal en pista (0.00° de error).* | *Restricción estricta ante comandos de giro a la izquierda.* |
+| **70°** (`LIMITE_DER`) | **90°** (`CENTRO`) | **115°** (`LIMITE_IZQ`) |
+| *Restricción estricta ante comandos de giro a la derecha (−20° desde el centro).* | *Alineación de marcha lineal en pista.* | *Restricción estricta ante comandos de giro a la izquierda (+25° desde el centro).* |
+
+> **Por qué el rango no es simétrico:** a diferencia de un servo genérico, el `base_servo` y las manguetas Ackermann del chasis LEGO tienen una holgura mecánica ligeramente distinta a cada lado por tolerancias de ensamblaje entre piezas. En vez de forzar un rango simétrico en software (que arriesgaría forzar la articulación física contra su tope mecánico de un lado), el equipo calibró cada límite de forma independiente probando el giro máximo real del prototipo, documentado fotográficamente abajo.
+
+#### Evidencia Fotográfica de Calibración (Prueba de Giro Máximo)
+
+<div style="display: flex; gap: 10px; align-items: center;">
+  <div style="text-align: center; flex: 1;">
+    <p><b>Ángulo Máximo Derecho (70°)</b></p>
+    <img src="v-photos/Ackermann/AnguloMaxDer.jpeg" alt="Prueba física de ángulo máximo derecho" style="max-height: 280px; width: auto; border-radius: 5px;"/>
+  </div>
+  <div style="text-align: center; flex: 1;">
+    <p><b>Ángulo Máximo Izquierdo (115°)</b></p>
+    <img src="v-photos/Ackermann/AnguloMaxIzq.jpeg" alt="Prueba física de ángulo máximo izquierdo" style="max-height: 280px; width: auto; border-radius: 5px;"/>
+  </div>
+</div>
 
 > **Ventaja mecánica de la modularidad LEGO:** La sustitución del filamento impreso en 3D por vigas de fricción LEGO redujo el coeficiente de masa inercial global, consolidando un peso final competitivo de **613 gramos exactos** que disminuye drásticamente el subviraje físico provocado por la fuerza centrípeta en las esquinas de la pista de la WRO.
 
@@ -573,3 +699,28 @@ Realizando el análisis de balance de carga:
 $$\text{Margen de Torque} = \frac{T_{\text{motor}}}{T_{\text{min}}} = \frac{2.4\,\text{kg}\cdot\text{cm}}{0.938\,\text{kg}\cdot\text{cm}} = \mathbf{2.55}$$
 
 * **Conclusión de Ingeniería:** El sistema de transmisión posee un **factor de seguridad de 2.55 veces el torque mínimo necesario**. Esto significa que el motor opera al **$39.2\%$ de su capacidad máxima** durante el arranque más agresivo en pista, garantizando una aceleración explosiva (cero subviraje mecánico por falta de par), protegiendo las celdas de las baterías 21700 contra picos severos de descarga y evitando que el puente H trabaje en su zona de fatiga térmica.
+
+---
+
+## 8. Análisis de Riesgos y Registro de Iteraciones
+
+Consolidando los puntos de fallo detectados a lo largo de las secciones anteriores, este es el registro de riesgos identificados por el equipo, su causa raíz y la mitigación implementada. Cada fila corresponde a un problema real observado en pista o en banco de pruebas, no a un riesgo hipotético:
+
+| # | Riesgo Identificado | Causa Raíz | Mitigación Implementada | Evidencia |
+| :---: | :--- | :--- | :--- | :--- |
+| 1 | Descalibración de la cámara por vibración mecánica | Chasis monocasco V1 impreso en 3D transmitía vibración de alta frecuencia del motor directo al sensor óptico | Migración a chasis LEGO Technic (V2), que absorbe vibración por flexión elástica de las vigas | Sección 3.1 — Cuadro comparativo V1/V2 |
+| 2 | Rotura del soporte de cámara por impacto frontal | Centro de masa V1 dejaba el sensor expuesto al perímetro de la pista | Rediseño del soporte óptico retrasado respecto al parachoques en V2 | Sección 3.4 |
+| 3 | *Brownouts* (reinicio de la Raspberry Pi 3B) por picos de corriente del motor | Regulador único lineal compartía línea de alimentación entre lógica y potencia | Desacoplamiento por etapas: XL4016 dedicado (8 A) solo para la línea lógica, aislado de la línea de tracción directa a batería | Sección 4.1, 4.4 — margen de seguridad del 73.25% |
+| 4 | Pérdida de lectura del LiDAR en una pared durante un giro cerrado | Ángulo de barrido del RPLiDAR pierde temporalmente una de las dos paredes laterales al entrar sesgado en curva | Estado "Inercial": el software congela el último ángulo válido y se apoya en la integración del giroscopio (MPU6050) hasta recuperar la lectura | Sección 5.3-A |
+| 5 | Falsos positivos de color por iluminación variable entre boxes y pista oficial | Los umbrales HSV se calibran en interiores (boxes) con luz artificial distinta a la luz de la pista de competencia | Herramienta `calibrar_hsv.py` dedicada para recalibrar en vivo antes de cada ronda, más limpieza morfológica (`MORPH_OPEN`/`MORPH_CLOSE`) para eliminar ruido lumínico | Sección 4.2 — Método de Calibración |
+| 6 | Pérdida de comunicación UART entre Pi 3B y Pico 2 durante la carrera | Desconexión física del cable USB o saturación del buffer serial | *Fail-safe* por software: si no llega una trama nueva en >500 ms, el sistema fuerza detención inmediata | Diagrama de arquitectura de software (sección 5) |
+| 7 | Desalineación del centro de dirección tras un cambio de calibración | Se probó un centro de servo de 180° que no correspondía a la geometría física real del `base_servo` | Reversión a 90° tras validación en pista, documentado en el historial de commits en vez de sobrescribirlo silenciosamente | Sección 2.1, 6.2, 7.3 |
+| 8 | Falta de métricas cuantitativas de desempeño (tiempos de vuelta, error lateral histórico) | El ajuste de `KP_LATERAL`/`KD_ESTABILIDAD` se valida solo de forma observacional en pista | *Limitación conocida, en mitigación activa:* se planea instrumentar registro de `error_lateral` en `.csv` por vuelta antes de la competencia final | Sección 5.4 |
+
+### 8.1 Interacción Entre Subsistemas (Pensamiento Sistémico)
+
+El vehículo no es la suma de partes independientes: una decisión en un subsistema restringe directamente a los demás. Ejemplos concretos de esa interdependencia documentados en este repositorio:
+
+* **Masa (mecánica) → Torque requerido (potencia) → Selección de motor:** reducir la masa a 613 g (sección 3.4) bajó el torque mínimo de arranque a 0.938 kg·cm (sección 7.4), lo que permitió mantener el mismo motorreductor con un margen de seguridad de 2.55× en vez de sobredimensionar el sistema de tracción.
+* **Frecuencia de PWM del motor (potencia) → Ruido en el bus I2C (sensores):** la conmutación del puente H en la línea de tracción fue la razón por la que se separaron las líneas de alimentación (XL1509 para dirección, XL4016 para lógica) — sin ese aislamiento, el ruido inductivo del servo se filtraría hacia el MPU6050 y el LiDAR.
+* **Latencia de cómputo de la Pi 3B (software) → Estabilidad del lazo de control (bajo nivel):** por eso la generación de PWM y la integración del giroscopio se delegan a la Pico 2 en tiempo real, y la Pi 3B solo envía consignas de alto nivel (`velocidad, ángulo`) por UART — así el *jitter* del sistema operativo Linux nunca llega a tocar el actuador directamente.
