@@ -170,8 +170,18 @@ KP_IMU = 1.0
 # ==========================================
 # APAGADO SEGURO
 # ==========================================
+_apagando_en_curso = False
+
 def apagar_sistema(sig, frame):
-    global corriendo, ser_lidar, ser_pico
+    global corriendo, ser_lidar, ser_pico, _apagando_en_curso
+
+    # Evita doble ejecución (ej. doble Ctrl+C) reentrando aquí mientras
+    # el primer apagado todavía está en curso, lo cual dejaba a GPIO.cleanup()
+    # operando sobre un handle ya cerrado y tumbaba el script con una excepción.
+    if _apagando_en_curso:
+        return
+    _apagando_en_curso = True
+
     print("\n[!] Deteniendo sistema de forma segura...")
     corriendo = False
     time.sleep(0.2)
@@ -185,7 +195,10 @@ def apagar_sistema(sig, frame):
             ser_lidar.write(STOP_CMD)
             ser_lidar.close()
         except: pass
-    GPIO.cleanup()
+    try:
+        GPIO.cleanup()
+    except Exception as e:
+        print(f"[-] GPIO.cleanup() fallo (ignorado): {e}")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, apagar_sistema)
