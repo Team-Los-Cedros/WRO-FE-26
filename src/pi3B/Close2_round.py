@@ -84,6 +84,11 @@ KP_EVASION_LATERAL = 0.09
 GANANCIA_CERCANIA  = 0.02
 MAX_ANGULO_EVASION = 32.0
 
+# Ángulos base (sesgo direccional) de los estados DETECTADO/ESQUIVANDO,
+# corregidos proporcionalmente por KP_EVASION_LATERAL * tracker["x"]
+ANGULO_BASE_DETECTADO   = 15.0
+ANGULO_BASE_ESQUIVANDO  = 28.0
+
 CONFIRMACIONES_PARA_ENTRAR = 2
 CONFIRMACIONES_PARA_SALIR  = 4
 
@@ -866,14 +871,26 @@ def procesar_ciclo_completo_lidar():
             velocidad_base = VELOCIDAD_EVASION
 
         elif estado_evasion == "DETECTADO":
-            # Pre-giro suave mientras confirmamos el obstáculo
-            angulo_objetivo_crudo = 15.0 if EVADIR_POR_IZQUIERDA else -15.0
+            # Pre-giro proporcional: un sesgo base indica el lado (regla de
+            # color/WRO) y se corrige con la posición lateral real del
+            # obstáculo medida por el tracker LiDAR (tracker["x"], mm;
+            # x+ = derecha del robot). Alejarse de un obstáculo a la
+            # derecha (x>0) exige ángulo positivo (izquierda), y viceversa,
+            # así que la corrección tiene el mismo signo que tracker["x"].
+            signo_evasion = 1.0 if EVADIR_POR_IZQUIERDA else -1.0
+            correccion_lidar = tracker["x"] * KP_EVASION_LATERAL if tracker["activo"] else 0.0
+            angulo_objetivo_crudo = signo_evasion * ANGULO_BASE_DETECTADO + correccion_lidar
+            angulo_objetivo_crudo = max(-MAX_ANGULO_EVASION, min(MAX_ANGULO_EVASION, angulo_objetivo_crudo))
             velocidad_base = max(VELOCIDAD_MIN_EN_FRENADO,
                                  int(VELOCIDAD_CRUCERO * factor_frenado))
 
         elif estado_evasion == "ESQUIVANDO":
-            # Giro completo
-            angulo_objetivo_crudo = 28.0 if EVADIR_POR_IZQUIERDA else -28.0
+            # Mismo control proporcional que DETECTADO, con mayor sesgo
+            # base (giro más comprometido) ya que el obstáculo fue confirmado.
+            signo_evasion = 1.0 if EVADIR_POR_IZQUIERDA else -1.0
+            correccion_lidar = tracker["x"] * KP_EVASION_LATERAL if tracker["activo"] else 0.0
+            angulo_objetivo_crudo = signo_evasion * ANGULO_BASE_ESQUIVANDO + correccion_lidar
+            angulo_objetivo_crudo = max(-MAX_ANGULO_EVASION, min(MAX_ANGULO_EVASION, angulo_objetivo_crudo))
             velocidad_base = VELOCIDAD_EVASION
 
         elif estado_evasion == "PASANDO":
