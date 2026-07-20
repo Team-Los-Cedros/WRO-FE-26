@@ -250,7 +250,9 @@ def hilo_camara():
     while corriendo:
         try:
             frame = picam2.capture_array()
-            hsv   = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
+            # Picamera2 con formato "RGB888" entrega los bytes en orden BGR
+            # (comportamiento documentado de la librería, pese al nombre).
+            hsv   = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
             mask_rojo  = cv2.inRange(hsv, ROJO_BAJO_1, ROJO_ALTO_1) | \
                          cv2.inRange(hsv, ROJO_BAJO_2, ROJO_ALTO_2)
@@ -718,8 +720,9 @@ def procesar_ciclo_completo_lidar():
                 tiempo_inicio_evasion = time.time()
 
                 # Determinar lado de evasión (tracker tiene prioridad sobre cámara)
+                # Regla WRO: ROJO -> evadir por la DERECHA, VERDE -> evadir por la IZQUIERDA
                 color_det = tracker["color"] if trk_activo and tracker["color"] else color
-                EVADIR_POR_IZQUIERDA = (color_det == "ROJO")
+                EVADIR_POR_IZQUIERDA = (color_det == "VERDE")
 
                 # Ampliar sector frontal dinámicamente para no perder el cluster al girar
                 if EVADIR_POR_IZQUIERDA:
