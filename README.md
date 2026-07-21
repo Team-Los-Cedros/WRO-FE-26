@@ -621,16 +621,9 @@ El rango operativo del actuador Geekservo se restringe a los siguientes umbrales
 
 #### Evidencia Fotográfica de Calibración (Prueba de Giro Máximo)
 
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Ángulo Máximo Derecho (70°)</b></p>
-    <img src="v-photos/Ackermann/AnguloMaxDer.jpeg" alt="Prueba física de ángulo máximo derecho" style="max-height: 280px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Ángulo Máximo Izquierdo (115°)</b></p>
-    <img src="v-photos/Ackermann/AnguloMaxIzq.jpeg" alt="Prueba física de ángulo máximo izquierdo" style="max-height: 280px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
+| Ángulo Máximo Derecho (70°) | Ángulo Máximo Izquierdo (115°) |
+| :---: | :---: |
+| <img src="v-photos/Ackermann/AnguloMaxDer.jpeg" alt="Prueba física de ángulo máximo derecho" width="260px"/> | <img src="v-photos/Ackermann/AnguloMaxIzq.jpeg" alt="Prueba física de ángulo máximo izquierdo" width="260px"/> |
 
 > **Ventaja mecánica de la modularidad LEGO:** La sustitución del filamento impreso en 3D por vigas de fricción LEGO redujo el coeficiente de masa inercial global, consolidando un peso final competitivo de **613 gramos exactos** que disminuye drásticamente el subviraje físico provocado por la fuerza centrípeta en las esquinas de la pista de la WRO.
 
