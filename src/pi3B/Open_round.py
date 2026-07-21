@@ -59,6 +59,12 @@ dist_derecha_min = 8000.0
 dist_izquierda_min = 8000.0
 angulo_previo = 0.0
 
+# Ultimo valor valido de cada pared (<4000mm), para sostenerlo cuando el
+# LiDAR pierde momentaneamente la lectura de un lado en vez de saltar a
+# un valor fijo arbitrario (ver modo "Inercial" en el README, seccion 5.3-A)
+ultimo_dist_derecha_valida = 2000.0
+ultimo_dist_izquierda_valida = 2000.0
+
 # Inicialización de fases de carrera
 fase_actual = "ESPERANDO_BOTON"
 initial_derecha = 0.0
@@ -124,12 +130,25 @@ def procesar_ciclo_completo_lidar():
     global dist_derecha_min, dist_izquierda_min, fase_actual
     global initial_derecha, initial_izquierda, ser_pico, angulo_acumulado_robot, tiempo_inicio_parqueo
     global ultimo_angulo_aplicado
+    global ultimo_dist_derecha_valida, ultimo_dist_izquierda_valida
 
     if ser_pico is None or not ser_pico.is_open:
         return
 
-    if dist_derecha_min > 4000: dist_derecha_min = 2000.0
-    if dist_izquierda_min > 4000: dist_izquierda_min = 2000.0
+    # Modo "Inercial": si un lado no tuvo lectura valida en este barrido
+    # (quedo en el centinela 8000.0, o por encima de 4000mm), se sostiene
+    # el ultimo valor valido conocido en vez de saltar a un valor fijo --
+    # evita un giro brusco cuando una pared se pierde momentaneamente
+    # (tipico en curvas cerradas).
+    if dist_derecha_min > 4000:
+        dist_derecha_min = ultimo_dist_derecha_valida
+    else:
+        ultimo_dist_derecha_valida = dist_derecha_min
+
+    if dist_izquierda_min > 4000:
+        dist_izquierda_min = ultimo_dist_izquierda_valida
+    else:
+        ultimo_dist_izquierda_valida = dist_izquierda_min
 
     if fase_actual == "CAPTURA_INICIAL":
         initial_derecha = dist_derecha_min

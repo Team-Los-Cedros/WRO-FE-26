@@ -64,6 +64,10 @@ dist_trasera_min   = 8000.0
 angulo_previo      = 0.0
 sentido_giro       = "DESCONOCIDO"
 
+# Ultimo valor valido (<4000mm) de cada pared, para el modo "Inercial"
+ultimo_dist_derecha_valida   = 2000.0
+ultimo_dist_izquierda_valida = 2000.0
+
 fase_actual       = "ESPERANDO_BOTON"
 initial_derecha   = 0.0
 initial_izquierda = 0.0
@@ -595,6 +599,7 @@ def _procesar_scan_interno(scan):
     4. Actualiza el tracker con IMU + asociación de clusters reales.
     """
     global dist_derecha_min, dist_izquierda_min, dist_frontal_min, dist_trasera_min
+    global ultimo_dist_derecha_valida, ultimo_dist_izquierda_valida
 
     if not scan:
         return
@@ -615,8 +620,22 @@ def _procesar_scan_interno(scan):
         if ang >= ANGULO_MIN_FRONTAL or ang <= ANGULO_MAX_FRONTAL:
             if dist < d_front: d_front = dist
 
-    dist_derecha_min   = d_der   if d_der   < 4000 else 2000.0
-    dist_izquierda_min = d_izq   if d_izq   < 4000 else 2000.0
+    # Modo "Inercial": si un lado no tuvo lectura valida en este barrido,
+    # se sostiene el ultimo valor valido conocido en vez de saltar a un
+    # valor fijo -- evita un giro brusco cuando una pared se pierde
+    # momentaneamente (tipico en curvas cerradas). Ver README seccion 5.3-A.
+    if d_der < 4000:
+        dist_derecha_min = d_der
+        ultimo_dist_derecha_valida = d_der
+    else:
+        dist_derecha_min = ultimo_dist_derecha_valida
+
+    if d_izq < 4000:
+        dist_izquierda_min = d_izq
+        ultimo_dist_izquierda_valida = d_izq
+    else:
+        dist_izquierda_min = ultimo_dist_izquierda_valida
+
     dist_trasera_min   = d_tras
     dist_frontal_min   = d_front
 
