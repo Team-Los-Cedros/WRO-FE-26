@@ -29,16 +29,22 @@ GPIO.setup(PIN_BOTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 # CONSTANTES DE NAVEGACIÓN Y CONFIGURACIÓN
 
-KP_LATERAL = 0.22
+KP_LATERAL = 0.14
 VELOCIDAD_CRUCERO = 100
 VELOCIDAD_PARQUEO = 60
 
 # LÍMITES MECÁNICOS DEL SERVO (Calibracion de Angulos GeekServo)
-SERVO_CENTRO = 180
-SERVO_MAX_DER = 140
-SERVO_MAX_IZQ = 240
+# Deben coincidir con CENTRO/LIMITE_DER/LIMITE_IZQ de src/pico/main.py.
+SERVO_CENTRO = 90
+SERVO_MAX_DER = 70
+SERVO_MAX_IZQ = 115
 DELTA_MAX_DER = SERVO_MAX_DER - SERVO_CENTRO
 DELTA_MAX_IZQ = SERVO_MAX_IZQ - SERVO_CENTRO
+
+# Limita la variacion maxima de angulo por ciclo para evitar giros bruscos
+# (mismo mecanismo que Close2_round.py, ya validado en pista)
+MAX_DELTA_ANGULO_POR_CICLO = 6.0
+ultimo_angulo_aplicado = 0.0
 
 # TIEMPO MÁXIMO DE BÚSQUEDA DE ESTACIONAMIENTO (en segundos)
 TIMEOUT_BUSQUEDA_PARQUEO = 4.0  
@@ -117,6 +123,7 @@ def hilo_comunicacion_pico():
 def procesar_ciclo_completo_lidar():
     global dist_derecha_min, dist_izquierda_min, fase_actual
     global initial_derecha, initial_izquierda, ser_pico, angulo_acumulado_robot, tiempo_inicio_parqueo
+    global ultimo_angulo_aplicado
 
     if ser_pico is None or not ser_pico.is_open:
         return
@@ -134,10 +141,17 @@ def procesar_ciclo_completo_lidar():
 
     # Lógica centralizada de cálculo de dirección
     error_lateral = dist_izquierda_min - dist_derecha_min
-    angulo_objetivo = error_lateral * KP_LATERAL
-    
+    angulo_objetivo_crudo = error_lateral * KP_LATERAL
+
     # Restringir (clamp) el ángulo comandado a los topes físicos calibrados
-    angulo_objetivo = max(DELTA_MAX_DER, min(DELTA_MAX_IZQ, angulo_objetivo))
+    angulo_objetivo_crudo = max(DELTA_MAX_DER, min(DELTA_MAX_IZQ, angulo_objetivo_crudo))
+
+    # Limitador de tasa: evita saltos bruscos de ángulo ciclo a ciclo
+    # (mismo mecanismo ya validado en pista en Close2_round.py)
+    delta = angulo_objetivo_crudo - ultimo_angulo_aplicado
+    delta = max(-MAX_DELTA_ANGULO_POR_CICLO, min(MAX_DELTA_ANGULO_POR_CICLO, delta))
+    angulo_objetivo        = ultimo_angulo_aplicado + delta
+    ultimo_angulo_aplicado = angulo_objetivo
 
     if fase_actual == "CARRERA":
         comando = f"{VELOCIDAD_CRUCERO},{angulo_objetivo:.2f}\n"
