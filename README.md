@@ -386,7 +386,20 @@ WantedBy=multi-user.target
 
 ### 5.2 Estructura Modular del Script de Carrera (Fragmentos Clave)
 
-El script opera bajo una máquina de estados finitos (`ESPERANDO_BOTON`, `CALIBRANDO`, `CAPTURA_INICIAL`, `CARRERA`, `BUSCANDO_PARQUEO`, `DETENIDO`). A continuación se detallan las funciones de sincronización asíncrona y telemetría:
+El script opera bajo una máquina de estados finitos (`ESPERANDO_BOTON`, `CALIBRANDO`, `CAPTURA_INICIAL`, `CARRERA`, `BUSCANDO_PARQUEO`, `DETENIDO`), compartida por `Open_round.py` y `Close2_round.py` (esta última con un sub-estado de evasión adicional dentro de `CARRERA`, ver diagrama en la sección 5.3-B):
+
+```mermaid
+stateDiagram-v2
+    [*] --> ESPERANDO_BOTON
+    ESPERANDO_BOTON --> CALIBRANDO: Botón GPIO21/20 presionado (fase_actual = "CALIBRANDO")
+    CALIBRANDO --> CAPTURA_INICIAL: Hilo LiDAR detecta fase "CALIBRANDO" y activa el barrido
+    CAPTURA_INICIAL --> CARRERA: Primer barrido completo -- guarda la firma de pared inicial (Izq/Der en mm)
+    CARRERA --> BUSCANDO_PARQUEO: angulo_acumulado_robot alcanza 1010 grados (3 vueltas netas, via IMU por UART)
+    BUSCANDO_PARQUEO --> DETENIDO: Firma de pared coincide con la inicial (tolerancia 80mm) O tiempo mayor a TIMEOUT_BUSQUEDA_PARQUEO
+    DETENIDO --> [*]: apagar_sistema() -- detiene motores, GPIO.cleanup(), sys.exit(0)
+```
+
+A continuación se detallan las funciones de sincronización asíncrona y telemetría:
 
 ```python
 def hilo_comunicacion_pico():
@@ -461,7 +474,44 @@ En la Ronda Cerrada, la presencia de pilares de obstáculos (bloques rojos y ver
 1. Si el bloque es **Verde**, el carro debe evadir por el carril **izquierdo**. El software inyecta un offset angular negativo a la dirección.
 2. Si el bloque es **Rojo**, el carro debe evadir por el carril **derecho**. El software inyecta un offset angular positivo.
 
-* **Validación de Cercanía con LiDAR:** Para evitar giros falsos causados por reflejos distantes, la decisión de esquivar se valida cruzando los datos con la distancia del LiDAR. La maniobra de evasión se ejecuta activamente solo cuando el LiDAR confirma que el pilar está a una distancia crítica menor a $45\,\text{cm}$. Una vez que el contorno del bloque sale del campo de visión de la cámara, el algoritmo proporcional vuelve a estabilizar el coche guiándose por las paredes libres.
+* **Validación de Cercanía con LiDAR:** Para evitar giros falsos causados por reflejos distantes, la decisión de esquivar se valida cruzando los datos de color con un *tracker* de posición basado en clustering del LiDAR (ver sección 4.2). La maniobra se ejecuta solo cuando el LiDAR confirma proximidad real, y el algoritmo proporcional vuelve a estabilizar el coche por las paredes libres una vez que el tracker confirma que el obstáculo quedó atrás.
+
+#### Máquina de Estados de Evasión (`estado_evasion`, `Close2_round.py`)
+
+Esta es la máquina de estados real vigente, depurada con evidencia de pista (ver caso de estudio, sección 8.2). Los valores de los umbrales son los parámetros vigentes tras las correcciones de esta sesión:
+
+```mermaid
+stateDiagram-v2
+    [*] --> CARRERA
+
+    CARRERA --> DETECTADO: Tracker confirma obstaculo entre 50 y 800mm, O frontal entre 50 y 700mm con color detectado
+    DETECTADO --> ESQUIVANDO: tracker confirmado y frontal bajo 600mm, O frontal bajo 400mm, O tiempo mayor a TIMEOUT_DETECTADO (1.2s)
+    ESQUIVANDO --> PASANDO: tiempo mayor a 0.2s y (frente libre O tracker al costado O tracker superado)
+    PASANDO --> RECENTRANDO: tracker confirma obstaculo superado, O tiempo mayor a 1.2s
+    RECENTRANDO --> CARRERA: error de rumbo IMU menor a 4 grados, O tiempo mayor a TIMEOUT_RECENTRANDO (3.0s)
+
+    CARRERA --> RETROCEDIENDO: EMERGENCIA -- frontal bajo 120mm O lateral bajo 80mm (chequeo global, cualquier estado)
+    DETECTADO --> RETROCEDIENDO: EMERGENCIA
+    ESQUIVANDO --> RETROCEDIENDO: EMERGENCIA
+    PASANDO --> RETROCEDIENDO: EMERGENCIA
+    RECENTRANDO --> RETROCEDIENDO: EMERGENCIA
+    RETROCEDIENDO --> FORZANDO_GIRO: choque trasero bajo 250mm, O tiempo mayor a 3.5s
+    FORZANDO_GIRO --> CARRERA: tiempo mayor a 0.6s
+
+    note right of DETECTADO
+        Ángulo = sesgo direccional (regla de color WRO)
+        + tracker["x"] * KP_EVASION_LATERAL
+        (control proporcional, no ángulo fijo)
+    end note
+
+    note right of RECENTRANDO
+        Corrigió: antes se rendía en 1.5s con
+        errores de hasta 68° sin converger,
+        disparando la cascada de EMERGENCIA
+    end note
+```
+
+> El bloque `RETROCEDIENDO`/`FORZANDO_GIRO` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en uno de esos dos), por eso el diagrama lo muestra como alcanzable desde los cinco estados normales de la maniobra.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 
@@ -727,6 +777,35 @@ El vehículo no es la suma de partes independientes: una decisión en un subsist
 * **Masa (mecánica) → Torque requerido (potencia) → Selección de motor:** reducir la masa a 613 g (sección 3.4) bajó el torque mínimo de arranque a 0.938 kg·cm (sección 7.4), lo que permitió mantener el mismo motorreductor con un margen de seguridad de 2.55× en vez de sobredimensionar el sistema de tracción.
 * **Frecuencia de PWM del motor (potencia) → Ruido en el bus I2C (sensores):** la conmutación del puente H en la línea de tracción fue la razón por la que se separaron las líneas de alimentación (XL1509 para dirección, XL4016 para lógica) — sin ese aislamiento, el ruido inductivo del servo se filtraría hacia el MPU6050 y el LiDAR.
 * **Latencia de cómputo de la Pi 3B (software) → Estabilidad del lazo de control (bajo nivel):** por eso la generación de PWM y la integración del giroscopio se delegan a la Pico 2 en tiempo real, y la Pi 3B solo envía consignas de alto nivel (`velocidad, ángulo`) por UART — así el *jitter* del sistema operativo Linux nunca llega a tocar el actuador directamente.
+
+#### Diagrama de Interacción Entre Subsistemas (`Close2_round.py`)
+
+Tres hilos concurrentes (`threading`) más el firmware de la Pico comparten estado global para tomar una única decisión de control por ciclo:
+
+```mermaid
+flowchart TD
+    subgraph PI3B["Raspberry Pi 3B -- Close2_round.py"]
+        CAM["hilo_camara()\nOpenCV HSV -> color_crudo, cx_crudo"]
+        LID["hilo_lidar()\nParseo RPLIDAR C1 -> scan_buffer"]
+        PICO_IN["hilo_comunicacion_pico()\nLee IMU: -> angulo_acumulado_robot"]
+        SCAN["_procesar_scan_interno()\nClustering ABD + clasificación OBSTACULO/MURO"]
+        TRACK["tracker (x, y, color, confirmaciones)\nrotado por IMU cada ciclo"]
+        FSM["procesar_ciclo_completo_lidar()\nFSM fase_actual + estado_evasion"]
+    end
+
+    CAM -- "color_crudo (lock_vision)" --> FSM
+    LID -- "scan_buffer_listo (lock_scan)" --> SCAN
+    PICO_IN -- "angulo_acumulado_robot" --> SCAN
+    SCAN -- "clusters_obstaculos" --> TRACK
+    PICO_IN -- "angulo_acumulado_robot" --> TRACK
+    TRACK -- "tracker[x,y,activo,confirmaciones]" --> FSM
+    SCAN -- "dist_derecha_min, dist_izquierda_min, dist_frontal_min" --> FSM
+
+    FSM -- "UART 115200 bps: velocidad,angulo" --> PICO["Raspberry Pi Pico 2 (main.py)\nCENTRO=90° + offset - Kd*giro_z"]
+    PICO -- "UART: IMU:angulo_acumulado" --> PICO_IN
+```
+
+> Este diagrama expone por qué el bug #3 de la sección 8.2 era invisible sin instrumentación: `tracker["x"]` viajaba correctamente hasta el bloque `FSM`, pero el cálculo del ángulo simplemente no lo leía -- el dato existía en el sistema, solo no estaba conectado al punto de decisión correcto.
 
 ### 8.2 Caso de Estudio: Depuración de la Ronda Cerrada con Evidencia de Pista (`Close2_round.py`)
 
