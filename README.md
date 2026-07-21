@@ -101,89 +101,14 @@ Para alcanzar la estabilidad operativa actual, el prototipo pasó por una transi
 
 Para evidenciar la transformación del vehículo y el rediseño de los tres ejes espaciales, se presenta el registro fotográfico emparejado de ambas iteraciones del prototipo:
 
-#### Vista Superior
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" style="max-height: 250px; width: 800px; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/Topview.jpeg" alt="V2 Superior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
----
-
-#### Vista Frontal
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/Frontview.jpeg" alt="V1 Frontal" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/frontview.jpeg" alt="V2 Frontal" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
----
-
-#### Vista Trasera
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/Backview.jpeg" alt="V1 Trasera" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/backview.jpeg" alt="V2 Trasera" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
----
-
-#### Vista Inferior
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/butview.jpeg" alt="V1 Inferior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/Bottomview.jpeg" alt="V2 Inferior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
----
-
-#### Lateral Izquierda
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/leftview.jpeg" alt="V1 Izquierda" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/Leftview.jpeg" alt="V2 Izquierda" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
----
-
-#### Lateral Derecha
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/Rightview.jpeg" alt="V1 Derecha" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/Rightview.jpeg" alt="V2 Derecha" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
-<br>
+| Vista | Prototipo Anterior (V1) — ≈800 g | Prototipo Actual (V2) — 613 g |
+| :---: | :---: | :---: |
+| **Superior** | <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" width="260px"/> | <img src="v-photos/Topview.jpeg" alt="V2 Superior" width="260px"/> |
+| **Frontal** | <img src="v-photos/V1/Frontview.jpeg" alt="V1 Frontal" width="260px"/> | <img src="v-photos/frontview.jpeg" alt="V2 Frontal" width="260px"/> |
+| **Trasera** | <img src="v-photos/V1/Backview.jpeg" alt="V1 Trasera" width="260px"/> | <img src="v-photos/backview.jpeg" alt="V2 Trasera" width="260px"/> |
+| **Inferior** | <img src="v-photos/V1/butview.jpeg" alt="V1 Inferior" width="260px"/> | <img src="v-photos/Bottomview.jpeg" alt="V2 Inferior" width="260px"/> |
+| **Lateral Izquierda** | <img src="v-photos/V1/leftview.jpeg" alt="V1 Izquierda" width="260px"/> | <img src="v-photos/Leftview.jpeg" alt="V2 Izquierda" width="260px"/> |
+| **Lateral Derecha** | <img src="v-photos/V1/Rightview.jpeg" alt="V1 Derecha" width="260px"/> | <img src="v-photos/Rightview.jpeg" alt="V2 Derecha" width="260px"/> |
 
 ---
 ### 3.3 Galería de Inspección Técnica Obligatoria (Las 6 Capturas Reglamentarias)
