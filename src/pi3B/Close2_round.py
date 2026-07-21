@@ -964,11 +964,20 @@ def procesar_ciclo_completo_lidar():
         angulo_objetivo        = ultimo_angulo_aplicado + delta
         ultimo_angulo_aplicado = angulo_objetivo
 
-        if estado_evasion in ["RETROCEDIENDO", "FORZANDO_GIRO"]:
-            velocidad = int(velocidad_base)
-        else:
+        # El frenado progresivo por distancia frontal (factor_frenado) solo
+        # tiene sentido en CARRERA (frenar ante una pared/obstaculo que se
+        # acerca de frente). En DETECTADO ya se aplico una vez al calcular
+        # velocidad_base -- aplicarlo de nuevo aqui lo elevaba al cuadrado,
+        # frenando de mas. En ESQUIVANDO/PASANDO/RECENTRANDO/RETROCEDIENDO/
+        # FORZANDO_GIRO, "frontal" se mide con el sector frontal ensanchado
+        # para no perder el cluster del obstaculo que se esta evadiendo --
+        # frenar por esa lectura iba en contra de VELOCIDAD_EVASION justo
+        # cuando el robot necesita mantener el impulso para completar el giro.
+        if estado_evasion == "CARRERA":
             velocidad = max(VELOCIDAD_MIN_EN_FRENADO,
                             int(velocidad_base * factor_frenado))
+        else:
+            velocidad = int(velocidad_base)
 
         comando = f"{velocidad},{angulo_objetivo:.2f}\n"
         ser_pico.write(comando.encode())
