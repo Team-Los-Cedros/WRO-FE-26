@@ -115,20 +115,14 @@ Para evidenciar la transformación del vehículo y el rediseño de los tres ejes
 
 De acuerdo con las normativas de la WRO, se presentan las 6 capturas ortogonales del prototipo de producción actual (V2) depositadas en la carpeta `v-photos/`. Estas imágenes permiten la verificación técnica y garantizan la reproducibilidad completa de nuestro hardware:
 
-| Vista Frontal (`frontview.jpeg`) | Vista Trasera (`backview.jpeg`) |
-| :---: | :---: |
-| <img src="v-photos/frontview.jpeg" alt="Vista Frontal V2" width="300px"/> | <img src="v-photos/backview.jpeg" alt="Vista Trasera V2" width="300px"/> |
-| *Geometría Ackermann frontal y montaje de la Pi Camera 3.* | *Tren de tracción trasero con motor DC y regulador XL4016.* |
-
-| Perfil Izquierdo (`Leftview.jpeg`) | Perfil Derecho (`Rightview.jpeg`) |
-| :---: | :---: |
-| <img src="v-photos/Leftview.jpeg" alt="Perfil Izquierdo V2" width="300px"/> | <img src="v-photos/Rightview.jpeg" alt="Perfil Derecho V2" width="300px"/> |
-| *Puertos usb de salida de la pi3b.* | *Ubicación del driver TB6612FNG y buses de datos.* |
-
-| Vista Superior (`Topview.jpeg`) | Vista Inferior (`Bottomview.jpeg`) |
-| :---: | :---: |
-| <img src="v-photos/Topview.jpeg" alt="Vista Superior V2" width="300px"/> | <img src="v-photos/Bottomview.jpeg" alt="Vista Inferior V2" width="300px"/> |
-| *Disposición central de la Raspberry Pi 3B y la Pico 2.* | *Estructura base del chasis de vigas de fricción LEGO.* |
+| Vista | Captura | Descripción |
+| :---: | :---: | :--- |
+| **Frontal** (`frontview.jpeg`) | <img src="v-photos/frontview.jpeg" alt="Vista Frontal V2" width="260px"/> | Geometría Ackermann frontal y montaje de la Pi Camera 3. |
+| **Trasera** (`backview.jpeg`) | <img src="v-photos/backview.jpeg" alt="Vista Trasera V2" width="260px"/> | Tren de tracción trasero con motor DC y regulador XL4016. |
+| **Perfil Izquierdo** (`Leftview.jpeg`) | <img src="v-photos/Leftview.jpeg" alt="Perfil Izquierdo V2" width="260px"/> | Puertos USB de salida de la Pi 3B. |
+| **Perfil Derecho** (`Rightview.jpeg`) | <img src="v-photos/Rightview.jpeg" alt="Perfil Derecho V2" width="260px"/> | Ubicación del driver TB6612FNG y buses de datos. |
+| **Superior** (`Topview.jpeg`) | <img src="v-photos/Topview.jpeg" alt="Vista Superior V2" width="260px"/> | Disposición central de la Raspberry Pi 3B y la Pico 2. |
+| **Inferior** (`Bottomview.jpeg`) | <img src="v-photos/Bottomview.jpeg" alt="Vista Inferior V2" width="260px"/> | Estructura base del chasis de vigas de fricción LEGO. |
 
 ### 3.4 Justificación de Ingeniería para la Selección de Componentes y Arquitectura de Sistemas (Trade-offs)
 
