@@ -167,16 +167,9 @@ Diagrama de referencia usado por el equipo durante el ensamblaje, verificado con
 
 La integración electrónica de la Pico 2, el driver TB6612FNG y el MPU6050 se soldó sobre una placa perforada (protoboard permanente) para eliminar el riesgo de falsos contactos por vibración que sí existía con conexiones de jumpers sueltos:
 
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Capa Superior — Pico 2 + MPU6050</b></p>
-    <img src="schemes/Placa_Perforada/Top_Layer_Placa.jpeg" alt="Capa superior de la placa perforada" style="max-height: 280px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Capa Inferior — Soldadura y buses</b></p>
-    <img src="schemes/Placa_Perforada/Bottom_Layer_Placa.jpeg" alt="Capa inferior de la placa perforada" style="max-height: 280px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
+| Capa Superior — Pico 2 + MPU6050 | Capa Inferior — Soldadura y buses |
+| :---: | :---: |
+| <img src="schemes/Placa_Perforada/Top_Layer_Placa.jpeg" alt="Capa superior de la placa perforada" width="260px"/> | <img src="schemes/Placa_Perforada/Bottom_Layer_Placa.jpeg" alt="Capa inferior de la placa perforada" width="260px"/> |
 
 ### 4.2 Catálogo de Componentes y Justificación de Selección
 
