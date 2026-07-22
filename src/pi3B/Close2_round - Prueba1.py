@@ -58,7 +58,10 @@ ANGULO_MAX_IZQ = 330
 
 dist_derecha_min = 8000.0
 dist_izquierda_min = 8000.0
+dist_trasera_min = 8000.0
 angulo_previo = 0.0
+sentido_giro = "DESCONOCIDO"
+
 
 fase_actual = "ESPERANDO_BOTON"
 initial_derecha = 0.0
@@ -332,6 +335,7 @@ def procesar_ciclo_completo_lidar():
     global initial_derecha, initial_izquierda, ser_pico, angulo_acumulado_robot, tiempo_inicio_parqueo
     global estado_evasion, ultimo_angulo_aplicado, dist_frontal_min, heading_base_evasion
     global tiempo_inicio_evasion, area_anterior, ANGULO_MIN_FRONTAL, ANGULO_MAX_FRONTAL
+    global dist_trasera_min, sentido_giro
 
     if ser_pico is None or not ser_pico.is_open:
         return
@@ -348,6 +352,15 @@ def procesar_ciclo_completo_lidar():
         return
 
     if fase_actual == "CARRERA":
+        # 0. Detectar sentido de giro de la pista
+        if sentido_giro == "DESCONOCIDO":
+            if angulo_acumulado_robot < -45.0:
+                sentido_giro = "HORARIO"
+                print("[🔄] Sentido de giro detectado: HORARIO (derecha)")
+            elif angulo_acumulado_robot > 45.0:
+                sentido_giro = "ANTIHORARIO"
+                print("[🔄] Sentido de giro detectado: ANTIHORARIO (izquierda)")
+
         # 1. Usamos la cámara SOLO para clasificar el objeto y filtrar falsos positivos
         with lock_visión:
             color = poste_color
@@ -368,7 +381,7 @@ def procesar_ciclo_completo_lidar():
         # 2.5. Sistema Anti-Choques de Emergencia
         # Dimensiones del robot: 11.3cm ancho (5.65cm al borde), LiDAR a 2cm del frente
         if frontal < 120 or dist_izquierda_min < 80 or dist_derecha_min < 80:
-            if estado_evasion != "RETROCEDIENDO":
+            if estado_evasion not in ["RETROCEDIENDO", "FORZANDO_GIRO"]:
                 estado_evasion = "RETROCEDIENDO"
                 tiempo_inicio_evasion = time.time()
                 print(f"[🛑] ¡COLISIÓN INMINENTE! F:{frontal:.0f} I:{dist_izquierda_min:.0f} D:{dist_derecha_min:.0f}mm. Reversa activada.")
@@ -405,15 +418,44 @@ def procesar_ciclo_completo_lidar():
 
         # 4. Cálculo del Ángulo Objetivo y Velocidad
         if estado_evasion == "RETROCEDIENDO":
-            # Echar reversa con las ruedas derechas por 1.0 segundo
-            angulo_objetivo_crudo = 0.0
+            # Echar reversa con ángulo hacia el lado opuesto del sentido de giro
+            # para apuntar la parte delantera en la dirección de la curva.
+            if sentido_giro == "HORARIO":
+                angulo_objetivo_crudo = 30.0  # Al retroceder, girar ruedas a la izquierda para apuntar trompa a la derecha
+            elif sentido_giro == "ANTIHORARIO":
+                angulo_objetivo_crudo = -30.0 # Al retroceder, girar ruedas a la derecha para apuntar trompa a la izquierda
+            else:
+                angulo_objetivo_crudo = 0.0
+
             velocidad_base = -35  # Velocidad negativa hacia atrás
             
-            # Tras 1 segundo de reversa, volver a centrarse
-            if (time.time() - tiempo_inicio_evasion) > 1.0:
+            # Retrocedemos mientras no haya un obstáculo detrás (dist_trasera_min > 250 mm)
+            # y el tiempo de reversa sea menor a 3.5 segundos.
+            tiempo_retroceso = time.time() - tiempo_inicio_evasion
+            choque_trasero = dist_trasera_min < 250.0
+            
+            if choque_trasero or tiempo_retroceso > 3.5:
+                estado_evasion = "FORZANDO_GIRO"
+                tiempo_inicio_evasion = time.time()
+                razon = "obstáculo trasero" if choque_trasero else "tiempo máximo"
+                print(f"[♻️] Reversa finalizada ({razon}, T:{tiempo_retroceso:.1f}s). Iniciando giro forzado.")
+
+        elif estado_evasion == "FORZANDO_GIRO":
+            # Avanzar hacia adelante forzando el giro brusco en el sentido de la pista
+            if sentido_giro == "HORARIO":
+                angulo_objetivo_crudo = -30.0 # Ruedas a la derecha
+            elif sentido_giro == "ANTIHORARIO":
+                angulo_objetivo_crudo = 30.0  # Ruedas a la izquierda
+            else:
+                angulo_objetivo_crudo = 0.0
+            
+            velocidad_base = VELOCIDAD_EVASION
+            
+            # Forzar el giro hacia adelante durante 0.6 segundos
+            if (time.time() - tiempo_inicio_evasion) > 0.6:
                 estado_evasion = "CARRERA"
-                print("[♻️] Reversa completada. Intentando retomar pista.")
-                
+                print("[✔️] Giro forzado completado. Retornando a carrera normal.")
+
         elif estado_evasion == "EVADIENDO_SALIDA":
             # Dirección del giro agresiva pero controlada
             angulo_objetivo_crudo = 30.0 if EVADIR_POR_IZQUIERDA else -30.0
@@ -447,7 +489,7 @@ def procesar_ciclo_completo_lidar():
             ANGULO_MIN_FRONTAL = 350
             ANGULO_MAX_FRONTAL = 10
 
-        # Frenado de emergencia general (si no estamos ya retrocediendo)
+        # Frenado de emergencia general (si no estamos ya retrocediendo o en giro forzado)
         if frontal < DIST_FRENADO_MIN and estado_evasion == "CARRERA":
             velocidad_base = VELOCIDAD_MIN_EN_FRENADO
 
@@ -457,8 +499,8 @@ def procesar_ciclo_completo_lidar():
         angulo_objetivo = ultimo_angulo_aplicado + delta
         ultimo_angulo_aplicado = angulo_objetivo
 
-        if estado_evasion == "RETROCEDIENDO":
-            velocidad = int(velocidad_base) # Permitir valores negativos puros sin recorte
+        if estado_evasion in ["RETROCEDIENDO", "FORZANDO_GIRO"]:
+            velocidad = int(velocidad_base) # Permitir valores negativos puros sin recorte o limites
         else:
             velocidad = max(VELOCIDAD_MIN_EN_FRENADO, int(velocidad_base * factor_frenado))
 
@@ -495,6 +537,7 @@ def hilo_lidar():
     global ser_lidar, corriendo, angulo_previo
     global dist_derecha_min, dist_izquierda_min, fase_actual
     global dist_frontal_min, ANGULO_MIN_FRONTAL, ANGULO_MAX_FRONTAL
+    global dist_trasera_min
 
     try:
         ser_lidar = serial.Serial(PUERTO_LIDAR, baudrate=BAUDRATE_LIDAR, timeout=1)
@@ -540,6 +583,7 @@ def hilo_lidar():
                             dist_derecha_min = 8000.0
                             dist_izquierda_min = 8000.0
                             dist_frontal_min = 8000.0
+                            dist_trasera_min = 8000.0
 
                         angulo_previo = angle
 
@@ -549,6 +593,9 @@ def hilo_lidar():
                         elif ANGULO_MIN_IZQ <= angle <= ANGULO_MAX_IZQ:
                             if distance_mm < dist_izquierda_min:
                                 dist_izquierda_min = distance_mm
+                        elif 170.0 <= angle <= 190.0:
+                            if distance_mm < dist_trasera_min:
+                                dist_trasera_min = distance_mm
 
                         # Sector frontal dinámico y adaptativo [Fix 4]
                         if angle >= ANGULO_MIN_FRONTAL or angle <= ANGULO_MAX_FRONTAL:

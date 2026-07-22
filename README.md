@@ -101,109 +101,28 @@ Para alcanzar la estabilidad operativa actual, el prototipo pasó por una transi
 
 Para evidenciar la transformación del vehículo y el rediseño de los tres ejes espaciales, se presenta el registro fotográfico emparejado de ambas iteraciones del prototipo:
 
-#### Vista Superior
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" style="max-height: 250px; width: 800px; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/Topview.jpeg" alt="V2 Superior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
----
-
-#### Vista Frontal
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/Frontview.jpeg" alt="V1 Frontal" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/frontview.jpeg" alt="V2 Frontal" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
----
-
-#### Vista Trasera
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/Backview.jpeg" alt="V1 Trasera" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/backview.jpeg" alt="V2 Trasera" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
----
-
-#### Vista Inferior
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/butview.jpeg" alt="V1 Inferior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/Bottomview.jpeg" alt="V2 Inferior" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
----
-
-#### Lateral Izquierda
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/leftview.jpeg" alt="V1 Izquierda" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/Leftview.jpeg" alt="V2 Izquierda" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
----
-
-#### Lateral Derecha
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Anterior (V1) - ≈ 800g</b></p>
-    <img src="v-photos/V1/Rightview.jpeg" alt="V1 Derecha" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Prototipo Actual (V2) - 613g</b></p>
-    <img src="v-photos/Rightview.jpeg" alt="V2 Derecha" style="max-height: 250px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
-
-<br>
+| Vista | Prototipo Anterior (V1) — ≈800 g | Prototipo Actual (V2) — 613 g |
+| :---: | :---: | :---: |
+| **Superior** | <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" width="260px"/> | <img src="v-photos/Topview.jpeg" alt="V2 Superior" width="260px"/> |
+| **Frontal** | <img src="v-photos/V1/Frontview.jpeg" alt="V1 Frontal" width="260px"/> | <img src="v-photos/frontview.jpeg" alt="V2 Frontal" width="260px"/> |
+| **Trasera** | <img src="v-photos/V1/Backview.jpeg" alt="V1 Trasera" width="260px"/> | <img src="v-photos/backview.jpeg" alt="V2 Trasera" width="260px"/> |
+| **Inferior** | <img src="v-photos/V1/butview.jpeg" alt="V1 Inferior" width="260px"/> | <img src="v-photos/Bottomview.jpeg" alt="V2 Inferior" width="260px"/> |
+| **Lateral Izquierda** | <img src="v-photos/V1/leftview.jpeg" alt="V1 Izquierda" width="260px"/> | <img src="v-photos/Leftview.jpeg" alt="V2 Izquierda" width="260px"/> |
+| **Lateral Derecha** | <img src="v-photos/V1/Rightview.jpeg" alt="V1 Derecha" width="260px"/> | <img src="v-photos/Rightview.jpeg" alt="V2 Derecha" width="260px"/> |
 
 ---
 ### 3.3 Galería de Inspección Técnica Obligatoria (Las 6 Capturas Reglamentarias)
 
 De acuerdo con las normativas de la WRO, se presentan las 6 capturas ortogonales del prototipo de producción actual (V2) depositadas en la carpeta `v-photos/`. Estas imágenes permiten la verificación técnica y garantizan la reproducibilidad completa de nuestro hardware:
 
-| Vista Frontal (`frontview.jpeg`) | Vista Trasera (`backview.jpeg`) |
-| :---: | :---: |
-| <img src="v-photos/frontview.jpeg" alt="Vista Frontal V2" width="300px"/> | <img src="v-photos/backview.jpeg" alt="Vista Trasera V2" width="300px"/> |
-| *Geometría Ackermann frontal y montaje de la Pi Camera 3.* | *Tren de tracción trasero con motor DC y regulador XL4016.* |
-
-| Perfil Izquierdo (`Leftview.jpeg`) | Perfil Derecho (`Rightview.jpeg`) |
-| :---: | :---: |
-| <img src="v-photos/Leftview.jpeg" alt="Perfil Izquierdo V2" width="300px"/> | <img src="v-photos/Rightview.jpeg" alt="Perfil Derecho V2" width="300px"/> |
-| *Puertos usb de salida de la pi3b.* | *Ubicación del driver TB6612FNG y buses de datos.* |
-
-| Vista Superior (`Topview.jpeg`) | Vista Inferior (`Bottomview.jpeg`) |
-| :---: | :---: |
-| <img src="v-photos/Topview.jpeg" alt="Vista Superior V2" width="300px"/> | <img src="v-photos/Bottomview.jpeg" alt="Vista Inferior V2" width="300px"/> |
-| *Disposición central de la Raspberry Pi 3B y la Pico 2.* | *Estructura base del chasis de vigas de fricción LEGO.* |
+| Vista | Captura | Descripción |
+| :---: | :---: | :--- |
+| **Frontal** (`frontview.jpeg`) | <img src="v-photos/frontview.jpeg" alt="Vista Frontal V2" width="260px"/> | Geometría Ackermann frontal y montaje de la Pi Camera 3. |
+| **Trasera** (`backview.jpeg`) | <img src="v-photos/backview.jpeg" alt="Vista Trasera V2" width="260px"/> | Tren de tracción trasero con motor DC y regulador XL4016. |
+| **Perfil Izquierdo** (`Leftview.jpeg`) | <img src="v-photos/Leftview.jpeg" alt="Perfil Izquierdo V2" width="260px"/> | Puertos USB de salida de la Pi 3B. |
+| **Perfil Derecho** (`Rightview.jpeg`) | <img src="v-photos/Rightview.jpeg" alt="Perfil Derecho V2" width="260px"/> | Ubicación del driver TB6612FNG y buses de datos. |
+| **Superior** (`Topview.jpeg`) | <img src="v-photos/Topview.jpeg" alt="Vista Superior V2" width="260px"/> | Disposición central de la Raspberry Pi 3B y la Pico 2. |
+| **Inferior** (`Bottomview.jpeg`) | <img src="v-photos/Bottomview.jpeg" alt="Vista Inferior V2" width="260px"/> | Estructura base del chasis de vigas de fricción LEGO. |
 
 ### 3.4 Justificación de Ingeniería para la Selección de Componentes y Arquitectura de Sistemas (Trade-offs)
 
@@ -248,16 +167,9 @@ Diagrama de referencia usado por el equipo durante el ensamblaje, verificado con
 
 La integración electrónica de la Pico 2, el driver TB6612FNG y el MPU6050 se soldó sobre una placa perforada (protoboard permanente) para eliminar el riesgo de falsos contactos por vibración que sí existía con conexiones de jumpers sueltos:
 
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Capa Superior — Pico 2 + MPU6050</b></p>
-    <img src="schemes/Placa_Perforada/Top_Layer_Placa.jpeg" alt="Capa superior de la placa perforada" style="max-height: 280px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Capa Inferior — Soldadura y buses</b></p>
-    <img src="schemes/Placa_Perforada/Bottom_Layer_Placa.jpeg" alt="Capa inferior de la placa perforada" style="max-height: 280px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
+| Capa Superior — Pico 2 + MPU6050 | Capa Inferior — Soldadura y buses |
+| :---: | :---: |
+| <img src="schemes/Placa_Perforada/Top_Layer_Placa.jpeg" alt="Capa superior de la placa perforada" width="260px"/> | <img src="schemes/Placa_Perforada/Bottom_Layer_Placa.jpeg" alt="Capa inferior de la placa perforada" width="260px"/> |
 
 ### 4.2 Catálogo de Componentes y Justificación de Selección
 
@@ -386,7 +298,20 @@ WantedBy=multi-user.target
 
 ### 5.2 Estructura Modular del Script de Carrera (Fragmentos Clave)
 
-El script opera bajo una máquina de estados finitos (`ESPERANDO_BOTON`, `CALIBRANDO`, `CAPTURA_INICIAL`, `CARRERA`, `BUSCANDO_PARQUEO`, `DETENIDO`). A continuación se detallan las funciones de sincronización asíncrona y telemetría:
+El script opera bajo una máquina de estados finitos (`ESPERANDO_BOTON`, `CALIBRANDO`, `CAPTURA_INICIAL`, `CARRERA`, `BUSCANDO_PARQUEO`, `DETENIDO`), compartida por `Open_round.py` y `Close2_round.py` (esta última con un sub-estado de evasión adicional dentro de `CARRERA`, ver diagrama en la sección 5.3-B):
+
+```mermaid
+stateDiagram-v2
+    [*] --> ESPERANDO_BOTON
+    ESPERANDO_BOTON --> CALIBRANDO: Botón GPIO21/20 presionado (fase_actual = "CALIBRANDO")
+    CALIBRANDO --> CAPTURA_INICIAL: Hilo LiDAR detecta fase "CALIBRANDO" y activa el barrido
+    CAPTURA_INICIAL --> CARRERA: Primer barrido completo -- guarda la firma de pared inicial (Izq/Der en mm)
+    CARRERA --> BUSCANDO_PARQUEO: angulo_acumulado_robot alcanza 1010 grados (3 vueltas netas, via IMU por UART)
+    BUSCANDO_PARQUEO --> DETENIDO: Firma de pared coincide con la inicial (tolerancia 80mm) O tiempo mayor a TIMEOUT_BUSQUEDA_PARQUEO
+    DETENIDO --> [*]: apagar_sistema() -- detiene motores, GPIO.cleanup(), sys.exit(0)
+```
+
+A continuación se detallan las funciones de sincronización asíncrona y telemetría:
 
 ```python
 def hilo_comunicacion_pico():
@@ -450,18 +375,57 @@ La meta en la Ronda Abierta es mantener la velocidad lineal máxima constante re
 $$e(t) = \text{dist}_{\text{izquierda}} - \text{dist}_{\text{derecha}}$$
 
 el script aplica una ganancia proporcional (`KP_LATERAL`) para enviar micro-correcciones de dirección a la Pico 2.
-* **Manejo de Casos Extremos (Puntos de Fallo):** Si el vehículo entra muy sesgado en una curva y el LiDAR pierde temporalmente la lectura de una de las paredes, el software activa un estado "Inercial". En este modo, el script ignora las lecturas nulas y congela el último ángulo de giro válido, confiando en la integración del giroscopio de la Pico 2 para completar el giro de la esquina de forma segura sin colisionar.
+* **Manejo de Casos Extremos (Puntos de Fallo) — Modo "Inercial":** Si el vehículo entra muy sesgado en una curva y el LiDAR pierde temporalmente la lectura de una de las paredes (lectura > 4000mm), el script **sostiene el último valor válido conocido de esa pared** en vez de sustituirlo por un valor fijo arbitrario. Esto se corrigió durante la depuración de la Ronda Cerrada (sección 8.2): la implementación original saltaba a un valor fijo de 2000mm apenas se perdía la lectura, lo que podía producir un giro brusco justo al entrar en una curva cerrada. La versión actual de ambos scripts (`Open_round.py` y `Close2_round.py`) sostiene el dato real más reciente. *Nota de alcance:* todavía no se integra el giroscopio de la Pico para predecir la posición de la pared durante la pérdida de señal — es una mejora identificada, no implementada aún.
 
 #### B. Ronda Cerrada (Fusión Sensorial Visión Artificial + LiDAR)
 
 En la Ronda Cerrada, la presencia de pilares de obstáculos (bloques rojos y verdes) rompe la simetría de las paredes del circuito, requiriendo una estrategia asimétrica:
 
-* **Detección por Visión (Capa OpenCV):** La cámara Pi Module 3 captura el frente de la pista. El script `Close_round.py` transforma la matriz de imágenes al espacio de color HSV (Hue-Saturation-Value) para aislar los bloques mediante máscaras de umbralización calibradas en los boxes. Se extraen los contornos y se calcula el centroide del objeto más grande en el eje X de la imagen.
+* **Detección por Visión (Capa OpenCV):** La cámara Pi Module 3 captura el frente de la pista. El script `Close2_round.py` (versión activa en desarrollo, rama `dev-close_round` — ver sección 8.2) transforma la matriz de imágenes al espacio de color HSV (Hue-Saturation-Value) para aislar los bloques mediante máscaras de umbralización calibradas con `calibrar_hsv.py`. Se extraen los contornos y se calcula el centroide del objeto más grande.
 * **Lógica de Esquiva y Evasión:** Cuando un obstáculo es detectado, se activa la lógica de evasión según las reglas del torneo:
 1. Si el bloque es **Verde**, el carro debe evadir por el carril **izquierdo**. El software inyecta un offset angular negativo a la dirección.
 2. Si el bloque es **Rojo**, el carro debe evadir por el carril **derecho**. El software inyecta un offset angular positivo.
 
-* **Validación de Cercanía con LiDAR:** Para evitar giros falsos causados por reflejos distantes, la decisión de esquivar se valida cruzando los datos con la distancia del LiDAR. La maniobra de evasión se ejecuta activamente solo cuando el LiDAR confirma que el pilar está a una distancia crítica menor a $45\,\text{cm}$. Una vez que el contorno del bloque sale del campo de visión de la cámara, el algoritmo proporcional vuelve a estabilizar el coche guiándose por las paredes libres.
+* **Validación de Cercanía con LiDAR:** Para evitar giros falsos causados por reflejos distantes, la decisión de esquivar se valida cruzando los datos de color con un *tracker* de posición basado en clustering del LiDAR (ver sección 4.2). La maniobra se ejecuta solo cuando el LiDAR confirma proximidad real, y el algoritmo proporcional vuelve a estabilizar el coche por las paredes libres una vez que el tracker confirma que el obstáculo quedó atrás.
+
+
+
+#### Máquina de Estados de Evasión (`estado_evasion`, `Close2_round.py`)
+
+Esta es la máquina de estados real vigente, depurada con evidencia de pista (ver caso de estudio, sección 8.2). Los valores de los umbrales son los parámetros vigentes tras las correcciones de esta sesión:
+
+```mermaid
+stateDiagram-v2
+    [*] --> CARRERA
+
+    CARRERA --> DETECTADO: Tracker confirma obstaculo entre 50 y 800mm, O frontal entre 50 y 700mm con color detectado
+    DETECTADO --> ESQUIVANDO: tracker confirmado y frontal bajo 600mm, O frontal bajo 400mm, O tiempo mayor a TIMEOUT_DETECTADO (1.2s)
+    ESQUIVANDO --> PASANDO: tiempo mayor a 0.2s y (frente libre O tracker al costado O tracker superado)
+    PASANDO --> RECENTRANDO: tracker confirma obstaculo superado, O tiempo mayor a 1.2s
+    RECENTRANDO --> CARRERA: error de rumbo IMU menor a 4 grados, O tiempo mayor a TIMEOUT_RECENTRANDO (3.0s)
+
+    CARRERA --> RETROCEDIENDO: EMERGENCIA -- frontal bajo 120mm O lateral bajo 80mm (chequeo global, cualquier estado)
+    DETECTADO --> RETROCEDIENDO: EMERGENCIA
+    ESQUIVANDO --> RETROCEDIENDO: EMERGENCIA
+    PASANDO --> RETROCEDIENDO: EMERGENCIA
+    RECENTRANDO --> RETROCEDIENDO: EMERGENCIA
+    RETROCEDIENDO --> FORZANDO_GIRO: choque trasero bajo 250mm, O tiempo mayor a 3.5s
+    FORZANDO_GIRO --> CARRERA: tiempo mayor a 0.6s
+
+    note right of DETECTADO
+        Ángulo = sesgo direccional (regla de color WRO)
+        + tracker["x"] * KP_EVASION_LATERAL
+        (control proporcional, no ángulo fijo)
+    end note
+
+    note right of RECENTRANDO
+        Corrigió: antes se rendía en 1.5s con
+        errores de hasta 68° sin converger,
+        disparando la cascada de EMERGENCIA
+    end note
+```
+
+> El bloque `RETROCEDIENDO`/`FORZANDO_GIRO` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en uno de esos dos), por eso el diagrama lo muestra como alcanzable desde los cinco estados normales de la maniobra.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 
@@ -469,7 +433,7 @@ Los valores numéricos vigentes en `Open_round.py`, obtenidos empíricamente med
 
 | Parámetro | Valor Vigente | Efecto observado al ajustarlo |
 | :--- | :---: | :--- |
-| `KP_LATERAL` | `0.22` | Ganancia proporcional del centrado. Valores mayores generaban zigzag (sobrecorrección) en los tramos rectos; valores menores dejaban al coche "flotando" sin corregir a tiempo antes de una curva cerrada. |
+| `KP_LATERAL` | `0.14` | Ganancia proporcional del centrado. Valores mayores generaban zigzag (sobrecorrección) en los tramos rectos; valores menores dejaban al coche "flotando" sin corregir a tiempo antes de una curva cerrada. Unificado a `0.14` en `Open_round.py` y `Close2_round.py` (antes `Open_round.py` tenía `0.22`, un valor no probado que quedó desincronizado). |
 | `KD_ESTABILIDAD` | `0.12` | Amortiguación derivativa en la Pico 2 (sección 6.2). Compensa el sobregiro que el término proporcional introduce al salir de una curva. |
 | `VELOCIDAD_CRUCERO` | `100` | Velocidad de PWM en tramo recto/curva estándar. |
 | `VELOCIDAD_PARQUEO` | `60` | Velocidad reducida durante la búsqueda de la posición de estacionamiento final, priorizando precisión sobre velocidad. |
@@ -657,16 +621,9 @@ El rango operativo del actuador Geekservo se restringe a los siguientes umbrales
 
 #### Evidencia Fotográfica de Calibración (Prueba de Giro Máximo)
 
-<div style="display: flex; gap: 10px; align-items: center;">
-  <div style="text-align: center; flex: 1;">
-    <p><b>Ángulo Máximo Derecho (70°)</b></p>
-    <img src="v-photos/Ackermann/AnguloMaxDer.jpeg" alt="Prueba física de ángulo máximo derecho" style="max-height: 280px; width: auto; border-radius: 5px;"/>
-  </div>
-  <div style="text-align: center; flex: 1;">
-    <p><b>Ángulo Máximo Izquierdo (115°)</b></p>
-    <img src="v-photos/Ackermann/AnguloMaxIzq.jpeg" alt="Prueba física de ángulo máximo izquierdo" style="max-height: 280px; width: auto; border-radius: 5px;"/>
-  </div>
-</div>
+| Ángulo Máximo Derecho (70°) | Ángulo Máximo Izquierdo (115°) |
+| :---: | :---: |
+| <img src="v-photos/Ackermann/AnguloMaxDer.jpeg" alt="Prueba física de ángulo máximo derecho" width="260px"/> | <img src="v-photos/Ackermann/AnguloMaxIzq.jpeg" alt="Prueba física de ángulo máximo izquierdo" width="260px"/> |
 
 > **Ventaja mecánica de la modularidad LEGO:** La sustitución del filamento impreso en 3D por vigas de fricción LEGO redujo el coeficiente de masa inercial global, consolidando un peso final competitivo de **613 gramos exactos** que disminuye drásticamente el subviraje físico provocado por la fuerza centrípeta en las esquinas de la pista de la WRO.
 
@@ -712,7 +669,7 @@ Consolidando los puntos de fallo detectados a lo largo de las secciones anterior
 | 1 | Descalibración de la cámara por vibración mecánica | Chasis monocasco V1 impreso en 3D transmitía vibración de alta frecuencia del motor directo al sensor óptico | Migración a chasis LEGO Technic (V2), que absorbe vibración por flexión elástica de las vigas | Sección 3.1 — Cuadro comparativo V1/V2 |
 | 2 | Rotura del soporte de cámara por impacto frontal | Centro de masa V1 dejaba el sensor expuesto al perímetro de la pista | Rediseño del soporte óptico retrasado respecto al parachoques en V2 | Sección 3.4 |
 | 3 | *Brownouts* (reinicio de la Raspberry Pi 3B) por picos de corriente del motor | Regulador único lineal compartía línea de alimentación entre lógica y potencia | Desacoplamiento por etapas: XL4016 dedicado (8 A) solo para la línea lógica, aislado de la línea de tracción directa a batería | Sección 4.1, 4.4 — margen de seguridad del 73.25% |
-| 4 | Pérdida de lectura del LiDAR en una pared durante un giro cerrado | Ángulo de barrido del RPLiDAR pierde temporalmente una de las dos paredes laterales al entrar sesgado en curva | Estado "Inercial": el software congela el último ángulo válido y se apoya en la integración del giroscopio (MPU6050) hasta recuperar la lectura | Sección 5.3-A |
+| 4 | Pérdida de lectura del LiDAR en una pared durante un giro cerrado | Ángulo de barrido del RPLiDAR pierde temporalmente una de las dos paredes laterales al entrar sesgado en curva | Estado "Inercial": el software sostiene el último valor válido conocido de esa pared en vez de saltar a un valor fijo arbitrario (2000mm) | Sección 5.3-A, 8.2 |
 | 5 | Falsos positivos de color por iluminación variable entre boxes y pista oficial | Los umbrales HSV se calibran en interiores (boxes) con luz artificial distinta a la luz de la pista de competencia | Herramienta `calibrar_hsv.py` dedicada para recalibrar en vivo antes de cada ronda, más limpieza morfológica (`MORPH_OPEN`/`MORPH_CLOSE`) para eliminar ruido lumínico | Sección 4.2 — Método de Calibración |
 | 6 | Pérdida de comunicación UART entre Pi 3B y Pico 2 durante la carrera | Desconexión física del cable USB o saturación del buffer serial | *Fail-safe* por software: si no llega una trama nueva en >500 ms, el sistema fuerza detención inmediata | Diagrama de arquitectura de software (sección 5) |
 | 7 | Desalineación del centro de dirección tras un cambio de calibración | Se probó un centro de servo de 180° que no correspondía a la geometría física real del `base_servo` | Reversión a 90° tras validación en pista, documentado en el historial de commits en vez de sobrescribirlo silenciosamente | Sección 2.1, 6.2, 7.3 |
@@ -725,3 +682,48 @@ El vehículo no es la suma de partes independientes: una decisión en un subsist
 * **Masa (mecánica) → Torque requerido (potencia) → Selección de motor:** reducir la masa a 613 g (sección 3.4) bajó el torque mínimo de arranque a 0.938 kg·cm (sección 7.4), lo que permitió mantener el mismo motorreductor con un margen de seguridad de 2.55× en vez de sobredimensionar el sistema de tracción.
 * **Frecuencia de PWM del motor (potencia) → Ruido en el bus I2C (sensores):** la conmutación del puente H en la línea de tracción fue la razón por la que se separaron las líneas de alimentación (XL1509 para dirección, XL4016 para lógica) — sin ese aislamiento, el ruido inductivo del servo se filtraría hacia el MPU6050 y el LiDAR.
 * **Latencia de cómputo de la Pi 3B (software) → Estabilidad del lazo de control (bajo nivel):** por eso la generación de PWM y la integración del giroscopio se delegan a la Pico 2 en tiempo real, y la Pi 3B solo envía consignas de alto nivel (`velocidad, ángulo`) por UART — así el *jitter* del sistema operativo Linux nunca llega a tocar el actuador directamente.
+
+#### Diagrama de Interacción Entre Subsistemas (`Close2_round.py`)
+
+Tres hilos concurrentes (`threading`) más el firmware de la Pico comparten estado global para tomar una única decisión de control por ciclo:
+
+```mermaid
+flowchart TD
+    subgraph PI3B["Raspberry Pi 3B -- Close2_round.py"]
+        CAM["hilo_camara()\nOpenCV HSV -> color_crudo, cx_crudo"]
+        LID["hilo_lidar()\nParseo RPLIDAR C1 -> scan_buffer"]
+        PICO_IN["hilo_comunicacion_pico()\nLee IMU: -> angulo_acumulado_robot"]
+        SCAN["_procesar_scan_interno()\nClustering ABD + clasificación OBSTACULO/MURO"]
+        TRACK["tracker (x, y, color, confirmaciones)\nrotado por IMU cada ciclo"]
+        FSM["procesar_ciclo_completo_lidar()\nFSM fase_actual + estado_evasion"]
+    end
+
+    CAM -- "color_crudo (lock_vision)" --> FSM
+    LID -- "scan_buffer_listo (lock_scan)" --> SCAN
+    PICO_IN -- "angulo_acumulado_robot" --> SCAN
+    SCAN -- "clusters_obstaculos" --> TRACK
+    PICO_IN -- "angulo_acumulado_robot" --> TRACK
+    TRACK -- "tracker[x,y,activo,confirmaciones]" --> FSM
+    SCAN -- "dist_derecha_min, dist_izquierda_min, dist_frontal_min" --> FSM
+
+    FSM -- "UART 115200 bps: velocidad,angulo" --> PICO["Raspberry Pi Pico 2 (main.py)\nCENTRO=90° + offset - Kd*giro_z"]
+    PICO -- "UART: IMU:angulo_acumulado" --> PICO_IN
+```
+
+> Este diagrama expone por qué el bug #3 de la sección 8.2 era invisible sin instrumentación: `tracker["x"]` viajaba correctamente hasta el bloque `FSM`, pero el cálculo del ángulo simplemente no lo leía -- el dato existía en el sistema, solo no estaba conectado al punto de decisión correcto.
+
+### 8.2 Caso de Estudio: Depuración de la Ronda Cerrada con Evidencia de Pista (`Close2_round.py`)
+
+Durante el desarrollo activo de la Ronda Cerrada (rama `dev-close_round`), el equipo reportó que el robot "detecta el poste pero esquiva mal". En vez de ajustar parámetros a ciegas, se instrumentó el sistema para capturar evidencia real (video de la corrida + log de consola con `python3 -u Close2_round.py 2>&1 | tee run_log.txt`) y se diagnosticó cada síntoma contra las líneas exactas de log. Este es el registro de los hallazgos, en el orden en que se corrigieron:
+
+| # | Síntoma Reportado | Evidencia (log/código) | Causa Raíz | Corrección |
+| :---: | :--- | :--- | :--- | :--- |
+| 1 | El robot evade al lado contrario al reglamentario | `EVADIR_POR_IZQUIERDA = (color_det == "ROJO")` | Mapeo de color invertido: la regla WRO es Rojo→derecha, Verde→izquierda, pero el código asignaba izquierda al rojo | `EVADIR_POR_IZQUIERDA = (color_det == "VERDE")` |
+| 2 | Detección de color inconsistente con la calibración en laptop | `cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)` en el robot vs. `COLOR_BGR2HSV` en `calibrar_hsv.py` | Picamera2 con formato `"RGB888"` en realidad entrega los bytes en orden BGR (comportamiento documentado de la librería) | Unificado a `COLOR_BGR2HSV` en ambos |
+| 3 | Giro "a ciegas", sin importar la posición real del obstáculo | `angulo_objetivo_crudo = 28.0 if EVADIR_POR_IZQUIERDA else -28.0` (ángulo fijo); `KP_EVASION_LATERAL` y `MAX_ANGULO_EVASION` definidas pero sin uso en ningún lado | El tracker LiDAR (clustering ABD + corrección IMU) sí calculaba `tracker["x"]` (offset lateral real, mm) pero nunca se conectó al cálculo del ángulo | Control proporcional: `angulo = signo_evasion * ANGULO_BASE + tracker["x"] * KP_EVASION_LATERAL` |
+| 4 | El robot "manda la señal de evadir de una vez", sin confirmar distancia | `if (trk_confirmado and frontal < 600) or frontal < 400 or tiempo_detectado > 0.3` | El *timeout* de 0.3s ganaba casi siempre antes que la confirmación real de distancia LiDAR | Timeout subido a `TIMEOUT_DETECTADO = 1.2` (queda como red de seguridad, no como camino normal) |
+| 5 | Cascada de emergencias tras esquivar un pilar (log real: `Error heading=68.1 deg`) | `RECENTRANDO` se rendía por timeout (1.5s) sin haber corregido el rumbo, y el robot volvía a `CARRERA` desalineado, disparando `EMERGENCIA COLISION INMINENTE` de inmediato | El control proporcional de `RECENTRANDO` estaba capado a ±25° y no alcanzaba a converger en errores de rumbo grandes dentro del tiempo asignado | `TIMEOUT_RECENTRANDO` subido a 3.0s y límite de giro igualado a `MAX_ANGULO_EVASION` (32°) |
+| 6 | El robot frenaba de más justo durante la maniobra de evasión | `velocidad = max(VELOCIDAD_MIN_EN_FRENADO, int(velocidad_base * factor_frenado))` aplicado en todos los estados | `factor_frenado` se aplicaba dos veces en `DETECTADO` (frenado al cuadrado) y en `ESQUIVANDO`/`PASANDO`/`RECENTRANDO` frenaba según la distancia al propio poste que se estaba evadiendo (sector frontal ensanchado a propósito durante la maniobra) | `factor_frenado` restringido exclusivamente al estado `CARRERA` |
+| 7 | Crash de `GPIO.cleanup()` al detener el script con doble Ctrl+C | `lgpio.error: 'unknown handle'` en el traceback | `apagar_sistema()` se reejecutaba sobre un handle GPIO ya cerrado | Guardia de reentrada (`_apagando_en_curso`) + `try/except` alrededor de `GPIO.cleanup()` |
+
+> **Nota metodológica:** los hallazgos #1, #2, #4, #6 y #7 se identificaron por lectura de código y razonamiento sobre la convención de signos del sistema (verificada de forma cruzada contra `Open_round.py` y `src/pico/main.py`). El hallazgo #5 se identificó directamente de una línea de log real de una corrida en pista. Las correcciones ya están fusionadas a `main`; queda pendiente validarlas en pista con paredes reales antes de la competencia.
