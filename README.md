@@ -43,6 +43,7 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │   │   └── Mpu6050.py             # Driver I2C standalone para el sensor inercial MPU6050
 │   └── pi3B/                     # Scripts de alto nivel (Python 3 - Raspberry Pi 3B)
 │       ├── controlador_inicio.py # Orquestador central (Ejecutado como servicio del sistema OS)
+│       ├── deploy.sh             # Copia los .py de carrera planos a /home/pi/
 │       ├── comun/                # Drivers compartidos por ambas rondas
 │       │   ├── lidar_driver.py   # Driver: protocolo binario RPLIDAR C1
 │       │   ├── lidar_geometria.py # Procesador: paredes y clustering ABD

@@ -43,6 +43,7 @@ src/pi3B/
 │   ├── calibrar_hsv.py
 │   └── capturar_hsv.py
 ├── controlador_inicio.py     # Orquestador: decide qué ronda lanzar según el botón
+├── deploy.sh                 # Copia los .py de carrera planos a /home/pi/ (ver INSTALACION.md)
 ├── wro_start.service
 └── requirements.txt
 ```

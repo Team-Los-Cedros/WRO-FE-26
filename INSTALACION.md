@@ -107,7 +107,28 @@ No hace falta instalar ningún paquete adicional en el Pico — `main.py` solo u
 
 ## 5. Desplegar los scripts en la Raspberry Pi 3B
 
-En el repositorio, `src/pi3B/` está organizado en subcarpetas por responsabilidad (`comun/`, `ronda_cerrada/`, `ronda_abierta/`, `calibracion/`) para que sea más fácil de navegar. **Esa organización es solo del repositorio.** `controlador_inicio.py` referencia los scripts de carrera directamente en `/home/pi/` sin subcarpetas, y los módulos se importan entre sí por nombre de archivo (`import vision`, `from lidar_driver import LidarDriver`, etc.), así que **todos los `.py` deben quedar juntos y sin subcarpetas** en `/home/pi/` al copiarlos, manteniendo la capitalización exacta. `ronda_abierta.py` y `ronda_cerrada.py` comparten los tres archivos de `comun/`:
+En el repositorio, `src/pi3B/` está organizado en subcarpetas por responsabilidad (`comun/`, `ronda_cerrada/`, `ronda_abierta/`, `calibracion/`) para que sea más fácil de navegar. **Esa organización es solo del repositorio.** `controlador_inicio.py` referencia los scripts de carrera directamente en `/home/pi/` sin subcarpetas, y los módulos se importan entre sí por nombre de archivo (`import vision`, `from lidar_driver import LidarDriver`, etc.), así que **todos los `.py` deben quedar juntos y sin subcarpetas** en `/home/pi/` al copiarlos, manteniendo la capitalización exacta.
+
+### Opción A — Clonar el repo en la Pi + `deploy.sh` (recomendada para iterar)
+
+Requiere que la Pi tenga salida a internet (para llegar a GitHub). Se clona una sola vez; después, cada actualización es un `git pull` + volver a correr el script:
+
+```bash
+ssh pi@<ip-de-la-pi>
+git clone https://github.com/Team-Los-Cedros/WRO-FE-26.git
+cd WRO-FE-26
+bash src/pi3B/deploy.sh
+```
+
+`deploy.sh` copia siempre el conjunto correcto de archivos planos a `/home/pi/` — vive dentro del repo, así que queda actualizado automáticamente cada vez que se reorganiza `src/pi3B/` (a diferencia de escribir el `scp` a mano, que hay que recordar actualizar). Para volver a desplegar después de un cambio:
+
+```bash
+cd ~/WRO-FE-26 && git pull && bash src/pi3B/deploy.sh
+```
+
+### Opción B — `scp` directo desde la laptop (sin depender de internet en la Pi)
+
+Útil el día de la competencia si el lugar no tiene wifi confiable: solo necesita que la laptop y la Pi estén en la misma red local, no acceso a GitHub.
 
 ```bash
 scp src/pi3B/controlador_inicio.py \
@@ -124,7 +145,7 @@ scp src/pi3B/controlador_inicio.py \
     pi@<ip-de-la-pi>:/home/pi/
 ```
 
-> No copies nada de `src/pi3B/ronda_cerrada/legacy/` — son versiones superadas de la Ronda Cerrada, archivadas solo como referencia histórica (ver el `README.md` de esa carpeta).
+> Ninguna de las dos opciones copia `src/pi3B/ronda_cerrada/legacy/` — son versiones superadas de la Ronda Cerrada, archivadas solo como referencia histórica (ver el `README.md` de esa carpeta). `deploy.sh` ya lo excluye por diseño; con `scp` simplemente no se lista.
 
 ---
 
