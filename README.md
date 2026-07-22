@@ -388,6 +388,8 @@ En la Ronda Cerrada, la presencia de pilares de obstáculos (bloques rojos y ver
 
 * **Validación de Cercanía con LiDAR:** Para evitar giros falsos causados por reflejos distantes, la decisión de esquivar se valida cruzando los datos de color con un *tracker* de posición basado en clustering del LiDAR (ver sección 4.2). La maniobra se ejecuta solo cuando el LiDAR confirma proximidad real, y el algoritmo proporcional vuelve a estabilizar el coche por las paredes libres una vez que el tracker confirma que el obstáculo quedó atrás.
 
+
+
 #### Máquina de Estados de Evasión (`estado_evasion`, `Close2_round.py`)
 
 Esta es la máquina de estados real vigente, depurada con evidencia de pista (ver caso de estudio, sección 8.2). Los valores de los umbrales son los parámetros vigentes tras las correcciones de esta sesión:
@@ -598,13 +600,11 @@ Donde:
 * El factor constante de **$0.845$** es integrado directamente en la matriz de transferencia de control de la Raspberry Pi Pico 2 para ajustar dinámicamente el pulso de PWM enviado al Geekservo de dirección, garantizando giros limpios con cero subviraje o pérdida de tracción por fricción estática destructiva en las curvas de la WRO.
 
 ### 7.2 Renderizado del Chasis de Producción (V2)
-A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis.
+A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis. El archivo fuente reproducible (`.io` de BrickLink Studio) y el listado completo de las 83 piezas Technic están en [`3d-Models/Chasis-LEGO-V2/`](3d-Models/Chasis-LEGO-V2/README.md):
 
 <p align="center">
-  <img src="3d-Models/Render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
+  <img src="3d-Models/Chasis-LEGO-V2/Render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
 </p>
-
-> Nota: el archivo fuente reproducible (`.io` de BrickLink Studio) y el listado de las 83 piezas Technic viven en `3d-Models/Chasis-LEGO-V2/` en la rama `main` — esta rama (`dev-close_round`) todavía no tiene esa reorganización de carpetas, se incorporará al fusionar.
 
 ### 7.3 Límites Angulares Calibrados y Protección Mecánica
 
@@ -726,4 +726,4 @@ Durante el desarrollo activo de la Ronda Cerrada (rama `dev-close_round`), el eq
 | 6 | El robot frenaba de más justo durante la maniobra de evasión | `velocidad = max(VELOCIDAD_MIN_EN_FRENADO, int(velocidad_base * factor_frenado))` aplicado en todos los estados | `factor_frenado` se aplicaba dos veces en `DETECTADO` (frenado al cuadrado) y en `ESQUIVANDO`/`PASANDO`/`RECENTRANDO` frenaba según la distancia al propio poste que se estaba evadiendo (sector frontal ensanchado a propósito durante la maniobra) | `factor_frenado` restringido exclusivamente al estado `CARRERA` |
 | 7 | Crash de `GPIO.cleanup()` al detener el script con doble Ctrl+C | `lgpio.error: 'unknown handle'` en el traceback | `apagar_sistema()` se reejecutaba sobre un handle GPIO ya cerrado | Guardia de reentrada (`_apagando_en_curso`) + `try/except` alrededor de `GPIO.cleanup()` |
 
-> **Nota metodológica:** los hallazgos #1, #2, #4, #6 y #7 se identificaron por lectura de código y razonamiento sobre la convención de signos del sistema (verificada de forma cruzada contra `Open_round.py` y `src/pico/main.py`). El hallazgo #5 se identificó directamente de una línea de log real de una corrida en pista. Todas las correcciones están en la rama `dev-close_round`, pendientes de validar en pista antes de fusionarlas a `main`.
+> **Nota metodológica:** los hallazgos #1, #2, #4, #6 y #7 se identificaron por lectura de código y razonamiento sobre la convención de signos del sistema (verificada de forma cruzada contra `Open_round.py` y `src/pico/main.py`). El hallazgo #5 se identificó directamente de una línea de log real de una corrida en pista. Las correcciones ya están fusionadas a `main`; queda pendiente validarlas en pista con paredes reales antes de la competencia.
