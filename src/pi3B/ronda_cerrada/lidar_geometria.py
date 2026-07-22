@@ -1,22 +1,13 @@
-# Driver del RPLIDAR C1 y geometria del barrido.
-# Parsea el protocolo binario del C1, junta los puntos hasta completar una
-# vuelta (wrap-around del angulo) y por cada barrido entrega una Medicion
-# con las distancias por sector y los clusters que parecen postes.
+# Interpretacion geometrica de un barrido crudo del LiDAR (ver lidar_driver.py
+# para el protocolo/hilo): distancias por sector (con modo Inercial) y
+# clustering ABD para separar postes de paredes. No sabe nada del puerto
+# serial ni del protocolo binario del C1.
 #
 # Convenciones: 0 grados = frente, los angulos crecen en sentido horario.
 # Cartesianas: x+ = derecha, y+ = frente (en mm).
 import time
 import math
 import threading
-
-import serial
-
-PUERTO_LIDAR   = '/dev/ttyUSB0'
-BAUDRATE_LIDAR = 460800
-
-START_MOTOR_CMD = b'\xa5\xf0\x02\x94\x02\xc1\x02'
-START_SCAN_CMD  = b'\xa5\x20'
-STOP_CMD        = b'\xa5\x25'
 
 # ==========================================
 # SECTORES DE PARED (grados)
@@ -114,12 +105,11 @@ def es_cluster_obstaculo(cluster):
             and dist_min < DIST_MAX_OBSTACULO)
 
 
-class LidarC1:
-    def __init__(self, puerto=PUERTO_LIDAR, baudrate=BAUDRATE_LIDAR):
-        self._puerto   = puerto
-        self._baudrate = baudrate
-        self._ser      = None
-
+class ProcesadorLidar:
+    # Convierte barridos crudos (de lidar_driver.LidarDriver) en Medicion.
+    # Mantiene el estado de interpretacion: sector frontal vigente (lo
+    # reconfigura la FSM de evasion) y el modo Inercial de cada pared.
+    def __init__(self):
         self._lock_sector    = threading.Lock()
         self._sector_frontal = SECTOR_FRONTAL_NORMAL
 
@@ -134,7 +124,7 @@ class LidarC1:
     def sector_frontal_normal(self):
         self.fijar_sector_frontal(*SECTOR_FRONTAL_NORMAL)
 
-    def _procesar_barrido(self, scan):
+    def procesar(self, scan):
         with self._lock_sector:
             sector_frontal = self._sector_frontal
 
@@ -166,63 +156,3 @@ class LidarC1:
                     if es_cluster_obstaculo(c)]
 
         return Medicion(d_front, d_izq, d_der, d_tras, clusters)
-
-    def hilo_lectura(self, obtener_corriendo, al_barrido):
-        # al_barrido(Medicion) se llama una vez por barrido completo
-        try:
-            self._ser = serial.Serial(self._puerto, baudrate=self._baudrate, timeout=1)
-            time.sleep(0.5)
-            self._ser.write(START_MOTOR_CMD)
-            time.sleep(1.5)
-            self._ser.reset_input_buffer()
-            self._ser.write(START_SCAN_CMD)
-            time.sleep(0.5)
-            if self._ser.in_waiting >= 7:          # descartar cabecera de respuesta
-                self._ser.read(7)
-            print("[+] Telemetria LiDAR activa.")
-
-            angulo_previo = 0.0
-            buffer_barrido = []
-
-            while obtener_corriendo():
-                b0 = self._ser.read(1)
-                if not b0:
-                    continue
-                byte0 = b0[0]
-                # En un paquete valido el bit de start y su inverso difieren
-                if (byte0 & 0x01) == ((byte0 >> 1) & 0x01):
-                    continue
-
-                resto = self._ser.read(4)
-                if len(resto) < 4:
-                    continue
-                byte1, byte2, byte3, byte4 = resto
-
-                if (byte1 & 0x01) != 1:            # check bit del campo angulo
-                    continue
-
-                angle       = ((byte2 << 7) | (byte1 >> 1)) / 64.0
-                distance_mm = ((byte4 << 8) | byte3) / 4.0
-
-                if not (0 < distance_mm < 6000):
-                    continue
-
-                # Wrap-around del angulo = barrido completo listo
-                if angle < angulo_previo and (angulo_previo - angle) > 300.0:
-                    if buffer_barrido:
-                        al_barrido(self._procesar_barrido(buffer_barrido))
-                    buffer_barrido = []
-                angulo_previo = angle
-                buffer_barrido.append((angle, distance_mm))
-
-        except Exception as e:
-            if obtener_corriendo():
-                print(f"[-] Falla en hilo LiDAR: {e}")
-
-    def cerrar(self):
-        if self._ser and self._ser.is_open:
-            try:
-                self._ser.write(STOP_CMD)
-                self._ser.close()
-            except Exception:
-                pass

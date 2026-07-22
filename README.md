@@ -46,10 +46,12 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │       ├── ronda_abierta/
 │       │   └── Open_round.py     # Algoritmo de navegación reactiva para la Ronda Abierta (standalone)
 │       ├── ronda_cerrada/        # FSM de navegación/evasión de la Ronda Cerrada
-│       │   ├── Close2_round.py   # Punto de entrada (importa los 4 siguientes)
+│       │   ├── Close2_round.py   # Punto de entrada (importa los 6 siguientes)
 │       │   ├── navegacion.py     # Cerebro: máquina de estados de carrera/evasión/parqueo
-│       │   ├── vision.py         # Hilo de cámara: detección HSV de postes rojo/verde
-│       │   ├── lidar.py          # Driver RPLIDAR C1: paredes y clustering ABD
+│       │   ├── camara_driver.py  # Driver: adquisición de frames (Picamera2)
+│       │   ├── vision.py         # Procesador: detección HSV de postes rojo/verde
+│       │   ├── lidar_driver.py   # Driver: protocolo binario RPLIDAR C1
+│       │   ├── lidar_geometria.py # Procesador: paredes y clustering ABD
 │       │   ├── tracker.py        # Object persistence tracker del obstáculo activo
 │       │   ├── enlace_pico.py    # Canal serial con la Pico 2 (consignas + telemetria IMU)
 │       │   └── legacy/           # Versiones superadas (archivadas, no desplegar)
@@ -740,4 +742,4 @@ Durante el desarrollo activo de la Ronda Cerrada, el equipo reportó que el robo
 
 **Validación en pista con paredes reales:** tras aplicar los fixes, se corrió el mismo protocolo (video + `python3 -u Close2_round.py 2>&1 | tee run_log.txt`) en un circuito con bordes físicos. El log mostró 3 evasiones completas de postes rojos, todas con el lado de evasión correcto (`Evadir x DERECHA`) y la transición `DETECTADO -> ESQUIVANDO` siempre por distancia real confirmada por el LiDAR (nunca por el timeout de seguridad). El punto crítico —`RECENTRANDO`— convergió dentro del margen las 3 veces (`Error heading` de 3.9°, 3.9° y 3.2°, todos bajo el umbral de 4°), frente al fallo de 68.1° registrado antes del fix. Las dos emergencias de colisión que sí aparecieron se resolvieron limpio vía `RETROCEDIENDO -> FORZANDO_GIRO` sin entrar en el ciclo repetitivo observado en la corrida anterior.
 
-**Refactor de modularidad:** posteriormente, `Close2_round.py` (que concentraba cámara + LiDAR + tracker + FSM en ~1100 líneas) se dividió en `vision.py`, `lidar.py` y `tracker.py` por responsabilidad (ver sección 8.1). Durante esa limpieza se detectaron y archivaron en `src/pi3B/legacy/` dos copias obsoletas de la Ronda Cerrada (`Close_round.py` y una iteración experimental) que **todavía tenían la regla de color invertida** — y se descubrió que `controlador_inicio.py` apuntaba por error a esa copia rota en vez de a `Close2_round.py`, ya corregido.
+**Refactor de modularidad:** posteriormente, `Close2_round.py` (que concentraba cámara + LiDAR + tracker + FSM en ~1100 líneas) se dividió en `vision.py`, `lidar.py` y `tracker.py` por responsabilidad (ver sección 8.1). Durante esa limpieza se detectaron y archivaron en `src/pi3B/ronda_cerrada/legacy/` dos copias obsoletas de la Ronda Cerrada (`Close_round.py` y una iteración experimental) que **todavía tenían la regla de color invertida** — y se descubrió que `controlador_inicio.py` apuntaba por error a esa copia rota en vez de a `Close2_round.py`, ya corregido.

@@ -21,7 +21,7 @@ import math
 import time
 
 import tracker as tracker_mod
-from lidar import centroide_xy_cluster
+from lidar_geometria import centroide_xy_cluster
 
 # ==========================================
 # VELOCIDADES (% PWM)
@@ -90,7 +90,7 @@ def _clamp(v, lim):
 class Navegador:
     def __init__(self, control_sector):
         # control_sector: objeto con fijar_sector_frontal() y
-        # sector_frontal_normal(), normalmente el LidarC1
+        # sector_frontal_normal(), normalmente el ProcesadorLidar
         self._sector = control_sector
         self.tracker = tracker_mod.TrackerObstaculo()
 

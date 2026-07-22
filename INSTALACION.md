@@ -114,8 +114,10 @@ scp src/pi3B/controlador_inicio.py \
     src/pi3B/ronda_abierta/Open_round.py \
     src/pi3B/ronda_cerrada/Close2_round.py \
     src/pi3B/ronda_cerrada/navegacion.py \
+    src/pi3B/ronda_cerrada/camara_driver.py \
     src/pi3B/ronda_cerrada/vision.py \
-    src/pi3B/ronda_cerrada/lidar.py \
+    src/pi3B/ronda_cerrada/lidar_driver.py \
+    src/pi3B/ronda_cerrada/lidar_geometria.py \
     src/pi3B/ronda_cerrada/tracker.py \
     src/pi3B/ronda_cerrada/enlace_pico.py \
     src/pi3B/calibracion/calibrar_hsv.py \

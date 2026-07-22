@@ -20,42 +20,48 @@ Para garantizar que el vehículo sea 100% autónomo desde el momento en que se c
 
 ### Organización de `src/pi3B/`
 
-Los scripts están agrupados en subcarpetas por responsabilidad. Esto es **solo organización del repositorio**: al desplegar, todos los `.py` de carrera se copian sin subcarpetas a `/home/pi/` (ver sección 5 de [`INSTALACION.md`](../../INSTALACION.md)), porque Python los importa por nombre de archivo entre sí (`import vision`, `from lidar import LidarC1`, etc.) y no como paquete.
+Los scripts están agrupados en subcarpetas por responsabilidad. Esto es **solo organización del repositorio**: al desplegar, todos los `.py` de carrera se copian sin subcarpetas a `/home/pi/` (ver sección 5 de [`INSTALACION.md`](../../INSTALACION.md)), porque Python los importa por nombre de archivo entre sí (`import vision`, `from lidar_geometria import Medicion`, etc.) y no como paquete.
+
+Dentro de `ronda_cerrada/` cada archivo cae en una de dos capas: **driver** (habla con el hardware, no interpreta nada) o **procesador** (interpreta datos, no toca hardware). Esta separación es deliberada — permite probar la interpretación (geometría del LiDAR, máquina de estados) sin el robot conectado.
 
 ```
 src/pi3B/
-├── ronda_cerrada/       # Todo lo que solo usa la Ronda Cerrada
-│   ├── Close2_round.py  # Punto de entrada
-│   ├── navegacion.py    # Cerebro: FSM de carrera/evasión/parqueo
-│   ├── vision.py        # Hilo de cámara: HSV rojo/verde
-│   ├── lidar.py         # Driver RPLIDAR C1
-│   ├── tracker.py       # Persistencia del poste activo
-│   ├── enlace_pico.py   # Canal serial con la Pico 2
-│   └── legacy/          # Versiones superadas, NO desplegar
+├── ronda_cerrada/          # Todo lo que solo usa la Ronda Cerrada
+│   ├── Close2_round.py     # Punto de entrada
+│   ├── navegacion.py       # Procesador: FSM de carrera/evasión/parqueo
+│   ├── camara_driver.py    # Driver: adquisición de frames (Picamera2)
+│   ├── vision.py           # Procesador: HSV rojo/verde + histéresis
+│   ├── lidar_driver.py     # Driver: protocolo binario RPLIDAR C1
+│   ├── lidar_geometria.py  # Procesador: paredes + clustering ABD
+│   ├── tracker.py          # Procesador: persistencia del poste activo
+│   ├── enlace_pico.py      # Driver: canal serial con la Pico 2
+│   └── legacy/             # Versiones superadas, NO desplegar
 ├── ronda_abierta/
-│   └── Open_round.py    # Standalone: no comparte módulos con ronda_cerrada/
-├── calibracion/          # Herramientas offline, no corren en carrera
+│   └── Open_round.py       # Standalone: no comparte módulos con ronda_cerrada/
+├── calibracion/             # Herramientas offline, no corren en carrera
 │   ├── calibrar_hsv.py
 │   └── capturar_hsv.py
-├── controlador_inicio.py # Orquestador: decide qué ronda lanzar según el botón
+├── controlador_inicio.py    # Orquestador: decide qué ronda lanzar según el botón
 ├── wro_start.service
 └── requirements.txt
 ```
 
 #### Módulos de `ronda_cerrada/`
 
-| Archivo | Responsabilidad |
-| :--- | :--- |
-| `Close2_round.py` | Punto de entrada y orquestador delgado: cablea los hilos, espera el botón, fija el cero IMU y vigila con un *watchdog* que la percepción siga viva. No contiene lógica de navegación. |
-| `navegacion.py` | Cerebro de la ronda: máquina de estados de carrera/evasión/parqueo como **lógica pura sin I/O** (todo el hardware se inyecta), lo que permite probarla fuera del robot con barridos sintéticos. |
-| `vision.py` | Hilo de cámara: detección HSV de postes rojo/verde y su histéresis de estabilización. |
-| `lidar.py` | Driver del RPLIDAR C1 (clase `LidarC1`): parseo del protocolo binario, distancias por sector (con modo "Inercial"), sector frontal reconfigurable en caliente y clustering ABD para separar postes de paredes. Entrega un objeto `Medicion` por barrido completo. |
-| `tracker.py` | *Object persistence tracker* (clase `TrackerObstaculo`): posición estimada del poste activo, predicha por **rotación IMU + traslación por odometría de velocidad comandada**, y re-anclada con los clusters reales del LiDAR en cada barrido. |
-| `enlace_pico.py` | Canal serial con la Pico 2 (clase `EnlacePico`): envío de consignas, lectura de telemetría IMU en hilo propio, cero de carrera ajustable y detección de telemetría caída. |
+| Archivo | Capa | Responsabilidad |
+| :--- | :--- | :--- |
+| `Close2_round.py` | — | Punto de entrada y orquestador delgado: cablea los hilos, espera el botón, fija el cero IMU y vigila con un *watchdog* que la percepción siga viva. No contiene lógica de navegación. |
+| `navegacion.py` | Procesador | Cerebro de la ronda: máquina de estados de carrera/evasión/parqueo como **lógica pura sin I/O** (todo el hardware se inyecta), lo que permite probarla fuera del robot con barridos sintéticos. |
+| `camara_driver.py` | Driver | Adquisición de frames de la Pi Camera Module 3 (`picamera2`). No procesa color — entrega cada frame por callback (clase `CamaraDriver`). |
+| `vision.py` | Procesador | Recibe cada frame de `camara_driver.py` y hace la detección HSV de postes rojo/verde con su histéresis de estabilización. |
+| `lidar_driver.py` | Driver | Protocolo binario del RPLIDAR C1 y detección de barrido completo (clase `LidarDriver`). Entrega el barrido crudo (lista de ángulo/distancia), sin interpretar nada. |
+| `lidar_geometria.py` | Procesador | Interpreta el barrido crudo: distancias por sector (con modo "Inercial"), sector frontal reconfigurable en caliente y clustering ABD para separar postes de paredes (clase `ProcesadorLidar`). Entrega un objeto `Medicion` por barrido. |
+| `tracker.py` | Procesador | *Object persistence tracker* (clase `TrackerObstaculo`): posición estimada del poste activo, predicha por **rotación IMU + traslación por odometría de velocidad comandada**, y re-anclada con los clusters reales del LiDAR en cada barrido. |
+| `enlace_pico.py` | Driver | Canal serial con la Pico 2 (clase `EnlacePico`): envío de consignas, lectura de telemetría IMU en hilo propio, cero de carrera ajustable y detección de telemetría caída. |
 
 > **`ronda_cerrada/legacy/`** conserva `Close_round.py` y `Close2_round_Prueba1.py`, versiones superadas de la Ronda Cerrada que **no** deben desplegarse (ver el `README.md` de esa carpeta para el detalle de por qué se archivaron).
 
-> **Nota:** `ronda_abierta/Open_round.py` es autocontenido — reimplementa su propio parseo de LiDAR y protocolo serial en vez de reutilizar `lidar.py`/`enlace_pico.py`. Es deuda técnica conocida, no un error de organización.
+> **Nota:** `ronda_abierta/Open_round.py` es autocontenido — reimplementa su propio parseo de LiDAR y protocolo serial en vez de reutilizar `lidar_driver.py`/`enlace_pico.py`. Es deuda técnica conocida, no un error de organización.
 
 ---
 
