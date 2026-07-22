@@ -44,9 +44,9 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │   └── pi3B/                     # Scripts de alto nivel (Python 3 - Raspberry Pi 3B)
 │       ├── controlador_inicio.py # Orquestador central (Ejecutado como servicio del sistema OS)
 │       ├── ronda_abierta/
-│       │   └── Open_round.py     # Algoritmo de navegación reactiva para la Ronda Abierta (standalone)
+│       │   └── ronda_abierta.py  # Algoritmo de navegación reactiva para la Ronda Abierta (standalone)
 │       ├── ronda_cerrada/        # FSM de navegación/evasión de la Ronda Cerrada
-│       │   ├── Close2_round.py   # Punto de entrada (importa los 6 siguientes)
+│       │   ├── ronda_cerrada.py  # Punto de entrada (importa los 6 siguientes)
 │       │   ├── navegacion.py     # Cerebro: máquina de estados de carrera/evasión/parqueo
 │       │   ├── camara_driver.py  # Driver: adquisición de frames (Picamera2)
 │       │   ├── vision.py         # Procesador: detección HSV de postes rojo/verde
@@ -265,8 +265,8 @@ graph TD
     A["Encendido del Sistema (systemd)"] --> B["controlador_inicio.py"]
     B --> C{"¿Qué señal se detecta?"}
     
-    C -->|"Botón 1 (GPIO 21)"| D["Ejecutar: Open_round.py"]
-    C -->|"Botón 2 (GPIO 20)"| E["Ejecutar: Close2_round.py"]
+    C -->|"Botón 1 (GPIO 21)"| D["Ejecutar: ronda_abierta.py"]
+    C -->|"Botón 2 (GPIO 20)"| E["Ejecutar: ronda_cerrada.py"]
     
     D --> F["Centrado Reactivo por LiDAR C1"]
     E --> G["Fusión Sensorial: OpenCV HSV + LiDAR"]
@@ -312,7 +312,7 @@ WantedBy=multi-user.target
 
 ### 5.2 Estructura Modular del Script de Carrera (Fragmentos Clave)
 
-El script opera bajo una máquina de estados finitos (`ESPERANDO_BOTON`, `CALIBRANDO`, `CAPTURA_INICIAL`, `CARRERA`, `BUSCANDO_PARQUEO`, `DETENIDO`), compartida por `Open_round.py` y `Close2_round.py` (esta última con un sub-estado de evasión adicional dentro de `CARRERA`, ver diagrama en la sección 5.3-B):
+El script opera bajo una máquina de estados finitos (`ESPERANDO_BOTON`, `CALIBRANDO`, `CAPTURA_INICIAL`, `CARRERA`, `BUSCANDO_PARQUEO`, `DETENIDO`), compartida por `ronda_abierta.py` y `ronda_cerrada.py` (esta última con un sub-estado de evasión adicional dentro de `CARRERA`, ver diagrama en la sección 5.3-B):
 
 ```mermaid
 stateDiagram-v2
@@ -389,7 +389,7 @@ La meta en la Ronda Abierta es mantener la velocidad lineal máxima constante re
 $$e(t) = \text{dist}_{\text{izquierda}} - \text{dist}_{\text{derecha}}$$
 
 el script aplica una ganancia proporcional (`KP_LATERAL`) para enviar micro-correcciones de dirección a la Pico 2.
-* **Manejo de Casos Extremos (Puntos de Fallo) — Modo "Inercial":** Si el vehículo entra muy sesgado en una curva y el LiDAR pierde temporalmente la lectura de una de las paredes (lectura > 4000mm), el script **sostiene el último valor válido conocido de esa pared** en vez de sustituirlo por un valor fijo arbitrario. Esto se corrigió durante la depuración de la Ronda Cerrada (sección 8.2): la implementación original saltaba a un valor fijo de 2000mm apenas se perdía la lectura, lo que podía producir un giro brusco justo al entrar en una curva cerrada. La versión actual de ambos scripts (`Open_round.py` y `Close2_round.py`) sostiene el dato real más reciente. *Nota de alcance:* todavía no se integra el giroscopio de la Pico para predecir la posición de la pared durante la pérdida de señal — es una mejora identificada, no implementada aún.
+* **Manejo de Casos Extremos (Puntos de Fallo) — Modo "Inercial":** Si el vehículo entra muy sesgado en una curva y el LiDAR pierde temporalmente la lectura de una de las paredes (lectura > 4000mm), el script **sostiene el último valor válido conocido de esa pared** en vez de sustituirlo por un valor fijo arbitrario. Esto se corrigió durante la depuración de la Ronda Cerrada (sección 8.2): la implementación original saltaba a un valor fijo de 2000mm apenas se perdía la lectura, lo que podía producir un giro brusco justo al entrar en una curva cerrada. La versión actual de ambos scripts (`ronda_abierta.py` y `ronda_cerrada.py`) sostiene el dato real más reciente. *Nota de alcance:* todavía no se integra el giroscopio de la Pico para predecir la posición de la pared durante la pérdida de señal — es una mejora identificada, no implementada aún.
 
 #### B. Ronda Cerrada (Fusión Sensorial Visión Artificial + LiDAR)
 
@@ -437,15 +437,15 @@ stateDiagram-v2
     end note
 ```
 
-> El bloque `RETROCESO`/`REORIENTACION` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en uno de esos dos), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/ronda_cerrada/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `Close2_round.py` quedó como orquestador delgado con *watchdog* de percepción.
+> El bloque `RETROCESO`/`REORIENTACION` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en uno de esos dos), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/ronda_cerrada/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `ronda_cerrada.py` quedó como orquestador delgado con *watchdog* de percepción.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 
-Los valores numéricos vigentes en `Open_round.py`, obtenidos empíricamente mediante prueba y error directamente en pista (sin instrumentación de *logging* de datos, por lo que el método de validación fue observacional: repetir vueltas hasta eliminar oscilación visible contra las paredes):
+Los valores numéricos vigentes en `ronda_abierta.py`, obtenidos empíricamente mediante prueba y error directamente en pista (sin instrumentación de *logging* de datos, por lo que el método de validación fue observacional: repetir vueltas hasta eliminar oscilación visible contra las paredes):
 
 | Parámetro | Valor Vigente | Efecto observado al ajustarlo |
 | :--- | :---: | :--- |
-| `KP_LATERAL` | `0.14` | Ganancia proporcional del centrado. Valores mayores generaban zigzag (sobrecorrección) en los tramos rectos; valores menores dejaban al coche "flotando" sin corregir a tiempo antes de una curva cerrada. Unificado a `0.14` en `Open_round.py` y `Close2_round.py` (antes `Open_round.py` tenía `0.22`, un valor no probado que quedó desincronizado). |
+| `KP_LATERAL` | `0.14` | Ganancia proporcional del centrado. Valores mayores generaban zigzag (sobrecorrección) en los tramos rectos; valores menores dejaban al coche "flotando" sin corregir a tiempo antes de una curva cerrada. Unificado a `0.14` en `ronda_abierta.py` y `ronda_cerrada.py` (antes `ronda_abierta.py` tenía `0.22`, un valor no probado que quedó desincronizado). |
 | `KD_ESTABILIDAD` | `0.12` | Amortiguación derivativa en la Pico 2 (sección 6.2). Compensa el sobregiro que el término proporcional introduce al salir de una curva. |
 | `VELOCIDAD_CRUCERO` | `100` | Velocidad de PWM en tramo recto/curva estándar. |
 | `VELOCIDAD_PARQUEO` | `60` | Velocidad reducida durante la búsqueda de la posición de estacionamiento final, priorizando precisión sobre velocidad. |

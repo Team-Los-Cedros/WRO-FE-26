@@ -1,4 +1,4 @@
-# /home/pi/Open_round.py
+# /home/pi/ronda_abierta.py
 import time
 import threading
 import serial
@@ -42,7 +42,7 @@ DELTA_MAX_DER = SERVO_MAX_DER - SERVO_CENTRO
 DELTA_MAX_IZQ = SERVO_MAX_IZQ - SERVO_CENTRO
 
 # Limita la variacion maxima de angulo por ciclo para evitar giros bruscos
-# (mismo mecanismo que Close2_round.py, ya validado en pista)
+# (mismo mecanismo que ronda_cerrada.py, ya validado en pista)
 MAX_DELTA_ANGULO_POR_CICLO = 6.0
 ultimo_angulo_aplicado = 0.0
 
@@ -166,7 +166,7 @@ def procesar_ciclo_completo_lidar():
     angulo_objetivo_crudo = max(DELTA_MAX_DER, min(DELTA_MAX_IZQ, angulo_objetivo_crudo))
 
     # Limitador de tasa: evita saltos bruscos de ángulo ciclo a ciclo
-    # (mismo mecanismo ya validado en pista en Close2_round.py)
+    # (mismo mecanismo ya validado en pista en ronda_cerrada.py)
     delta = angulo_objetivo_crudo - ultimo_angulo_aplicado
     delta = max(-MAX_DELTA_ANGULO_POR_CICLO, min(MAX_DELTA_ANGULO_POR_CICLO, delta))
     angulo_objetivo        = ultimo_angulo_aplicado + delta

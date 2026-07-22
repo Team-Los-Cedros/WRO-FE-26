@@ -4,7 +4,7 @@ Herramienta de diagnóstico HSV sin GUI.
 A diferencia de calibrar_hsv.py (que necesita una laptop con pantalla
 recibiendo el streaming), este script corre 100% en la Raspberry Pi y
 simplemente GUARDA archivos de imagen (frame crudo + máscara roja +
-máscara verde) usando los umbrales HSV actuales de Close2_round.py.
+máscara verde) usando los umbrales HSV actuales de vision.py.
 
 Uso:
     python3 capturar_hsv.py [num_capturas] [intervalo_segundos]
@@ -30,7 +30,7 @@ from picamera2 import Picamera2
 ANCHO_FRAME = 320
 ALTO_FRAME = 240
 
-# Deben coincidir con los valores vigentes en Close2_round.py
+# Deben coincidir con los valores vigentes en vision.py
 ROJO_BAJO_1 = np.array([0, 151, 99]);   ROJO_ALTO_1 = np.array([15, 255, 255])
 ROJO_BAJO_2 = np.array([158, 160, 82]); ROJO_ALTO_2 = np.array([179, 255, 255])
 VERDE_BAJO = np.array([43, 68, 50]);    VERDE_ALTO = np.array([85, 255, 255])

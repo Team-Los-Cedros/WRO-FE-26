@@ -111,8 +111,8 @@ En el repositorio, `src/pi3B/` está organizado en subcarpetas por responsabilid
 
 ```bash
 scp src/pi3B/controlador_inicio.py \
-    src/pi3B/ronda_abierta/Open_round.py \
-    src/pi3B/ronda_cerrada/Close2_round.py \
+    src/pi3B/ronda_abierta/ronda_abierta.py \
+    src/pi3B/ronda_cerrada/ronda_cerrada.py \
     src/pi3B/ronda_cerrada/navegacion.py \
     src/pi3B/ronda_cerrada/camara_driver.py \
     src/pi3B/ronda_cerrada/vision.py \
@@ -148,7 +148,7 @@ Más detalle de este servicio y comandos de diagnóstico en [`src/pi3B/README.md
 Con el servicio detenido (`sudo systemctl stop wro_start.service`), corre manualmente para ver la salida en vivo:
 
 ```bash
-python3 -u /home/pi/Open_round.py
+python3 -u /home/pi/ronda_abierta.py
 ```
 
 Deberías ver `[+] Telemetria LiDAR activa.` y `SISTEMA LISTO...`. Presiona el botón físico (GPIO 21) y confirma que el robot centra la dirección y avanza guiado por las paredes.
@@ -162,5 +162,5 @@ Deberías ver `[+] Telemetria LiDAR activa.` y `SISTEMA LISTO...`. Presiona el b
 | `ModuleNotFoundError: No module named 'picamera2'` | Se instaló por `pip` en vez de `apt`, o el venv no tiene `--system-site-packages` | `sudo apt install -y python3-picamera2` y recrear el venv con `--system-site-packages` |
 | `error: externally-managed-environment` al hacer `pip install` | Protección PEP 668 de Raspberry Pi OS Bookworm | Usa un venv (sección 2.2, Opción A) o `--break-system-packages` (Opción B) |
 | `PermissionError` al abrir `/dev/ttyUSB0` o `/dev/ttyACM0` | Usuario `pi` no está en el grupo `dialout` | `sudo usermod -aG dialout pi` y reiniciar sesión |
-| El servicio `wro_start.service` no encuentra `Open_round.py`/`Close2_round.py` | Los archivos no están en `/home/pi/`, les falta algún módulo de soporte, o la capitalización no coincide exactamente | Ver sección 5 — `controlador_inicio.py` es sensible a mayúsculas (Linux) y `Close2_round.py` necesita sus 4 módulos en la misma carpeta |
+| El servicio `wro_start.service` no encuentra `ronda_abierta.py`/`ronda_cerrada.py` | Los archivos no están en `/home/pi/`, les falta algún módulo de soporte, o la capitalización no coincide exactamente | Ver sección 5 — `controlador_inicio.py` es sensible a mayúsculas (Linux) y `ronda_cerrada.py` necesita sus 7 módulos en la misma carpeta |
 | `lgpio.error: 'unknown handle'` al detener el script | Doble Ctrl+C mientras `apagar_sistema()` seguía en curso | Ya corregido en el código (guardia de reentrada); si persiste, usa un solo Ctrl+C y espera |

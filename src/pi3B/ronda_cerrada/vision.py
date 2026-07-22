@@ -6,7 +6,7 @@ para estabilizar la detección (evita que un poste detectado parpadee
 frame a frame por ruido).
 
 No captura frames por su cuenta -- recibe cada uno por callback desde
-camara_driver.hilo_captura() vía procesar_frame(). Close2_round.py arma
+camara_driver.hilo_captura() vía procesar_frame(). ronda_cerrada.py arma
 ese hilo y lee el resultado con get_color(). El umbral HSV, el filtro
 morfológico y la lógica de selección de contorno son los mismos
 validados en pista; solo se extrajo la adquisición de la cámara a
