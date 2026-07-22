@@ -117,7 +117,14 @@ scp src/pi3B/controlador_inicio.py \
     pi@<ip-de-la-pi>:/home/pi/
 ```
 
-> Si vas a correr la versión en desarrollo activo de la Ronda Cerrada, usa `src/pi3B/Close2_round.py` (rama `dev-close_round`) en vez de `Close_round.py`, y ajusta `SCRIPT_CLOSE` en `controlador_inicio.py` para que apunte a ese nombre de archivo.
+> Si vas a correr la versión en desarrollo activo de la Ronda Cerrada, usa `src/pi3B/Close2_round.py` en vez de `Close_round.py` (ajusta `SCRIPT_CLOSE` en `controlador_inicio.py` para que apunte a ese nombre de archivo), y copia también sus tres módulos de soporte en la **misma carpeta** `/home/pi/`, porque Python los importa por nombre de archivo:
+> ```bash
+> scp src/pi3B/Close2_round.py \
+>     src/pi3B/vision.py \
+>     src/pi3B/lidar.py \
+>     src/pi3B/tracker.py \
+>     pi@<ip-de-la-pi>:/home/pi/
+> ```
 
 ---
 
