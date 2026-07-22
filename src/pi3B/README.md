@@ -12,15 +12,37 @@ Para garantizar que el vehículo sea 100% autónomo desde el momento en que se c
 
 1. **`controlador_inicio.py`**: Script demonio en Python que corre en un bucle infinito de alta frecuencia monitoreando los pines de entrada.
 2. **`wro_start.service`**: Unidad de servicio nativa de Linux (`systemd`) que fuerza el auto-arranque del script maestro inmediatamente después de inicializar el kernel.
-3. **Scripts de Carrera**: `Open_round.py` (Ronda Abierta, centrado proporcional guiado por RPLiDAR C1) y `Close2_round.py` (Ronda Cerrada, fusión de visión OpenCV + LiDAR para evasión de pilares — ver estructura modular abajo).
-4. **`calibrar_hsv.py`**: Herramienta de calibración interactiva (no se ejecuta en carrera). Levanta un servidor TCP en el puerto `5000` que recibe el streaming JPEG de la Pi Camera y expone sliders de OpenCV (`H/S/V Min/Max` por color) en la laptop del equipo para ajustar en vivo los umbrales de segmentación de los bloques verde y rojo antes de cada ronda.
-5. **`capturar_hsv.py`**: Herramienta de diagnóstico HSV sin GUI — corre 100% en la Pi y guarda a disco el frame crudo y las máscaras rojo/verde, para revisar la calibración sin necesitar una laptop con pantalla conectada al streaming.
+3. **Scripts de Carrera**: `ronda_abierta/Open_round.py` (Ronda Abierta, centrado proporcional guiado por RPLiDAR C1) y `ronda_cerrada/Close2_round.py` (Ronda Cerrada, fusión de visión OpenCV + LiDAR para evasión de pilares — ver estructura modular abajo).
+4. **`calibracion/calibrar_hsv.py`**: Herramienta de calibración interactiva (no se ejecuta en carrera). Levanta un servidor TCP en el puerto `5000` que recibe el streaming JPEG de la Pi Camera y expone sliders de OpenCV (`H/S/V Min/Max` por color) en la laptop del equipo para ajustar en vivo los umbrales de segmentación de los bloques verde y rojo antes de cada ronda.
+5. **`calibracion/capturar_hsv.py`**: Herramienta de diagnóstico HSV sin GUI — corre 100% en la Pi y guarda a disco el frame crudo y las máscaras rojo/verde, para revisar la calibración sin necesitar una laptop con pantalla conectada al streaming.
 6. **`requirements.txt`**: Dependencias Python del entorno de la Raspberry Pi 3B (OpenCV, pyserial, RPi.GPIO, numpy) — instalar con `pip install -r requirements.txt` para garantizar reproducibilidad del entorno de ejecución. `picamera2` se instala aparte por `apt` (ver [`INSTALACION.md`](../../INSTALACION.md)).
 7. **`wro_start.service`**: Copia real del archivo de unidad `systemd`. Para reproducir el arranque autónomo en una Pi nueva: `sudo cp wro_start.service /etc/systemd/system/ && sudo systemctl enable wro_start.service`.
 
-### Estructura Modular de `Close2_round.py`
+### Organización de `src/pi3B/`
 
-Para cumplir con el criterio de modularidad, la lógica de la Ronda Cerrada está partida en 6 archivos por responsabilidad, todos necesarios en la misma carpeta (`/home/pi/`) al desplegar:
+Los scripts están agrupados en subcarpetas por responsabilidad. Esto es **solo organización del repositorio**: al desplegar, todos los `.py` de carrera se copian sin subcarpetas a `/home/pi/` (ver sección 5 de [`INSTALACION.md`](../../INSTALACION.md)), porque Python los importa por nombre de archivo entre sí (`import vision`, `from lidar import LidarC1`, etc.) y no como paquete.
+
+```
+src/pi3B/
+├── ronda_cerrada/       # Todo lo que solo usa la Ronda Cerrada
+│   ├── Close2_round.py  # Punto de entrada
+│   ├── navegacion.py    # Cerebro: FSM de carrera/evasión/parqueo
+│   ├── vision.py        # Hilo de cámara: HSV rojo/verde
+│   ├── lidar.py         # Driver RPLIDAR C1
+│   ├── tracker.py       # Persistencia del poste activo
+│   ├── enlace_pico.py   # Canal serial con la Pico 2
+│   └── legacy/          # Versiones superadas, NO desplegar
+├── ronda_abierta/
+│   └── Open_round.py    # Standalone: no comparte módulos con ronda_cerrada/
+├── calibracion/          # Herramientas offline, no corren en carrera
+│   ├── calibrar_hsv.py
+│   └── capturar_hsv.py
+├── controlador_inicio.py # Orquestador: decide qué ronda lanzar según el botón
+├── wro_start.service
+└── requirements.txt
+```
+
+#### Módulos de `ronda_cerrada/`
 
 | Archivo | Responsabilidad |
 | :--- | :--- |
@@ -31,7 +53,9 @@ Para cumplir con el criterio de modularidad, la lógica de la Ronda Cerrada est�
 | `tracker.py` | *Object persistence tracker* (clase `TrackerObstaculo`): posición estimada del poste activo, predicha por **rotación IMU + traslación por odometría de velocidad comandada**, y re-anclada con los clusters reales del LiDAR en cada barrido. |
 | `enlace_pico.py` | Canal serial con la Pico 2 (clase `EnlacePico`): envío de consignas, lectura de telemetría IMU en hilo propio, cero de carrera ajustable y detección de telemetría caída. |
 
-> **`src/pi3B/legacy/`** conserva `Close_round.py` y `Close2_round_Prueba1.py`, versiones superadas de la Ronda Cerrada que **no** deben desplegarse (ver el `README.md` de esa carpeta para el detalle de por qué se archivaron).
+> **`ronda_cerrada/legacy/`** conserva `Close_round.py` y `Close2_round_Prueba1.py`, versiones superadas de la Ronda Cerrada que **no** deben desplegarse (ver el `README.md` de esa carpeta para el detalle de por qué se archivaron).
+
+> **Nota:** `ronda_abierta/Open_round.py` es autocontenido — reimplementa su propio parseo de LiDAR y protocolo serial en vez de reutilizar `lidar.py`/`enlace_pico.py`. Es deuda técnica conocida, no un error de organización.
 
 ---
 

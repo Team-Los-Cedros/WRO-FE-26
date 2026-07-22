@@ -43,14 +43,19 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │   │   └── Mpu6050.py             # Driver I2C standalone para el sensor inercial MPU6050
 │   └── pi3B/                     # Scripts de alto nivel (Python 3 - Raspberry Pi 3B)
 │       ├── controlador_inicio.py # Orquestador central (Ejecutado como servicio del sistema OS)
-│       ├── Open_round.py         # Algoritmo de navegación reactiva para la Ronda Abierta
-│       ├── Close2_round.py       # FSM de navegación/evasión de la Ronda Cerrada (importa los 3 siguientes)
-│       ├── vision.py             # Hilo de cámara: detección HSV de postes rojo/verde
-│       ├── lidar.py              # Hilo de LiDAR: parseo RPLIDAR C1, paredes y clustering ABD
-│       ├── tracker.py            # Object persistence tracker del obstáculo activo
-│       ├── legacy/               # Versiones superadas de la Ronda Cerrada (archivadas, no desplegar)
-│       ├── calibrar_hsv.py       # Herramienta de calibración interactiva de umbrales HSV
-│       ├── capturar_hsv.py       # Diagnóstico HSV sin GUI (guarda capturas a disco)
+│       ├── ronda_abierta/
+│       │   └── Open_round.py     # Algoritmo de navegación reactiva para la Ronda Abierta (standalone)
+│       ├── ronda_cerrada/        # FSM de navegación/evasión de la Ronda Cerrada
+│       │   ├── Close2_round.py   # Punto de entrada (importa los 4 siguientes)
+│       │   ├── navegacion.py     # Cerebro: máquina de estados de carrera/evasión/parqueo
+│       │   ├── vision.py         # Hilo de cámara: detección HSV de postes rojo/verde
+│       │   ├── lidar.py          # Driver RPLIDAR C1: paredes y clustering ABD
+│       │   ├── tracker.py        # Object persistence tracker del obstáculo activo
+│       │   ├── enlace_pico.py    # Canal serial con la Pico 2 (consignas + telemetria IMU)
+│       │   └── legacy/           # Versiones superadas (archivadas, no desplegar)
+│       ├── calibracion/
+│       │   ├── calibrar_hsv.py   # Herramienta de calibración interactiva de umbrales HSV
+│       │   └── capturar_hsv.py   # Diagnóstico HSV sin GUI (guarda capturas a disco)
 │       ├── requirements.txt      # Dependencias Python del entorno de la Pi 3B
 │       └── wro_start.service     # Unidad systemd real para el arranque autónomo
 ├── 3d-Models/                    # Modelos mecánicos: STL del chasis V1 (archivado) y CAD LEGO del V2
@@ -199,7 +204,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 #### Método de Calibración de Sensores
 
 * **IMU (MPU6050):** Al energizar la Pico 2, `src/pico/main.py` promedia 100 lecturas del giroscopio en el eje Z (~1 segundo, con una espera de 10 ms entre muestras) para calcular `giro_z_offset` antes de entrar al bucle de control. Esto elimina el *bias* estático de fabricación del MEMS sin necesidad de recalibración manual entre carreras.
-* **Cámara (Segmentación HSV):** `calibrar_hsv.py` transmite el feed de la Pi Camera por socket TCP a la laptop del equipo y expone sliders interactivos de OpenCV para ajustar en vivo los rangos `H/S/V` de verde y rojo (el rojo requiere dos rangos por el *wraparound* del matiz en 0°/180°). Los umbrales resultantes se copian manualmente a `src/pi3B/vision.py` antes de cada jornada de pruebas, ya que la iluminación de los boxes varía respecto a la de la pista oficial.
+* **Cámara (Segmentación HSV):** `calibrar_hsv.py` transmite el feed de la Pi Camera por socket TCP a la laptop del equipo y expone sliders interactivos de OpenCV para ajustar en vivo los rangos `H/S/V` de verde y rojo (el rojo requiere dos rangos por el *wraparound* del matiz en 0°/180°). Los umbrales resultantes se copian manualmente a `src/pi3B/ronda_cerrada/vision.py` antes de cada jornada de pruebas, ya que la iluminación de los boxes varía respecto a la de la pista oficial.
 * **Puntos de fallo considerados:** si la IMU se satura o pierde el bus I2C, `main.py` captura la excepción y fuerza `velocidad_z = 0.0` (el coche sigue guiándose solo por LiDAR en vez de trabar el bucle de control); si el LiDAR pierde la lectura de una pared, la Pi 3B congela el último ángulo válido (modo "Inercial", sección 5.3) en lugar de enviar un comando basado en datos corruptos.
 
 ### 4.3 Mapa de Conexiones Calibrado (Pinout)
@@ -388,7 +393,7 @@ el script aplica una ganancia proporcional (`KP_LATERAL`) para enviar micro-corr
 
 En la Ronda Cerrada, la presencia de pilares de obstáculos (bloques rojos y verdes) rompe la simetría de las paredes del circuito, requiriendo una estrategia asimétrica:
 
-* **Detección por Visión (Capa OpenCV):** La cámara Pi Module 3 captura el frente de la pista. El hilo de cámara en `src/pi3B/vision.py` (ver sección 8.2 para el historial de depuración) transforma la matriz de imágenes al espacio de color HSV (Hue-Saturation-Value) para aislar los bloques mediante máscaras de umbralización calibradas con `calibrar_hsv.py`. Se extraen los contornos y se calcula el centroide del objeto más grande.
+* **Detección por Visión (Capa OpenCV):** La cámara Pi Module 3 captura el frente de la pista. El hilo de cámara en `src/pi3B/ronda_cerrada/vision.py` (ver sección 8.2 para el historial de depuración) transforma la matriz de imágenes al espacio de color HSV (Hue-Saturation-Value) para aislar los bloques mediante máscaras de umbralización calibradas con `calibrar_hsv.py`. Se extraen los contornos y se calcula el centroide del objeto más grande.
 * **Lógica de Esquiva y Evasión:** Cuando un obstáculo es detectado, se activa la lógica de evasión según las reglas del torneo:
 1. Si el bloque es **Verde**, el carro debe evadir por el carril **izquierdo**. El software inyecta un offset angular negativo a la dirección.
 2. Si el bloque es **Rojo**, el carro debe evadir por el carril **derecho**. El software inyecta un offset angular positivo.
@@ -430,7 +435,7 @@ stateDiagram-v2
     end note
 ```
 
-> El bloque `RETROCESO`/`REORIENTACION` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en uno de esos dos), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `Close2_round.py` quedó como orquestador delgado con *watchdog* de percepción.
+> El bloque `RETROCESO`/`REORIENTACION` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en uno de esos dos), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/ronda_cerrada/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `Close2_round.py` quedó como orquestador delgado con *watchdog* de percepción.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 

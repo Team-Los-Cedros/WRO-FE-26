@@ -107,24 +107,22 @@ No hace falta instalar ningún paquete adicional en el Pico — `main.py` solo u
 
 ## 5. Desplegar los scripts en la Raspberry Pi 3B
 
-`controlador_inicio.py` referencia los scripts de carrera directamente en `/home/pi/` (sin subcarpetas), así que cópialos ahí manteniendo la capitalización exacta:
+En el repositorio, `src/pi3B/` está organizado en subcarpetas por responsabilidad (`ronda_cerrada/`, `ronda_abierta/`, `calibracion/`) para que sea más fácil de navegar. **Esa organización es solo del repositorio.** `controlador_inicio.py` referencia los scripts de carrera directamente en `/home/pi/` sin subcarpetas, y los módulos de la Ronda Cerrada se importan entre sí por nombre de archivo (`import vision`, `from lidar import LidarC1`, etc.), así que **todos los `.py` deben quedar juntos y sin subcarpetas** en `/home/pi/` al copiarlos, manteniendo la capitalización exacta:
 
 ```bash
 scp src/pi3B/controlador_inicio.py \
-    src/pi3B/Open_round.py \
-    src/pi3B/Close_round.py \
-    src/pi3B/calibrar_hsv.py \
+    src/pi3B/ronda_abierta/Open_round.py \
+    src/pi3B/ronda_cerrada/Close2_round.py \
+    src/pi3B/ronda_cerrada/navegacion.py \
+    src/pi3B/ronda_cerrada/vision.py \
+    src/pi3B/ronda_cerrada/lidar.py \
+    src/pi3B/ronda_cerrada/tracker.py \
+    src/pi3B/ronda_cerrada/enlace_pico.py \
+    src/pi3B/calibracion/calibrar_hsv.py \
     pi@<ip-de-la-pi>:/home/pi/
 ```
 
-> Si vas a correr la versión en desarrollo activo de la Ronda Cerrada, usa `src/pi3B/Close2_round.py` en vez de `Close_round.py` (ajusta `SCRIPT_CLOSE` en `controlador_inicio.py` para que apunte a ese nombre de archivo), y copia también sus tres módulos de soporte en la **misma carpeta** `/home/pi/`, porque Python los importa por nombre de archivo:
-> ```bash
-> scp src/pi3B/Close2_round.py \
->     src/pi3B/vision.py \
->     src/pi3B/lidar.py \
->     src/pi3B/tracker.py \
->     pi@<ip-de-la-pi>:/home/pi/
-> ```
+> No copies nada de `src/pi3B/ronda_cerrada/legacy/` — son versiones superadas de la Ronda Cerrada, archivadas solo como referencia histórica (ver el `README.md` de esa carpeta).
 
 ---
 
@@ -162,5 +160,5 @@ Deberías ver `[+] Telemetria LiDAR activa.` y `SISTEMA LISTO...`. Presiona el b
 | `ModuleNotFoundError: No module named 'picamera2'` | Se instaló por `pip` en vez de `apt`, o el venv no tiene `--system-site-packages` | `sudo apt install -y python3-picamera2` y recrear el venv con `--system-site-packages` |
 | `error: externally-managed-environment` al hacer `pip install` | Protección PEP 668 de Raspberry Pi OS Bookworm | Usa un venv (sección 2.2, Opción A) o `--break-system-packages` (Opción B) |
 | `PermissionError` al abrir `/dev/ttyUSB0` o `/dev/ttyACM0` | Usuario `pi` no está en el grupo `dialout` | `sudo usermod -aG dialout pi` y reiniciar sesión |
-| El servicio `wro_start.service` no encuentra `Open_round.py`/`Close_round.py` | Los archivos no están en `/home/pi/`, o la capitalización no coincide exactamente | Ver sección 5 — `controlador_inicio.py` es sensible a mayúsculas (Linux) |
+| El servicio `wro_start.service` no encuentra `Open_round.py`/`Close2_round.py` | Los archivos no están en `/home/pi/`, les falta algún módulo de soporte, o la capitalización no coincide exactamente | Ver sección 5 — `controlador_inicio.py` es sensible a mayúsculas (Linux) y `Close2_round.py` necesita sus 4 módulos en la misma carpeta |
 | `lgpio.error: 'unknown handle'` al detener el script | Doble Ctrl+C mientras `apagar_sistema()` seguía en curso | Ya corregido en el código (guardia de reentrada); si persiste, usa un solo Ctrl+C y espera |
