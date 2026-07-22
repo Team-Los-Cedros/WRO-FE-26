@@ -6,6 +6,7 @@ After=multi-user.target serial-getty@ttyAMA0.service
 Type=simple
 User=pi
 WorkingDirectory=/home/pi
+Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 /home/pi/controlador_inicio.py
 Restart=on-failure
 RestartSec=2
