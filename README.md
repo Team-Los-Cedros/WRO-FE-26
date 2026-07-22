@@ -43,17 +43,18 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │   │   └── Mpu6050.py             # Driver I2C standalone para el sensor inercial MPU6050
 │   └── pi3B/                     # Scripts de alto nivel (Python 3 - Raspberry Pi 3B)
 │       ├── controlador_inicio.py # Orquestador central (Ejecutado como servicio del sistema OS)
+│       ├── comun/                # Drivers compartidos por ambas rondas
+│       │   ├── lidar_driver.py   # Driver: protocolo binario RPLIDAR C1
+│       │   ├── lidar_geometria.py # Procesador: paredes y clustering ABD
+│       │   └── enlace_pico.py    # Canal serial con la Pico 2 (consignas + telemetria IMU)
 │       ├── ronda_abierta/
-│       │   └── ronda_abierta.py  # Algoritmo de navegación reactiva para la Ronda Abierta (standalone)
+│       │   └── ronda_abierta.py  # Reutiliza comun/: centrado proporcional + parqueo
 │       ├── ronda_cerrada/        # FSM de navegación/evasión de la Ronda Cerrada
-│       │   ├── ronda_cerrada.py  # Punto de entrada (importa los 6 siguientes)
+│       │   ├── ronda_cerrada.py  # Punto de entrada (importa comun/ + los 4 siguientes)
 │       │   ├── navegacion.py     # Cerebro: máquina de estados de carrera/evasión/parqueo
 │       │   ├── camara_driver.py  # Driver: adquisición de frames (Picamera2)
 │       │   ├── vision.py         # Procesador: detección HSV de postes rojo/verde
-│       │   ├── lidar_driver.py   # Driver: protocolo binario RPLIDAR C1
-│       │   ├── lidar_geometria.py # Procesador: paredes y clustering ABD
 │       │   ├── tracker.py        # Object persistence tracker del obstáculo activo
-│       │   ├── enlace_pico.py    # Canal serial con la Pico 2 (consignas + telemetria IMU)
 │       │   └── legacy/           # Versiones superadas (archivadas, no desplegar)
 │       ├── calibracion/
 │       │   ├── calibrar_hsv.py   # Herramienta de calibración interactiva de umbrales HSV

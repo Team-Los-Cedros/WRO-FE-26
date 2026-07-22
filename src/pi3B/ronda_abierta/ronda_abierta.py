@@ -1,41 +1,30 @@
 # /home/pi/ronda_abierta.py
-import time
-import threading
-import serial
+#
+# Ronda Abierta - punto de entrada. Reutiliza los drivers compartidos con
+# la Ronda Cerrada (src/pi3B/comun/): protocolo binario del LiDAR,
+# geometria de paredes (modo Inercial) y el enlace serial con la Pico.
+# Solo implementa lo propio de esta ronda -- seguimiento de pared simple
+# y deteccion de parqueo por firma de pared -- sin camara ni evasion.
 import sys
+import time
 import signal
-import RPi.GPIO as GPIO  # Librería para controlar los botones físicos
+import threading
 
-# CONFIGURACIÓN DE PUERTOS Y COMUNICACIÓN
+import RPi.GPIO as GPIO
 
-PUERTO_LIDAR = '/dev/ttyUSB0'
-PUERTO_PICO = '/dev/ttyACM0'  
-BAUDRATE_LIDAR = 460800
-BAUDRATE_PICO = 115200
-
-START_MOTOR_CMD = b'\xa5\xf0\x02\x94\x02\xc1\x02'
-START_SCAN_CMD = b'\xa5\x20'
-STOP_CMD = b'\xa5\x25'
-
-corriendo = True
-ser_lidar = None
-ser_pico = None
-
-# CONFIGURACIÓN DEL BOTÓN DE ARRANQUE (GP21)
+from lidar_driver import LidarDriver
+from lidar_geometria import ProcesadorLidar
+from enlace_pico import EnlacePico
 
 PIN_BOTON = 21
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(PIN_BOTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-# CONSTANTES DE NAVEGACIÓN Y CONFIGURACIÓN
-
-KP_LATERAL = 0.14
+KP_LATERAL        = 0.14
 VELOCIDAD_CRUCERO = 100
 VELOCIDAD_PARQUEO = 60
 
-# LÍMITES MECÁNICOS DEL SERVO (Calibracion de Angulos GeekServo)
-# Deben coincidir con CENTRO/LIMITE_DER/LIMITE_IZQ de src/pico/main.py.
-SERVO_CENTRO = 90
+# Limites mecanicos del servo (deben coincidir con CENTRO/LIMITE_DER/
+# LIMITE_IZQ de src/pico/main.py)
+SERVO_CENTRO  = 90
 SERVO_MAX_DER = 70
 SERVO_MAX_IZQ = 115
 DELTA_MAX_DER = SERVO_MAX_DER - SERVO_CENTRO
@@ -44,244 +33,132 @@ DELTA_MAX_IZQ = SERVO_MAX_IZQ - SERVO_CENTRO
 # Limita la variacion maxima de angulo por ciclo para evitar giros bruscos
 # (mismo mecanismo que ronda_cerrada.py, ya validado en pista)
 MAX_DELTA_ANGULO_POR_CICLO = 6.0
-ultimo_angulo_aplicado = 0.0
 
-# TIEMPO MÁXIMO DE BÚSQUEDA DE ESTACIONAMIENTO (en segundos)
-TIMEOUT_BUSQUEDA_PARQUEO = 4.0  
-tiempo_inicio_parqueo = 0.0
+TIMEOUT_BUSQUEDA_PARQUEO = 4.0
+UMBRAL_VUELTAS           = 1010.0  # grados de yaw neto, ~3 vueltas
+TOLERANCIA_FIRMA         = 80.0    # mm contra la firma de pared inicial
 
-ANGULO_MIN_DER = 30
-ANGULO_MAX_DER = 90
-ANGULO_MIN_IZQ = 270
-ANGULO_MAX_IZQ = 330
+corriendo    = True
+enlace       = None
+lidar_driver = None
+lidar_geo    = None
 
-dist_derecha_min = 8000.0
-dist_izquierda_min = 8000.0
-angulo_previo = 0.0
+fase_actual      = "ESPERANDO_BOTON"
+firma_izquierda  = 0.0
+firma_derecha    = 0.0
+t_inicio_parqueo = 0.0
+ultimo_angulo    = 0.0
 
-# Ultimo valor valido de cada pared (<4000mm), para sostenerlo cuando el
-# LiDAR pierde momentaneamente la lectura de un lado en vez de saltar a
-# un valor fijo arbitrario (ver modo "Inercial" en el README, seccion 5.3-A)
-ultimo_dist_derecha_valida = 2000.0
-ultimo_dist_izquierda_valida = 2000.0
+_apagando = False
 
-# Inicialización de fases de carrera
-fase_actual = "ESPERANDO_BOTON"
-initial_derecha = 0.0
-initial_izquierda = 0.0
 
-# CONTROL DE DESFASE PARA LA PICO 2
-angulo_inicial_imu = None  # Guardará el valor base con el que inicia la carrera
-angulo_acumulado_robot = 0.0
-
-def apagar_sistema(sig, frame):
-    global corriendo, ser_lidar, ser_pico
-    print("\n Deteniendo sistema")
+def apagar_sistema(sig=None, frame=None):
+    global corriendo, _apagando
+    if _apagando:                 # doble Ctrl+C no debe reentrar aca
+        return
+    _apagando = True
+    print("\n[!] Deteniendo sistema de forma segura...")
     corriendo = False
     time.sleep(0.2)
-    if ser_pico and ser_pico.is_open:
-        try:
-            ser_pico.write(b"0,0\n") 
-            ser_pico.close()
-        except: pass
-    if ser_lidar and ser_lidar.is_open:
-        try:
-            ser_lidar.write(STOP_CMD)
-            ser_lidar.close()
-        except: pass
-    GPIO.cleanup()
+    if enlace:
+        enlace.cerrar()
+    if lidar_driver:
+        lidar_driver.cerrar()
+    try:
+        GPIO.cleanup()
+    except Exception as e:
+        print(f"[-] GPIO.cleanup() fallo (ignorado): {e}")
     sys.exit(0)
 
-signal.signal(signal.SIGINT, apagar_sistema)
 
-def hilo_comunicacion_pico():
-    global ser_pico, angulo_acumulado_robot, fase_actual, tiempo_inicio_parqueo, angulo_inicial_imu
-    try:
-        ser_pico = serial.Serial(PUERTO_PICO, baudrate=BAUDRATE_PICO, timeout=0.05)
-        print("Conexión serial establecida con Raspberry Pi Pico 2.")
-    except Exception as e:
-        print(f"Error conectando a la Pi Pico 2: {e}")
-        return
+def al_barrido(scan):
+    # Callback del hilo LiDAR: un ciclo de decision por barrido completo
+    global fase_actual, firma_izquierda, firma_derecha, t_inicio_parqueo, ultimo_angulo
 
-    while corriendo:
-        if ser_pico.in_waiting > 0:
-            try:
-                linea = ser_pico.readline().decode('utf-8').strip()
-                if linea.startswith("IMU:"):
-                    valor_crudo_imu = abs(float(linea.split(":")[1]))
-                    
-                    # SI ESTAMOS ESPERANDO EL BOTÓN O EN CALIBRACIÓN, ACTUALIZAMOS EL "PUNTO CERO"
-                    if fase_actual in ["ESPERANDO_BOTON", "CALIBRANDO"] or angulo_inicial_imu is None:
-                        angulo_inicial_imu = valor_crudo_imu
-                    
-                    # El ángulo real de ESTA carrera es la resta del valor de la Pico menos nuestro Punto Cero
-                    angulo_acumulado_robot = valor_crudo_imu - angulo_inicial_imu
-                    
-                    # Transición a parqueo al completar las 3 vueltas (~1010 grados acumulados NETOS)
-                    if fase_actual == "CARRERA" and angulo_acumulado_robot >= 1010.0:
-                        fase_actual = "BUSCANDO_PARQUEO"
-                        tiempo_inicio_parqueo = time.time() 
-                        print(f"Ultima vuelta completada (Ángulo Neto: {angulo_acumulado_robot:.1f}°). Modo Parqueo Activo")
-            except:
-                pass
-        time.sleep(0.01)
-
-def procesar_ciclo_completo_lidar():
-    global dist_derecha_min, dist_izquierda_min, fase_actual
-    global initial_derecha, initial_izquierda, ser_pico, angulo_acumulado_robot, tiempo_inicio_parqueo
-    global ultimo_angulo_aplicado
-    global ultimo_dist_derecha_valida, ultimo_dist_izquierda_valida
-
-    if ser_pico is None or not ser_pico.is_open:
-        return
-
-    # Modo "Inercial": si un lado no tuvo lectura valida en este barrido
-    # (quedo en el centinela 8000.0, o por encima de 4000mm), se sostiene
-    # el ultimo valor valido conocido en vez de saltar a un valor fijo --
-    # evita un giro brusco cuando una pared se pierde momentaneamente
-    # (tipico en curvas cerradas).
-    if dist_derecha_min > 4000:
-        dist_derecha_min = ultimo_dist_derecha_valida
-    else:
-        ultimo_dist_derecha_valida = dist_derecha_min
-
-    if dist_izquierda_min > 4000:
-        dist_izquierda_min = ultimo_dist_izquierda_valida
-    else:
-        ultimo_dist_izquierda_valida = dist_izquierda_min
+    medicion = lidar_geo.procesar(scan)
 
     if fase_actual == "CAPTURA_INICIAL":
-        initial_derecha = dist_derecha_min
-        initial_izquierda = dist_izquierda_min
+        firma_izquierda, firma_derecha = medicion.izquierda, medicion.derecha
         fase_actual = "CARRERA"
-        print(f"Parqueo Guardado -> Izq: {initial_izquierda:.0f}mm | Der: {dist_derecha_min:.0f}mm")
-        print("Corriendo")
+        print(f"[+] Firma de parqueo: Izq={firma_izquierda:.0f} Der={firma_derecha:.0f}mm")
+        print("[INICIO] Corriendo")
         return
 
-    # Lógica centralizada de cálculo de dirección
-    error_lateral = dist_izquierda_min - dist_derecha_min
-    angulo_objetivo_crudo = error_lateral * KP_LATERAL
-
-    # Restringir (clamp) el ángulo comandado a los topes físicos calibrados
-    angulo_objetivo_crudo = max(DELTA_MAX_DER, min(DELTA_MAX_IZQ, angulo_objetivo_crudo))
-
-    # Limitador de tasa: evita saltos bruscos de ángulo ciclo a ciclo
-    # (mismo mecanismo ya validado en pista en ronda_cerrada.py)
-    delta = angulo_objetivo_crudo - ultimo_angulo_aplicado
-    delta = max(-MAX_DELTA_ANGULO_POR_CICLO, min(MAX_DELTA_ANGULO_POR_CICLO, delta))
-    angulo_objetivo        = ultimo_angulo_aplicado + delta
-    ultimo_angulo_aplicado = angulo_objetivo
+    # Centrado proporcional entre paredes, con los mismos limites fisicos
+    # y el mismo limitador de tasa que ya estaban validados en pista
+    error_lateral   = medicion.izquierda - medicion.derecha
+    angulo_crudo    = max(DELTA_MAX_DER, min(DELTA_MAX_IZQ, error_lateral * KP_LATERAL))
+    delta           = max(-MAX_DELTA_ANGULO_POR_CICLO,
+                           min(MAX_DELTA_ANGULO_POR_CICLO, angulo_crudo - ultimo_angulo))
+    angulo_objetivo = ultimo_angulo + delta
+    ultimo_angulo   = angulo_objetivo
 
     if fase_actual == "CARRERA":
-        comando = f"{VELOCIDAD_CRUCERO},{angulo_objetivo:.2f}\n"
-        ser_pico.write(comando.encode())
+        enlace.enviar(VELOCIDAD_CRUCERO, angulo_objetivo)
+
+        # Fin de vuelta 3 -> parqueo. abs() porque el sentido de giro de
+        # la pista (horario o antihorario) no se conoce de antemano.
+        heading = enlace.heading()
+        if abs(heading) >= UMBRAL_VUELTAS:
+            fase_actual      = "BUSCANDO_PARQUEO"
+            t_inicio_parqueo = time.time()
+            print(f"[!] Ultima vuelta completada ({heading:.1f} deg). Modo Parqueo.")
 
     elif fase_actual == "BUSCANDO_PARQUEO":
-        comando = f"{VELOCIDAD_PARQUEO},{angulo_objetivo:.2f}\n"
-        ser_pico.write(comando.encode())
-        
-        # Evaluar condiciones de parada
-        match_firma_original = abs(dist_derecha_min - initial_derecha) < 80.0 and abs(dist_izquierda_min - initial_izquierda) < 80.0
-        tiempo_transcurrido = time.time() - tiempo_inicio_parqueo
-        timeout_alcanzado = tiempo_transcurrido > TIMEOUT_BUSQUEDA_PARQUEO
-        
-        if match_firma_original or timeout_alcanzado:
-            fase_actual = "DETENIDO"
-            if timeout_alcanzado:
-                print(f" DETENCIÓN POR TIMEOUT ({tiempo_transcurrido:.1f}s). El robot se detuvo en zona segura")
-            else:
-                print("Parqueo detectado, Estacionando")
-                
-            for _ in range(5):
-                ser_pico.write(b"0,0\n") 
-                time.sleep(0.01)
-            apagar_sistema(None, None)
+        enlace.enviar(VELOCIDAD_PARQUEO, angulo_objetivo)
 
-def hilo_lidar():
-    global ser_lidar, corriendo, angulo_previo
-    global dist_derecha_min, dist_izquierda_min, fase_actual
+        match_firma = (abs(medicion.derecha - firma_derecha) < TOLERANCIA_FIRMA and
+                       abs(medicion.izquierda - firma_izquierda) < TOLERANCIA_FIRMA)
+        timeout     = (time.time() - t_inicio_parqueo) > TIMEOUT_BUSQUEDA_PARQUEO
 
+        if match_firma or timeout:
+            print("[PARQUEO] " + ("Firma detectada! Estacionando..." if match_firma
+                                  else "Timeout. Deteniendo en zona segura."))
+            apagar_sistema()
+
+
+def preparar_gpio():
+    GPIO.setmode(GPIO.BCM)
     try:
-        ser_lidar = serial.Serial(PUERTO_LIDAR, baudrate=BAUDRATE_LIDAR, timeout=1)
-        time.sleep(0.5)
-        ser_lidar.write(START_MOTOR_CMD)
-        time.sleep(1.5)
-        ser_lidar.reset_input_buffer()
-        ser_lidar.write(START_SCAN_CMD)
-        time.sleep(0.5)
-        
-        if ser_lidar.in_waiting >= 7:
-            ser_lidar.read(7)
-            
-        print("Telemetría LiDAR activa.")
-        if fase_actual == "CALIBRANDO":
-            fase_actual = "CAPTURA_INICIAL"
-
-        while corriendo:
-            if fase_actual == "ESPERANDO_BOTON":
-                time.sleep(0.1)
-                continue
-                
-            b0 = ser_lidar.read(1)
-            if not b0: continue
-            byte0 = b0[0]
-            start_bit = byte0 & 0x01
-            start_bit_inverse = (byte0 >> 1) & 0x01
-            
-            if start_bit != start_bit_inverse:
-                resto = ser_lidar.read(4)
-                if len(resto) < 4: continue
-                byte1, byte2, byte3, byte4 = resto[0], resto[1], resto[2], resto[3]
-                
-                if (byte1 & 0x01) == 1:
-                    raw_angle = (byte2 << 7) | (byte1 >> 1)
-                    angle = raw_angle / 64.0  
-                    distance = (byte4 << 8) | byte3
-                    distance_mm = distance / 4.0
-                    
-                    if 0 < distance_mm < 6000:
-                        if angle < angulo_previo and (angulo_previo - angle) > 300.0:
-                            procesar_ciclo_completo_lidar()
-                            dist_derecha_min = 8000.0
-                            dist_izquierda_min = 8000.0
-                        
-                        angulo_previo = angle
-
-                        if ANGULO_MIN_DER <= angle <= ANGULO_MAX_DER:
-                            if distance_mm < dist_derecha_min:
-                                dist_derecha_min = distance_mm
-                        elif ANGULO_MIN_IZQ <= angle <= ANGULO_MAX_IZQ:
-                            if distance_mm < dist_izquierda_min:
-                                dist_izquierda_min = distance_mm
-                                
+        GPIO.setup(PIN_BOTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     except Exception as e:
-        if corriendo: print(f"Falla en el bucle LiDAR: {e}")
+        print(f"[!] GPIO ocupado, liberando y reintentando... ({e})")
+        try:
+            GPIO.cleanup()
+        except Exception:
+            pass
+        time.sleep(0.3)
+        GPIO.setup(PIN_BOTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
 
 if __name__ == '__main__':
-    # 1. Encender canal de comunicación con la Pico
-    t_pico = threading.Thread(target=hilo_comunicacion_pico, daemon=True)
-    t_pico.start()
-    
-    # 2. DIRECCIÓN RECTA PREVIA
-    time.sleep(0.5)
-    if ser_pico and ser_pico.is_open:
-        ser_pico.write(b"0,0\n")
-        print(f" Dirección alineada y bloqueada en el centro ({SERVO_CENTRO}°).")
+    signal.signal(signal.SIGINT, apagar_sistema)
+    preparar_gpio()
 
-    # 3. BUCLE DE ESPERA DEL BOTÓN DE CARRERA
-    print("\n SISTEMA LISTO. Coloca el robot en la salida y presiona el Botón 1 ")
+    try:
+        enlace = EnlacePico()
+        print("[+] Conexion serial establecida con Raspberry Pi Pico 2.")
+    except Exception as e:
+        print(f"[-] Error conectando a la Pi Pico 2: {e}")
+        sys.exit(1)
+    enlace.enviar(0, 0.0)
+    print(f"[INIT] Direccion alineada y bloqueada en el centro ({SERVO_CENTRO} grados).")
+
+    print("\n[LISTO] SISTEMA LISTO. Coloca el robot y presiona el Boton (GP21)...")
     while GPIO.input(PIN_BOTON) == GPIO.HIGH:
-        if ser_pico and ser_pico.is_open:
-            ser_pico.write(b"0,0\n")
+        enlace.enviar(0, 0.0)
         time.sleep(0.05)
-        
-    print("\n BOTÓN DETECTADO Reseteando odometría IMU local")
-    fase_actual = "CALIBRANDO"
-    time.sleep(0.1) # Breve pausa para asegurar la captura del cero absoluto
-    
-    # 4. Iniciar hilo del LiDAR justo después del botón
-    t_lidar = threading.Thread(target=hilo_lidar, daemon=True)
-    t_lidar.start()
-    
+
+    print("\n[START] Boton detectado! Iniciando carrera...")
+    enlace.fijar_cero()           # el yaw de este instante es el 0 de carrera
+    fase_actual = "CAPTURA_INICIAL"
+
+    # El LiDAR arranca despues del boton para que su primer barrido
+    # capture la firma de pared del punto de partida
+    lidar_driver = LidarDriver()
+    lidar_geo    = ProcesadorLidar()
+    threading.Thread(target=lidar_driver.hilo_lectura,
+                     args=(lambda: corriendo, al_barrido), daemon=True).start()
+
     while corriendo:
         time.sleep(1)
