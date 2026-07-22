@@ -1,17 +1,6 @@
-"""
-VISIÓN — Detección HSV de postes rojo/verde
-
-Aísla los bloques de color por umbralización HSV y aplica histéresis
-para estabilizar la detección (evita que un poste detectado parpadee
-frame a frame por ruido).
-
-No captura frames por su cuenta -- recibe cada uno por callback desde
-camara_driver.hilo_captura() vía procesar_frame(). ronda_cerrada.py arma
-ese hilo y lee el resultado con get_color(). El umbral HSV, el filtro
-morfológico y la lógica de selección de contorno son los mismos
-validados en pista; solo se extrajo la adquisición de la cámara a
-camara_driver.py.
-"""
+# Deteccion HSV de postes rojo/verde con histeresis de estabilizacion.
+# No captura frames -- los recibe por callback desde camara_driver.py
+# via procesar_frame(). Umbrales y logica de contorno sin cambios.
 import threading
 
 import numpy as np

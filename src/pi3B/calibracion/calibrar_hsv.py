@@ -35,8 +35,7 @@ def detectar_forma(frame, mascara, color, etiqueta):
     for c in contornos:
         if cv2.contourArea(c) > 500:
             peri = cv2.arcLength(c, True)
-            # Cambiado a 0.05 para dar un margen extra de tolerancia con los bordes
-            approx = cv2.approxPolyDP(c, 0.05 * peri, True) 
+            approx = cv2.approxPolyDP(c, 0.05 * peri, True)  # tolerancia de borde
             if 4 <= len(approx) <= 6:
                 x, y, w, h = cv2.boundingRect(approx)
                 cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
@@ -119,12 +118,9 @@ def main():
                 mask_red2 = cv2.inRange(hsv, lower_r2, upper_r2)
                 mask_red = cv2.bitwise_or(mask_red1, mask_red2)
 
-                # --- NUEVO: Filtros de limpieza aplicados a las máscaras ---
-                # Limpieza para el Verde
+                # Limpieza morfologica: OPEN quita ruido, CLOSE une bloques partidos
                 mask_green = cv2.morphologyEx(mask_green, cv2.MORPH_OPEN, kernel)
                 mask_green = cv2.morphologyEx(mask_green, cv2.MORPH_CLOSE, kernel)
-                
-                # Limpieza para el Rojo (Junta los bloques rotos y borra el ruido que viste)
                 mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_OPEN, kernel)
                 mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_CLOSE, kernel)
 
