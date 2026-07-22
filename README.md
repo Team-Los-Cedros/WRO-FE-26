@@ -44,9 +44,13 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │   └── pi3B/                     # Scripts de alto nivel (Python 3 - Raspberry Pi 3B)
 │       ├── controlador_inicio.py # Orquestador central (Ejecutado como servicio del sistema OS)
 │       ├── Open_round.py         # Algoritmo de navegación reactiva para la Ronda Abierta
-│       ├── Close_round.py        # Algoritmo de visión y evasión para la Ronda Cerrada
-│       ├── Close2_round.py       # Iteración experimental de Close_round.py (rama dev-close_round)
+│       ├── Close2_round.py       # FSM de navegación/evasión de la Ronda Cerrada (importa los 3 siguientes)
+│       ├── vision.py             # Hilo de cámara: detección HSV de postes rojo/verde
+│       ├── lidar.py              # Hilo de LiDAR: parseo RPLIDAR C1, paredes y clustering ABD
+│       ├── tracker.py            # Object persistence tracker del obstáculo activo
+│       ├── legacy/               # Versiones superadas de la Ronda Cerrada (archivadas, no desplegar)
 │       ├── calibrar_hsv.py       # Herramienta de calibración interactiva de umbrales HSV
+│       ├── capturar_hsv.py       # Diagnóstico HSV sin GUI (guarda capturas a disco)
 │       ├── requirements.txt      # Dependencias Python del entorno de la Pi 3B
 │       └── wro_start.service     # Unidad systemd real para el arranque autónomo
 ├── 3d-Models/                    # Modelos mecánicos: STL del chasis V1 (archivado) y CAD LEGO del V2
@@ -195,7 +199,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 #### Método de Calibración de Sensores
 
 * **IMU (MPU6050):** Al energizar la Pico 2, `src/pico/main.py` promedia 100 lecturas del giroscopio en el eje Z (~1 segundo, con una espera de 10 ms entre muestras) para calcular `giro_z_offset` antes de entrar al bucle de control. Esto elimina el *bias* estático de fabricación del MEMS sin necesidad de recalibración manual entre carreras.
-* **Cámara (Segmentación HSV):** `calibrar_hsv.py` transmite el feed de la Pi Camera por socket TCP a la laptop del equipo y expone sliders interactivos de OpenCV para ajustar en vivo los rangos `H/S/V` de verde y rojo (el rojo requiere dos rangos por el *wraparound* del matiz en 0°/180°). Los umbrales resultantes se copian manualmente a `Close_round.py` antes de cada jornada de pruebas, ya que la iluminación de los boxes varía respecto a la de la pista oficial.
+* **Cámara (Segmentación HSV):** `calibrar_hsv.py` transmite el feed de la Pi Camera por socket TCP a la laptop del equipo y expone sliders interactivos de OpenCV para ajustar en vivo los rangos `H/S/V` de verde y rojo (el rojo requiere dos rangos por el *wraparound* del matiz en 0°/180°). Los umbrales resultantes se copian manualmente a `src/pi3B/vision.py` antes de cada jornada de pruebas, ya que la iluminación de los boxes varía respecto a la de la pista oficial.
 * **Puntos de fallo considerados:** si la IMU se satura o pierde el bus I2C, `main.py` captura la excepción y fuerza `velocidad_z = 0.0` (el coche sigue guiándose solo por LiDAR en vez de trabar el bucle de control); si el LiDAR pierde la lectura de una pared, la Pi 3B congela el último ángulo válido (modo "Inercial", sección 5.3) en lugar de enviar un comando basado en datos corruptos.
 
 ### 4.3 Mapa de Conexiones Calibrado (Pinout)
@@ -255,7 +259,7 @@ graph TD
     B --> C{"¿Qué señal se detecta?"}
     
     C -->|"Botón 1 (GPIO 21)"| D["Ejecutar: Open_round.py"]
-    C -->|"Botón 2 (GPIO 20)"| E["Ejecutar: Close_round.py"]
+    C -->|"Botón 2 (GPIO 20)"| E["Ejecutar: Close2_round.py"]
     
     D --> F["Centrado Reactivo por LiDAR C1"]
     E --> G["Fusión Sensorial: OpenCV HSV + LiDAR"]
@@ -384,7 +388,7 @@ el script aplica una ganancia proporcional (`KP_LATERAL`) para enviar micro-corr
 
 En la Ronda Cerrada, la presencia de pilares de obstáculos (bloques rojos y verdes) rompe la simetría de las paredes del circuito, requiriendo una estrategia asimétrica:
 
-* **Detección por Visión (Capa OpenCV):** La cámara Pi Module 3 captura el frente de la pista. El script `Close2_round.py` (versión activa en desarrollo, rama `dev-close_round` — ver sección 8.2) transforma la matriz de imágenes al espacio de color HSV (Hue-Saturation-Value) para aislar los bloques mediante máscaras de umbralización calibradas con `calibrar_hsv.py`. Se extraen los contornos y se calcula el centroide del objeto más grande.
+* **Detección por Visión (Capa OpenCV):** La cámara Pi Module 3 captura el frente de la pista. El hilo de cámara en `src/pi3B/vision.py` (ver sección 8.2 para el historial de depuración) transforma la matriz de imágenes al espacio de color HSV (Hue-Saturation-Value) para aislar los bloques mediante máscaras de umbralización calibradas con `calibrar_hsv.py`. Se extraen los contornos y se calcula el centroide del objeto más grande.
 * **Lógica de Esquiva y Evasión:** Cuando un obstáculo es detectado, se activa la lógica de evasión según las reglas del torneo:
 1. Si el bloque es **Verde**, el carro debe evadir por el carril **izquierdo**. El software inyecta un offset angular negativo a la dirección.
 2. Si el bloque es **Rojo**, el carro debe evadir por el carril **derecho**. El software inyecta un offset angular positivo.
@@ -717,7 +721,7 @@ flowchart TD
 
 ### 8.2 Caso de Estudio: Depuración de la Ronda Cerrada con Evidencia de Pista (`Close2_round.py`)
 
-Durante el desarrollo activo de la Ronda Cerrada (rama `dev-close_round`), el equipo reportó que el robot "detecta el poste pero esquiva mal". En vez de ajustar parámetros a ciegas, se instrumentó el sistema para capturar evidencia real (video de la corrida + log de consola con `python3 -u Close2_round.py 2>&1 | tee run_log.txt`) y se diagnosticó cada síntoma contra las líneas exactas de log. Este es el registro de los hallazgos, en el orden en que se corrigieron:
+Durante el desarrollo activo de la Ronda Cerrada, el equipo reportó que el robot "detecta el poste pero esquiva mal". En vez de ajustar parámetros a ciegas, se instrumentó el sistema para capturar evidencia real (video de la corrida + log de consola con `python3 -u Close2_round.py 2>&1 | tee run_log.txt`) y se diagnosticó cada síntoma contra las líneas exactas de log. Este es el registro de los hallazgos, en el orden en que se corrigieron:
 
 | # | Síntoma Reportado | Evidencia (log/código) | Causa Raíz | Corrección |
 | :---: | :--- | :--- | :--- | :--- |
@@ -729,4 +733,8 @@ Durante el desarrollo activo de la Ronda Cerrada (rama `dev-close_round`), el eq
 | 6 | El robot frenaba de más justo durante la maniobra de evasión | `velocidad = max(VELOCIDAD_MIN_EN_FRENADO, int(velocidad_base * factor_frenado))` aplicado en todos los estados | `factor_frenado` se aplicaba dos veces en `DETECTADO` (frenado al cuadrado) y en `ESQUIVANDO`/`PASANDO`/`RECENTRANDO` frenaba según la distancia al propio poste que se estaba evadiendo (sector frontal ensanchado a propósito durante la maniobra) | `factor_frenado` restringido exclusivamente al estado `CARRERA` |
 | 7 | Crash de `GPIO.cleanup()` al detener el script con doble Ctrl+C | `lgpio.error: 'unknown handle'` en el traceback | `apagar_sistema()` se reejecutaba sobre un handle GPIO ya cerrado | Guardia de reentrada (`_apagando_en_curso`) + `try/except` alrededor de `GPIO.cleanup()` |
 
-> **Nota metodológica:** los hallazgos #1, #2, #4, #6 y #7 se identificaron por lectura de código y razonamiento sobre la convención de signos del sistema (verificada de forma cruzada contra `Open_round.py` y `src/pico/main.py`). El hallazgo #5 se identificó directamente de una línea de log real de una corrida en pista. Las correcciones ya están fusionadas a `main`; queda pendiente validarlas en pista con paredes reales antes de la competencia.
+> **Nota metodológica:** los hallazgos #1, #2, #4, #6 y #7 se identificaron por lectura de código y razonamiento sobre la convención de signos del sistema (verificada de forma cruzada contra `Open_round.py` y `src/pico/main.py`). El hallazgo #5 se identificó directamente de una línea de log real de una corrida en pista.
+
+**Validación en pista con paredes reales:** tras aplicar los fixes, se corrió el mismo protocolo (video + `python3 -u Close2_round.py 2>&1 | tee run_log.txt`) en un circuito con bordes físicos. El log mostró 3 evasiones completas de postes rojos, todas con el lado de evasión correcto (`Evadir x DERECHA`) y la transición `DETECTADO -> ESQUIVANDO` siempre por distancia real confirmada por el LiDAR (nunca por el timeout de seguridad). El punto crítico —`RECENTRANDO`— convergió dentro del margen las 3 veces (`Error heading` de 3.9°, 3.9° y 3.2°, todos bajo el umbral de 4°), frente al fallo de 68.1° registrado antes del fix. Las dos emergencias de colisión que sí aparecieron se resolvieron limpio vía `RETROCEDIENDO -> FORZANDO_GIRO` sin entrar en el ciclo repetitivo observado en la corrida anterior.
+
+**Refactor de modularidad:** posteriormente, `Close2_round.py` (que concentraba cámara + LiDAR + tracker + FSM en ~1100 líneas) se dividió en `vision.py`, `lidar.py` y `tracker.py` por responsabilidad (ver sección 8.1). Durante esa limpieza se detectaron y archivaron en `src/pi3B/legacy/` dos copias obsoletas de la Ronda Cerrada (`Close_round.py` y una iteración experimental) que **todavía tenían la regla de color invertida** — y se descubrió que `controlador_inicio.py` apuntaba por error a esa copia rota en vez de a `Close2_round.py`, ya corregido.

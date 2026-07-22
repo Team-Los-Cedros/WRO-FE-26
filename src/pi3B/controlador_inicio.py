@@ -10,7 +10,7 @@ BOTON_CLOSE = 20
 
 RUTA_BASE = "/home/pi"
 SCRIPT_OPEN = os.path.join(RUTA_BASE, "Open_round.py")
-SCRIPT_CLOSE = os.path.join(RUTA_BASE, "Close_round.py")
+SCRIPT_CLOSE = os.path.join(RUTA_BASE, "Close2_round.py")
 
 def main():
     # Configuración limpia de pines para los botones con resistencia Pull-Up

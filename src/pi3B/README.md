@@ -12,12 +12,24 @@ Para garantizar que el vehículo sea 100% autónomo desde el momento en que se c
 
 1. **`controlador_inicio.py`**: Script demonio en Python que corre en un bucle infinito de alta frecuencia monitoreando los pines de entrada.
 2. **`wro_start.service`**: Unidad de servicio nativa de Linux (`systemd`) que fuerza el auto-arranque del script maestro inmediatamente después de inicializar el kernel.
-3. **Scripts de Carrera**: `Open_round.py` (Control proporcional guiado por RPLIDAR C1) y `Close_round.py` (Procesamiento matricial OpenCV HSV para evasión de pilares).
+3. **Scripts de Carrera**: `Open_round.py` (Ronda Abierta, centrado proporcional guiado por RPLiDAR C1) y `Close2_round.py` (Ronda Cerrada, fusión de visión OpenCV + LiDAR para evasión de pilares — ver estructura modular abajo).
 4. **`calibrar_hsv.py`**: Herramienta de calibración interactiva (no se ejecuta en carrera). Levanta un servidor TCP en el puerto `5000` que recibe el streaming JPEG de la Pi Camera y expone sliders de OpenCV (`H/S/V Min/Max` por color) en la laptop del equipo para ajustar en vivo los umbrales de segmentación de los bloques verde y rojo antes de cada ronda.
-5. **`requirements.txt`**: Dependencias Python del entorno de la Raspberry Pi 3B (OpenCV, pyserial, RPi.GPIO, numpy) — instalar con `pip install -r requirements.txt` para garantizar reproducibilidad del entorno de ejecución.
-6. **`wro_start.service`**: Copia real del archivo de unidad `systemd`. Para reproducir el arranque autónomo en una Pi nueva: `sudo cp wro_start.service /etc/systemd/system/ && sudo systemctl enable wro_start.service`.
+5. **`capturar_hsv.py`**: Herramienta de diagnóstico HSV sin GUI — corre 100% en la Pi y guarda a disco el frame crudo y las máscaras rojo/verde, para revisar la calibración sin necesitar una laptop con pantalla conectada al streaming.
+6. **`requirements.txt`**: Dependencias Python del entorno de la Raspberry Pi 3B (OpenCV, pyserial, RPi.GPIO, numpy) — instalar con `pip install -r requirements.txt` para garantizar reproducibilidad del entorno de ejecución. `picamera2` se instala aparte por `apt` (ver [`INSTALACION.md`](../../INSTALACION.md)).
+7. **`wro_start.service`**: Copia real del archivo de unidad `systemd`. Para reproducir el arranque autónomo en una Pi nueva: `sudo cp wro_start.service /etc/systemd/system/ && sudo systemctl enable wro_start.service`.
 
-> **Nota de desarrollo activo:** `Close2_round.py` y `Close2_round - Prueba1.py` son iteraciones experimentales de la lógica de Ronda Cerrada, desarrolladas en la rama `dev-close_round` como banco de pruebas antes de fusionar mejoras a `Close_round.py`. Esto documenta el ciclo real de iteración y prueba del equipo, no son scripts huérfanos.
+### Estructura Modular de `Close2_round.py`
+
+Para cumplir con el criterio de modularidad, la lógica de la Ronda Cerrada está partida en 4 archivos por responsabilidad, todos necesarios en la misma carpeta (`/home/pi/`) al desplegar:
+
+| Archivo | Responsabilidad |
+| :--- | :--- |
+| `Close2_round.py` | Máquina de estados de navegación/evasión, comunicación con la Pico, apagado seguro y punto de entrada. Importa los 3 módulos siguientes. |
+| `vision.py` | Hilo de cámara: detección HSV de postes rojo/verde y su histéresis de estabilización. |
+| `lidar.py` | Hilo de LiDAR: parseo de paquetes RPLIDAR C1, seguimiento de distancias de pared (con modo "Inercial") y clustering ABD para separar postes de las paredes. |
+| `tracker.py` | *Object persistence tracker*: mantiene la posición estimada del obstáculo activo aunque la cámara lo pierda momentáneamente, corregida por rotación IMU. |
+
+> **`src/pi3B/legacy/`** conserva `Close_round.py` y `Close2_round_Prueba1.py`, versiones superadas de la Ronda Cerrada que **no** deben desplegarse (ver el `README.md` de esa carpeta para el detalle de por qué se archivaron).
 
 ---
 
@@ -28,7 +40,7 @@ El script utiliza la asignación estándar de numeración **BCM (Broadcom)**. La
 | Componente de Carrera | Identificador BCM (Código) | Pin Físico en la Placa | Tipo de Señal Lógica | Evento Asociado |
 | :--- | :---: | :---: | :--- | :--- |
 | **Botón de Ronda Abierta (OPEN)** | `GPIO 21` | **Pin 40** | Entrada Digital con Pull-Up | Ejecuta `Open_round.py` |
-| **Botón de Ronda Cerrada (CLOSE)** | `GPIO 20` | **Pin 38** | Entrada Digital con Pull-Up | Ejecuta `Close_round.py` |
+| **Botón de Ronda Cerrada (CLOSE)** | `GPIO 20` | **Pin 38** | Entrada Digital con Pull-Up | Ejecuta `Close2_round.py` |
 | **Referencia Electrónica** | `GND` | **Pin 39** | Tierra Común (Estrella) | Cierre de circuito de disparo |
 
 > **Nota de Seguridad Eléctrica:** Al configurar internamente el acoplamiento `pull_up_down=GPIO.PUD_UP`, los interruptores físicos deben conmutar directamente a la línea de masa (`GND`). El procesador interpreta la caída de tensión a un estado lógico `LOW` ($0\,\text{V}$) como una pulsación válida, eliminando interferencias por ruido electromagnético parásito.
@@ -97,5 +109,5 @@ sudo systemctl status wro_start.service
 ### El botón físico es pulsado pero el vehículo no inicia la marcha
 
 1. **Validación de Capa de Software:** Ejecute `sudo journalctl -u wro_start.service -n 20` en la terminal. Verifique si el kernel de Linux imprimió en los logs las cadenas de texto `Botón Open, Ejecutando script` o `¡Botón CLOSE detectado!`.
-2. **Aislamiento de Errores Hijos:** Si los logs del sistema operativo confirman la pulsación pero el vehículo permanece estático, el fallo no se encuentra en este submódulo, sino en los scripts de carrera (`Open_round.py`/`Close_round.py`), provocado por excepciones lógicas en los drivers de comunicación UART con la Pico 2 o bloqueos de lectura en el buffer del RPLIDAR C1.
+2. **Aislamiento de Errores Hijos:** Si los logs del sistema operativo confirman la pulsación pero el vehículo permanece estático, el fallo no se encuentra en este submódulo, sino en los scripts de carrera (`Open_round.py`/`Close2_round.py`), provocado por excepciones lógicas en los drivers de comunicación UART con la Pico 2 o bloqueos de lectura en el buffer del RPLIDAR C1.
 3. **Aislamiento de Capa Física:** Si el demonio de Linux no registra ningún evento, verifique con un multímetro la continuidad física del interruptor o reemplace los jumpers conectados a los pines lógicos `GP21`/`GP20` y al común `GND`.
