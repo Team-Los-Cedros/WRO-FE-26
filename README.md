@@ -58,11 +58,14 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │   └── Ackermann/                 # Evidencia fotográfica de los límites de giro calibrados
 ├── video/                        # Enlace oficial del video de pista y borradores de prueba
 ├── schemes/                      # Diagrama de cableado y fotos de la placa perforada
-└── README.md                     # Documentación técnica principal (este archivo)
+├── README.md                      # Documentación técnica principal (este archivo)
+└── INSTALACION.md                 # Manual paso a paso para reproducir el entorno desde cero
 
 ```
 
 > **Nota de Software de Inicio:** El script `controlador_inicio.py` actúa como el orquestador maestro en la Raspberry Pi 3B, configurado explícitamente como un servicio de `systemd` en Linux para garantizar el autoarranque inmediato del coche al encender la batería.
+
+> **Reproducibilidad:** el manual completo para dejar una Raspberry Pi 3B y una Pico 2 nuevas en este mismo estado (sistema operativo, dependencias, firmware, despliegue de scripts) está en [`INSTALACION.md`](INSTALACION.md).
 
 ### 2.1 Historial de Versiones y Control de Cambios
 

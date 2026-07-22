@@ -2,3 +2,7 @@ opencv-python
 numpy
 pyserial
 RPi.GPIO
+
+# picamera2 se instala aparte via apt (python3-picamera2), NO por pip --
+# depende de las librerias de sistema libcamera y la version de pip suele
+# desincronizarse con ellas. Ver INSTALACION.md, paso 3.
