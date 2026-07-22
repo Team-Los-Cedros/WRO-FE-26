@@ -423,8 +423,7 @@ stateDiagram-v2
     APROXIMACION --> RETROCESO: EMERGENCIA
     SOBREPASO --> RETROCESO: EMERGENCIA
     REINCORPORACION --> RETROCESO: EMERGENCIA
-    RETROCESO --> REORIENTACION: choque trasero bajo 250mm, O tiempo mayor a 3.5s
-    REORIENTACION --> CRUCERO: tiempo mayor a 0.6s
+    RETROCESO --> CRUCERO: choque trasero bajo 250mm, O tiempo mayor a 3.5s
 
     note right of APROXIMACION
         Pure pursuit: objetivo = poste ± 260mm
@@ -437,9 +436,19 @@ stateDiagram-v2
         mientras la odometria del tracker empuja el
         poste hacia atras en el marco del robot
     end note
+
+    note right of RETROCESO
+        Control P en vivo: error = espacio diagonal
+        trasero derecho - izquierdo (perfil LiDAR 360°,
+        1 grado/bin). Gira hacia el lado con mas espacio
+        cada ciclo -- no un signo precalculado. Corrigio
+        un bug real: con direccion Ackermann, el mismo
+        angulo de rueda gira el chasis al sentido
+        contrario en reversa respecto a marcha adelante.
+    end note
 ```
 
-> El bloque `RETROCESO`/`REORIENTACION` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en uno de esos dos), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/ronda_cerrada/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `ronda_cerrada.py` quedó como orquestador delgado con *watchdog* de percepción.
+> El bloque `RETROCESO` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en él), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/ronda_cerrada/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `ronda_cerrada.py` quedó como orquestador delgado con *watchdog* de percepción. El LiDAR (`src/pi3B/comun/lidar_geometria.py`) construye un perfil de distancia mínima en los 360° completos (1 grado por bin) en cada barrido; los sectores fijos (pared, frontal, diagonales traseras) son consultas sobre ese perfil, no cálculos independientes.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 

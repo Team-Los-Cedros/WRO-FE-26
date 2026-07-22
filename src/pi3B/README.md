@@ -53,7 +53,7 @@ src/pi3B/
 | Archivo | Capa | Responsabilidad |
 | :--- | :--- | :--- |
 | `lidar_driver.py` | Driver | Protocolo binario del RPLIDAR C1 y detección de barrido completo (clase `LidarDriver`). Entrega el barrido crudo (lista de ángulo/distancia), sin interpretar nada. |
-| `lidar_geometria.py` | Procesador | Interpreta el barrido crudo: distancias por sector (con modo "Inercial"), sector frontal reconfigurable en caliente y clustering ABD para separar postes de paredes (clase `ProcesadorLidar`). Entrega un objeto `Medicion` por barrido. |
+| `lidar_geometria.py` | Procesador | Interpreta el barrido crudo: construye un perfil de distancia mínima en los 360° completos (1 grado/bin) y deriva de ahí los sectores de pared (con modo "Inercial"), las diagonales traseras y el sector frontal reconfigurable en caliente, más clustering ABD para separar postes de paredes (clase `ProcesadorLidar`). Entrega un objeto `Medicion` por barrido, con el perfil completo disponible para consultas arbitrarias. |
 | `enlace_pico.py` | Driver | Canal serial con la Pico 2 (clase `EnlacePico`): envío de consignas, lectura de telemetría IMU en hilo propio, cero de carrera ajustable y detección de telemetría caída. |
 
 #### Módulos de `ronda_cerrada/`

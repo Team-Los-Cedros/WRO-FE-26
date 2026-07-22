@@ -1,7 +1,10 @@
 # Interpretacion geometrica de un barrido crudo del LiDAR (ver lidar_driver.py
-# para el protocolo/hilo): distancias por sector (con modo Inercial) y
-# clustering ABD para separar postes de paredes. No sabe nada del puerto
-# serial ni del protocolo binario del C1.
+# para el protocolo/hilo). Construye un perfil de distancia minima en los
+# 360 grados completos en cada ciclo (1 bin por grado) y todo lo demas
+# (sectores de pared, diagonales traseras, modo Inercial) se deriva de ese
+# perfil -- no hay sectores calculados por separado con su propio loop.
+# Tambien hace clustering ABD para separar postes de paredes. No sabe nada
+# del puerto serial ni del protocolo binario del C1.
 #
 # Convenciones: 0 grados = frente, los angulos crecen en sentido horario.
 # Cartesianas: x+ = derecha, y+ = frente (en mm).
@@ -10,7 +13,16 @@ import math
 import threading
 
 # ==========================================
-# SECTORES DE PARED (grados)
+# PERFIL 360 GRADOS (1 bin por grado)
+# ==========================================
+NUM_BINS       = 360
+GRADOS_POR_BIN = 360.0 / NUM_BINS
+
+# ==========================================
+# SECTORES DE PARED Y DIAGONALES TRASERAS (grados)
+# Las diagonales traseras cubren el hueco entre "derecha"/"izquierda" y
+# "trasera" -- las usa el retroceso de emergencia para saber de que lado
+# hay mas espacio libre en vivo (ver navegacion.py, estado RETROCESO).
 # ==========================================
 ANGULO_MIN_DER = 30
 ANGULO_MAX_DER = 90
@@ -18,6 +30,11 @@ ANGULO_MIN_IZQ = 270
 ANGULO_MAX_IZQ = 330
 ANGULO_MIN_TRAS = 170
 ANGULO_MAX_TRAS = 190
+
+ANGULO_MIN_TRASDER = 90
+ANGULO_MAX_TRASDER = 170
+ANGULO_MIN_TRASIZQ = 190
+ANGULO_MAX_TRASIZQ = 270
 
 # Sector frontal por defecto (350 -> 10, cruza el 0). La navegacion lo
 # ensancha durante la evasion para no perder el poste al girar.
@@ -46,23 +63,40 @@ EXT_ANG_MIN_MURO      = 20.0    # un muro siempre ocupa mas que esto
 class Medicion:
     # Resultado de un barrido completo
     __slots__ = ("frontal", "izquierda", "derecha", "trasera",
-                 "clusters_obstaculo", "timestamp")
+                 "trasera_derecha", "trasera_izquierda",
+                 "clusters_obstaculo", "perfil", "timestamp")
 
-    def __init__(self, frontal, izquierda, derecha, trasera, clusters):
+    def __init__(self, frontal, izquierda, derecha, trasera,
+                 trasera_derecha, trasera_izquierda, clusters, perfil):
         self.frontal   = frontal
         self.izquierda = izquierda
         self.derecha   = derecha
         self.trasera   = trasera
+        self.trasera_derecha   = trasera_derecha
+        self.trasera_izquierda = trasera_izquierda
         self.clusters_obstaculo = clusters
+        self.perfil = perfil    # 360 floats, perfil[i] = distancia min en el grado i
         self.timestamp = time.time()
 
 
-def en_sector(ang, sector):
-    # Soporta sectores que cruzan el 0 (ej: 350 -> 10)
-    a_min, a_max = sector
-    if a_min <= a_max:
-        return a_min <= ang <= a_max
-    return ang >= a_min or ang <= a_max
+def construir_perfil_360(scan):
+    # Distancia minima por cada grado del circulo completo
+    perfil = [8000.0] * NUM_BINS
+    for ang, dist in scan:
+        i = int(ang / GRADOS_POR_BIN) % NUM_BINS
+        if dist < perfil[i]:
+            perfil[i] = dist
+    return perfil
+
+
+def distancia_en_rango(perfil, ang_min, ang_max):
+    # Minima distancia entre ang_min y ang_max. Soporta rangos que cruzan
+    # el 0 (ej 350 -> 10, como el sector frontal por defecto).
+    i_min = int(ang_min / GRADOS_POR_BIN) % NUM_BINS
+    i_max = int(ang_max / GRADOS_POR_BIN) % NUM_BINS
+    if i_min <= i_max:
+        return min(perfil[i_min:i_max + 1])
+    return min(min(perfil[i_min:]), min(perfil[:i_max + 1]))
 
 
 def centroide_xy_cluster(cluster):
@@ -128,16 +162,14 @@ class ProcesadorLidar:
         with self._lock_sector:
             sector_frontal = self._sector_frontal
 
-        d_der = d_izq = d_front = d_tras = 8000.0
-        for ang, dist in scan:
-            if ANGULO_MIN_DER <= ang <= ANGULO_MAX_DER:
-                d_der = min(d_der, dist)
-            elif ANGULO_MIN_IZQ <= ang <= ANGULO_MAX_IZQ:
-                d_izq = min(d_izq, dist)
-            if ANGULO_MIN_TRAS <= ang <= ANGULO_MAX_TRAS:
-                d_tras = min(d_tras, dist)
-            if en_sector(ang, sector_frontal):
-                d_front = min(d_front, dist)
+        perfil = construir_perfil_360(scan)
+
+        d_front     = distancia_en_rango(perfil, *sector_frontal)
+        d_der       = distancia_en_rango(perfil, ANGULO_MIN_DER, ANGULO_MAX_DER)
+        d_izq       = distancia_en_rango(perfil, ANGULO_MIN_IZQ, ANGULO_MAX_IZQ)
+        d_tras      = distancia_en_rango(perfil, ANGULO_MIN_TRAS, ANGULO_MAX_TRAS)
+        d_tras_der  = distancia_en_rango(perfil, ANGULO_MIN_TRASDER, ANGULO_MAX_TRASDER)
+        d_tras_izq  = distancia_en_rango(perfil, ANGULO_MIN_TRASIZQ, ANGULO_MAX_TRASIZQ)
 
         # Modo Inercial en las paredes laterales
         if d_der < DIST_PARED_VALIDA_MAX:
@@ -155,4 +187,5 @@ class ProcesadorLidar:
         clusters = [c for c in segmentar_clusters_abd(scan_relevante)
                     if es_cluster_obstaculo(c)]
 
-        return Medicion(d_front, d_izq, d_der, d_tras, clusters)
+        return Medicion(d_front, d_izq, d_der, d_tras,
+                         d_tras_der, d_tras_izq, clusters, perfil)

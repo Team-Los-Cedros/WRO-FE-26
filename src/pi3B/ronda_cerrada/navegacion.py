@@ -11,12 +11,19 @@
 #                    (ROJO -> por la derecha, VERDE -> por la izquierda)
 #   SOBREPASO        rumbo paralelo al pasillo hasta dejar el poste atras
 #   REINCORPORACION  volver al rumbo original con P sobre la IMU
-#   RETROCESO        emergencia anti-choque: reversa con contra-giro
-#   REORIENTACION    avance corto girando hacia el sentido de la pista
+#   RETROCESO        emergencia anti-choque: reversa con control P sobre
+#                    las diagonales traseras del LiDAR (no un signo fijo,
+#                    ver nota abajo)
 #
 # La emergencia se chequea en todos los ciclos sin importar el estado.
-# Angulo positivo = giro a la izquierda. El servo solo da -20/+25 grados
-# reales, de ahi todos los clamps.
+# Angulo positivo = giro a la izquierda EN MARCHA ADELANTE. En reversa el
+# mismo angulo de rueda gira el chasis al sentido contrario (geometria
+# Ackermann: para el mismo angulo, la tasa de giro del rumbo cambia de
+# signo si la velocidad cambia de signo). Por eso RETROCESO no usa un
+# signo fijo -- mide en vivo que diagonal trasera tiene mas espacio
+# (med.trasera_derecha vs med.trasera_izquierda) y gira hacia ahi cada
+# ciclo, autocorrigiendose sin importar el sentido de giro de la pista.
+# El servo solo da -20/+25 grados reales, de ahi todos los clamps.
 import math
 import time
 
@@ -65,8 +72,13 @@ EMERGENCIA_FRONTAL  = 120.0
 EMERGENCIA_LATERAL  = 80.0
 EMERGENCIA_TRASERA  = 250.0
 TIMEOUT_RETROCESO   = 3.5
-DURACION_REORIENTAR = 0.6
-ANGULO_EMERGENCIA   = 25.0
+
+# Control P del retroceso: error = espacio diagonal-trasero derecho menos
+# izquierdo (mm), medido en vivo cada ciclo con el perfil 360 del LiDAR.
+# KP_RETROCESO=0.05 satura al tope (25 grados) con una diferencia de
+# ~500mm entre ambas diagonales -- valor de partida, ajustar en pista.
+KP_RETROCESO         = 0.05
+MAX_ANGULO_RETROCESO = 25.0
 
 # ==========================================
 # CARRERA / PARQUEO
@@ -100,7 +112,6 @@ class Navegador:
         self._firma_izq = 0.0
         self._firma_der = 0.0
 
-        self._sentido = "DESCONOCIDO"          # HORARIO / ANTIHORARIO
         self._evadir_por_izquierda = True
         self._heading_base  = 0.0              # rumbo del pasillo al iniciar la evasion
         self._t_estado      = 0.0
@@ -147,27 +158,18 @@ class Navegador:
         else:
             self._intentar_capturar_poste(med, color_cam, heading)
 
-        # 1. Sentido de giro de la pista, se detecta una sola vez
-        if self._sentido == "DESCONOCIDO":
-            if heading < -45.0:
-                self._sentido = "HORARIO"
-                print("[GIRO] Sentido: HORARIO (derecha)")
-            elif heading > 45.0:
-                self._sentido = "ANTIHORARIO"
-                print("[GIRO] Sentido: ANTIHORARIO (izquierda)")
-
-        # 2. Emergencia anti-choque, prioridad sobre cualquier estado
+        # 1. Emergencia anti-choque, prioridad sobre cualquier estado
         if (med.frontal < EMERGENCIA_FRONTAL
                 or med.izquierda < EMERGENCIA_LATERAL
                 or med.derecha < EMERGENCIA_LATERAL):
-            if self.estado not in ("RETROCESO", "REORIENTACION"):
+            if self.estado != "RETROCESO":
                 self._entrar("RETROCESO", ahora)
                 self.tracker.desactivar("emergencia")
                 self._sector.sector_frontal_normal()
                 print(f"[EMERGENCIA] F:{med.frontal:.0f} I:{med.izquierda:.0f} "
                       f"D:{med.derecha:.0f}mm -> RETROCESO")
 
-        # 3. Vueltas completas -> parqueo. Solo desde CRUCERO para no
+        # 2. Vueltas completas -> parqueo. Solo desde CRUCERO para no
         #    abandonar una evasion a medias con un poste al lado
         if abs(heading) >= UMBRAL_VUELTAS and self.estado == "CRUCERO":
             self.fase = "PARQUEO"
@@ -175,20 +177,19 @@ class Navegador:
             print(f"[!] {heading:.0f} grados acumulados. Modo Parqueo.")
             return (VELOCIDAD_PARQUEO, self._centrado_paredes(med))
 
-        # 4. Despacho por estado
+        # 3. Despacho por estado
         manejador = {
             "CRUCERO":         self._est_crucero,
             "APROXIMACION":    self._est_aproximacion,
             "SOBREPASO":       self._est_sobrepaso,
             "REINCORPORACION": self._est_reincorporacion,
             "RETROCESO":       self._est_retroceso,
-            "REORIENTACION":   self._est_reorientacion,
         }[self.estado]
         velocidad, angulo = manejador(med, color_cam, heading, ahora)
 
-        # 5. Rate limiter del servo. En emergencia no se aplica, ahi el
+        # 4. Rate limiter del servo. En emergencia no se aplica, ahi el
         #    giro completo tiene que entrar de una
-        if self.estado in ("RETROCESO", "REORIENTACION"):
+        if self.estado == "RETROCESO":
             self._ultimo_angulo = angulo
         else:
             delta = _clamp(angulo - self._ultimo_angulo, MAX_DELTA_ANGULO)
@@ -280,21 +281,17 @@ class Navegador:
         t_en_estado = ahora - self._t_estado
         if med.trasera < EMERGENCIA_TRASERA or t_en_estado > TIMEOUT_RETROCESO:
             razon = "obstaculo trasero" if med.trasera < EMERGENCIA_TRASERA else "tiempo maximo"
-            self._entrar("REORIENTACION", ahora)
-            print(f"[FSM] RETROCESO -> REORIENTACION ({razon})")
-
-        # Reversa con las ruedas hacia la pared exterior: al retroceder
-        # el morro apunta hacia adentro de la pista
-        angulo = self._angulo_por_sentido(ANGULO_EMERGENCIA)
-        return (VELOCIDAD_REVERSA, angulo)
-
-    def _est_reorientacion(self, med, color_cam, heading, ahora):
-        if ahora - self._t_estado > DURACION_REORIENTAR:
             self._entrar("CRUCERO", ahora)
-            print("[FSM] REORIENTACION -> CRUCERO")
+            print(f"[FSM] RETROCESO -> CRUCERO ({razon})")
 
-        angulo = self._angulo_por_sentido(-ANGULO_EMERGENCIA)
-        return (VELOCIDAD_EVASION, angulo)
+        # Control P en vivo sobre las diagonales traseras: gira hacia el
+        # lado con mas espacio libre medido en ESTE ciclo, no un signo
+        # precalculado. Si en pista se ve que gira para el lado
+        # equivocado, el arreglo es invertir el signo de KP_RETROCESO,
+        # no rediseñar esto -- ver nota al inicio del archivo.
+        error  = med.trasera_derecha - med.trasera_izquierda
+        angulo = _clamp(error * KP_RETROCESO, MAX_ANGULO_RETROCESO)
+        return (VELOCIDAD_REVERSA, angulo)
 
     # ==========================================
     # FASE PARQUEO
@@ -331,14 +328,6 @@ class Navegador:
             return VELOCIDAD_MINIMA
         proporcion = (frontal - DIST_FRENADO_MIN) / (DIST_FRENADO_INICIO - DIST_FRENADO_MIN)
         return int(VELOCIDAD_MINIMA + proporcion * (velocidad_base - VELOCIDAD_MINIMA))
-
-    def _angulo_por_sentido(self, magnitud):
-        # +magnitud si la pista es horaria, -magnitud si es antihoraria
-        if self._sentido == "HORARIO":
-            return magnitud
-        if self._sentido == "ANTIHORARIO":
-            return -magnitud
-        return 0.0
 
     def _intentar_capturar_poste(self, med, color_cam, heading):
         # Crea el tracker cuando camara y LiDAR coinciden en un poste frontal
