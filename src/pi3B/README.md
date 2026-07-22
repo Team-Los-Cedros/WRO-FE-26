@@ -20,14 +20,16 @@ Para garantizar que el vehículo sea 100% autónomo desde el momento en que se c
 
 ### Estructura Modular de `Close2_round.py`
 
-Para cumplir con el criterio de modularidad, la lógica de la Ronda Cerrada está partida en 4 archivos por responsabilidad, todos necesarios en la misma carpeta (`/home/pi/`) al desplegar:
+Para cumplir con el criterio de modularidad, la lógica de la Ronda Cerrada está partida en 6 archivos por responsabilidad, todos necesarios en la misma carpeta (`/home/pi/`) al desplegar:
 
 | Archivo | Responsabilidad |
 | :--- | :--- |
-| `Close2_round.py` | Máquina de estados de navegación/evasión, comunicación con la Pico, apagado seguro y punto de entrada. Importa los 3 módulos siguientes. |
+| `Close2_round.py` | Punto de entrada y orquestador delgado: cablea los hilos, espera el botón, fija el cero IMU y vigila con un *watchdog* que la percepción siga viva. No contiene lógica de navegación. |
+| `navegacion.py` | Cerebro de la ronda: máquina de estados de carrera/evasión/parqueo como **lógica pura sin I/O** (todo el hardware se inyecta), lo que permite probarla fuera del robot con barridos sintéticos. |
 | `vision.py` | Hilo de cámara: detección HSV de postes rojo/verde y su histéresis de estabilización. |
-| `lidar.py` | Hilo de LiDAR: parseo de paquetes RPLIDAR C1, seguimiento de distancias de pared (con modo "Inercial") y clustering ABD para separar postes de las paredes. |
-| `tracker.py` | *Object persistence tracker*: mantiene la posición estimada del obstáculo activo aunque la cámara lo pierda momentáneamente, corregida por rotación IMU. |
+| `lidar.py` | Driver del RPLIDAR C1 (clase `LidarC1`): parseo del protocolo binario, distancias por sector (con modo "Inercial"), sector frontal reconfigurable en caliente y clustering ABD para separar postes de paredes. Entrega un objeto `Medicion` por barrido completo. |
+| `tracker.py` | *Object persistence tracker* (clase `TrackerObstaculo`): posición estimada del poste activo, predicha por **rotación IMU + traslación por odometría de velocidad comandada**, y re-anclada con los clusters reales del LiDAR en cada barrido. |
+| `enlace_pico.py` | Canal serial con la Pico 2 (clase `EnlacePico`): envío de consignas, lectura de telemetría IMU en hilo propio, cero de carrera ajustable y detección de telemetría caída. |
 
 > **`src/pi3B/legacy/`** conserva `Close_round.py` y `Close2_round_Prueba1.py`, versiones superadas de la Ronda Cerrada que **no** deben desplegarse (ver el `README.md` de esa carpeta para el detalle de por qué se archivaron).
 

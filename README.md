@@ -397,42 +397,40 @@ En la Ronda Cerrada, la presencia de pilares de obstáculos (bloques rojos y ver
 
 
 
-#### Máquina de Estados de Evasión (`estado_evasion`, `Close2_round.py`)
+#### Máquina de Estados de Evasión (`navegacion.py`)
 
-Esta es la máquina de estados real vigente, depurada con evidencia de pista (ver caso de estudio, sección 8.2). Los valores de los umbrales son los parámetros vigentes tras las correcciones de esta sesión:
+Máquina de estados vigente tras la reescritura modular de la navegación de la Ronda Cerrada. La evasión dejó de usar ángulos fijos por estado: el giro de `APROXIMACION` se calcula por **pure pursuit geométrico** hacia un punto de paso lateral al poste (posición real medida por el tracker LiDAR), y la superación del poste se decide por **odometría** (rotación IMU + traslación por velocidad comandada), no por cronómetro:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> CARRERA
+    [*] --> CRUCERO
 
-    CARRERA --> DETECTADO: Tracker confirma obstaculo entre 50 y 800mm, O frontal entre 50 y 700mm con color detectado
-    DETECTADO --> ESQUIVANDO: tracker confirmado y frontal bajo 600mm, O frontal bajo 400mm, O tiempo mayor a TIMEOUT_DETECTADO (1.2s)
-    ESQUIVANDO --> PASANDO: tiempo mayor a 0.2s y (frente libre O tracker al costado O tracker superado)
-    PASANDO --> RECENTRANDO: tracker confirma obstaculo superado, O tiempo mayor a 1.2s
-    RECENTRANDO --> CARRERA: error de rumbo IMU menor a 4 grados, O tiempo mayor a TIMEOUT_RECENTRANDO (3.0s)
+    CRUCERO --> APROXIMACION: tracker confirmado (2+ barridos) con poste a menos de 900mm, O frontal bajo 700mm con color de camara
+    APROXIMACION --> SOBREPASO: poste a la altura del morro (y bajo 180mm) O al costado O superado, O timeout 1.5s
+    SOBREPASO --> REINCORPORACION: odometria confirma poste detras de la cola (y bajo -280mm), O timeout 1.2s
+    REINCORPORACION --> CRUCERO: error de rumbo IMU menor a 5 grados, O timeout 2.5s
 
-    CARRERA --> RETROCEDIENDO: EMERGENCIA -- frontal bajo 120mm O lateral bajo 80mm (chequeo global, cualquier estado)
-    DETECTADO --> RETROCEDIENDO: EMERGENCIA
-    ESQUIVANDO --> RETROCEDIENDO: EMERGENCIA
-    PASANDO --> RETROCEDIENDO: EMERGENCIA
-    RECENTRANDO --> RETROCEDIENDO: EMERGENCIA
-    RETROCEDIENDO --> FORZANDO_GIRO: choque trasero bajo 250mm, O tiempo mayor a 3.5s
-    FORZANDO_GIRO --> CARRERA: tiempo mayor a 0.6s
+    CRUCERO --> RETROCESO: EMERGENCIA -- frontal bajo 120mm O lateral bajo 80mm (chequeo global, cualquier estado)
+    APROXIMACION --> RETROCESO: EMERGENCIA
+    SOBREPASO --> RETROCESO: EMERGENCIA
+    REINCORPORACION --> RETROCESO: EMERGENCIA
+    RETROCESO --> REORIENTACION: choque trasero bajo 250mm, O tiempo mayor a 3.5s
+    REORIENTACION --> CRUCERO: tiempo mayor a 0.6s
 
-    note right of DETECTADO
-        Ángulo = sesgo direccional (regla de color WRO)
-        + tracker["x"] * KP_EVASION_LATERAL
-        (control proporcional, no ángulo fijo)
+    note right of APROXIMACION
+        Pure pursuit: objetivo = poste ± 260mm
+        segun regla WRO (ROJO derecha, VERDE izquierda).
+        Angulo = -bearing al objetivo (clamp ±25°)
     end note
 
-    note right of RECENTRANDO
-        Corrigió: antes se rendía en 1.5s con
-        errores de hasta 68° sin converger,
-        disparando la cascada de EMERGENCIA
+    note right of SOBREPASO
+        Rumbo paralelo al pasillo (P sobre heading base)
+        mientras la odometria del tracker empuja el
+        poste hacia atras en el marco del robot
     end note
 ```
 
-> El bloque `RETROCEDIENDO`/`FORZANDO_GIRO` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en uno de esos dos), por eso el diagrama lo muestra como alcanzable desde los cinco estados normales de la maniobra.
+> El bloque `RETROCESO`/`REORIENTACION` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en uno de esos dos), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `Close2_round.py` quedó como orquestador delgado con *watchdog* de percepción.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 
