@@ -426,9 +426,10 @@ stateDiagram-v2
     RETROCESO --> CRUCERO: choque trasero bajo 250mm, O tiempo mayor a 3.5s
 
     note right of APROXIMACION
-        Pure pursuit: objetivo = poste ± 260mm
-        segun regla WRO (ROJO derecha, VERDE izquierda).
-        Angulo = -bearing al objetivo (clamp ±25°)
+        Pure pursuit hacia el punto de paso, unos 260mm
+        al lado del poste, segun regla WRO (ROJO derecha,
+        VERDE izquierda). Angulo proporcional al bearing
+        hacia ese punto, con tope fisico del servo.
     end note
 
     note right of SOBREPASO
@@ -438,13 +439,12 @@ stateDiagram-v2
     end note
 
     note right of RETROCESO
-        Control P en vivo: error = espacio diagonal
-        trasero derecho - izquierdo (perfil LiDAR 360°,
-        1 grado/bin). Gira hacia el lado con mas espacio
-        cada ciclo -- no un signo precalculado. Corrigio
-        un bug real: con direccion Ackermann, el mismo
-        angulo de rueda gira el chasis al sentido
-        contrario en reversa respecto a marcha adelante.
+        Control P en vivo sobre el perfil LiDAR de 360
+        grados. Gira hacia la diagonal trasera con mas
+        espacio en cada ciclo, no un signo fijo. Corrige
+        un bug real de pista, en reversa el mismo angulo
+        de rueda gira el chasis al sentido contrario
+        respecto a marcha adelante, geometria Ackermann.
     end note
 ```
 
