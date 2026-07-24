@@ -11,6 +11,11 @@
 #                    (ROJO -> por la derecha, VERDE -> por la izquierda)
 #   SOBREPASO        rumbo paralelo al pasillo hasta dejar el poste atras
 #   REINCORPORACION  volver al rumbo original con P sobre la IMU
+#
+# Estos tres persiguen al poste o al rumbo sin saber donde esta la pared
+# -- _con_seguridad_pared() mezcla el comando con el centrado de pared
+# normal cuando la pared del lado del giro se acerca (bug real de pista:
+# la evasion no "veia" las paredes y podia clavarse contra ellas).
 #   RETROCESO        emergencia anti-choque: reversa con control P sobre
 #                    las diagonales traseras del LiDAR (no un signo fijo,
 #                    ver nota abajo)
@@ -59,6 +64,13 @@ ANGULO_EVASION_CIEGA = 18.0   # sesgo fijo si hay color pero todavia no hay clus
 DIST_INICIO_EVASION_TRK = 900.0   # mm, poste confirmado por tracker
 DIST_INICIO_EVASION_CAM = 700.0   # mm, frontal LiDAR + color de camara
 Y_POSTE_EN_PASO         = 180.0   # mm, el poste ya esta a la altura del morro
+
+# Debajo de esto, la pared del lado hacia donde se esta girando empieza a
+# mezclarse con el comando deseado (ver _con_seguridad_pared). El pure
+# pursuit y el rumbo paralelo de la evasion persiguen al poste sin saber
+# donde esta la pared -- esto evita que la persecucion mande al robot
+# contra la pared cuando el carril es mas angosto de lo esperado.
+DIST_ALERTA_PARED = 220.0
 
 TIMEOUT_APROXIMACION   = 1.5   # s, red de seguridad si el tracker no resuelve
 TIMEOUT_SOBREPASO      = 1.2
@@ -247,6 +259,7 @@ class Navegador:
             signo = 1.0 if self._evadir_por_izquierda else -1.0
             angulo = signo * ANGULO_EVASION_CIEGA
 
+        angulo = self._con_seguridad_pared(angulo, med)
         velocidad = self._con_frenado(VELOCIDAD_EVASION, med.frontal)
         return (max(VELOCIDAD_MINIMA, velocidad), angulo)
 
@@ -263,6 +276,7 @@ class Navegador:
         # Rumbo paralelo al pasillo mientras el poste pasa por el costado
         error_h = self._heading_base - heading
         angulo = _clamp(error_h * KP_HEADING, 22.0)
+        angulo = self._con_seguridad_pared(angulo, med)
         return (VELOCIDAD_EVASION, angulo)
 
     def _est_reincorporacion(self, med, color_cam, heading, ahora):
@@ -275,6 +289,7 @@ class Navegador:
             return (VELOCIDAD_CRUCERO, self._centrado_paredes(med))
 
         angulo = _clamp(error_h * KP_HEADING * 1.2, MAX_ANGULO_EVASION)
+        angulo = self._con_seguridad_pared(angulo, med)
         return (VELOCIDAD_EVASION, angulo)
 
     def _est_retroceso(self, med, color_cam, heading, ahora):
@@ -319,6 +334,20 @@ class Navegador:
     def _centrado_paredes(self, med):
         # Control P clasico de centrado entre las dos paredes
         return (med.izquierda - med.derecha) * KP_LATERAL
+
+    def _con_seguridad_pared(self, angulo_deseado, med):
+        # La evasion (pure pursuit al poste, rumbo paralelo) no sabe donde
+        # esta la pared -- persigue al poste sin mirar el LiDAR lateral.
+        # Si la pared del lado hacia el que se esta girando se acerca,
+        # mezcla el comando deseado con el centrado de pared normal, cada
+        # vez con mas peso segun se acerca. Angulo negativo = giro a la
+        # derecha = se acerca a la pared derecha, y viceversa.
+        pared = med.derecha if angulo_deseado < 0 else med.izquierda
+        if pared >= DIST_ALERTA_PARED:
+            return angulo_deseado
+        peso_pared = 1.0 - (pared / DIST_ALERTA_PARED)
+        mezcla = angulo_deseado * (1.0 - peso_pared) + self._centrado_paredes(med) * peso_pared
+        return _clamp(mezcla, MAX_ANGULO_EVASION)
 
     def _con_frenado(self, velocidad_base, frontal):
         # Rampa lineal de velocidad segun la distancia frontal libre

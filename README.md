@@ -429,7 +429,11 @@ stateDiagram-v2
         Pure pursuit hacia el punto de paso, unos 260mm
         al lado del poste, segun regla WRO (ROJO derecha,
         VERDE izquierda). Angulo proporcional al bearing
-        hacia ese punto, con tope fisico del servo.
+        hacia ese punto, con tope fisico del servo. Se
+        mezcla con el centrado de pared si la pared del
+        lado del giro se acerca (misma logica en SOBREPASO
+        y REINCORPORACION, corrigio un bug real donde la
+        evasion no veia las paredes y se les clavaba).
     end note
 
     note right of SOBREPASO
