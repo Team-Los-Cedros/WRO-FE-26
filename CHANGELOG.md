@@ -5,7 +5,7 @@ commits (ver `git log`). Formato inspirado en [Keep a Changelog](https://keepach
 Cada versión referencia los commits representativos de ese hito para
 poder auditar el cambio exacto con `git show <hash>`.
 
-## [Unreleased]
+## [v0.6.0] — 2026-07-27 — Métricas cuantitativas de rendimiento
 
 ### Agregado
 - `src/pi3B/comun/registro_metricas.py`: logger CSV de telemetría por
@@ -17,6 +17,8 @@ poder auditar el cambio exacto con `git show <hash>`.
   validar el ajuste de `KP_LATERAL`/`KD_ESTABILIDAD` con datos en vez de
   observación cualitativa (README sección 5.4).
 - Este `CHANGELOG.md`.
+
+- `26badf2` feat(pi3B): instrumentar métricas cuantitativas de rendimiento en pista
 
 ## [v0.5.0] — 2026-07-21 a 2026-07-24 — Navegación modular y reorganización
 
