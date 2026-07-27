@@ -23,6 +23,7 @@ from camara_driver import CamaraDriver
 from lidar_driver import LidarDriver
 from lidar_geometria import ProcesadorLidar
 from enlace_pico import EnlacePico
+from registro_metricas import RegistroMetricas
 
 PIN_BOTON = 21
 
@@ -35,6 +36,7 @@ enlace       = None
 lidar_driver = None
 lidar_geo    = None
 navegador    = None
+registro     = None
 
 _t_ultimo_barrido = 0.0
 _apagando = False
@@ -52,6 +54,8 @@ def apagar_sistema(sig=None, frame=None):
         enlace.cerrar()
     if lidar_driver:
         lidar_driver.cerrar()
+    if registro:
+        registro.cerrar()
     try:
         GPIO.cleanup()
     except Exception as e:
@@ -65,10 +69,17 @@ def al_barrido(scan):
     medicion = lidar_geo.procesar(scan)
     _t_ultimo_barrido = medicion.timestamp
 
-    consigna = navegador.procesar(medicion, vision.get_color(), enlace.heading())
+    heading = enlace.heading()
+    consigna = navegador.procesar(medicion, vision.get_color(), heading)
     if consigna is None:          # carrera terminada (parqueo o timeout)
         apagar_sistema()
         return
+    velocidad, angulo = consigna
+    if registro:
+        error_lateral = medicion.izquierda - medicion.derecha
+        registro.registrar(fase=navegador.fase, estado=navegador.estado,
+                            heading=f"{heading:.2f}", error_lateral=f"{error_lateral:.1f}",
+                            angulo=f"{angulo:.2f}", velocidad=velocidad)
     enlace.enviar(*consigna)
 
 
@@ -112,6 +123,7 @@ if __name__ == '__main__':
 
     print("\n[START] Boton detectado! Iniciando carrera con obstaculos...")
     enlace.fijar_cero()           # el yaw de este instante es el 0 de carrera
+    registro = RegistroMetricas("ronda_cerrada")
 
     # 3. LiDAR y navegacion. El LiDAR arranca despues del boton para que
     #    su primer barrido capture la firma de pared del punto de partida

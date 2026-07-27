@@ -47,7 +47,8 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │       ├── comun/                # Drivers compartidos por ambas rondas
 │       │   ├── lidar_driver.py   # Driver: protocolo binario RPLIDAR C1
 │       │   ├── lidar_geometria.py # Procesador: paredes y clustering ABD
-│       │   └── enlace_pico.py    # Canal serial con la Pico 2 (consignas + telemetria IMU)
+│       │   ├── enlace_pico.py    # Canal serial con la Pico 2 (consignas + telemetria IMU)
+│       │   └── registro_metricas.py # Logger CSV de telemetria por ciclo (error lateral, angulo, heading)
 │       ├── ronda_abierta/
 │       │   └── ronda_abierta.py  # Reutiliza comun/: centrado proporcional + parqueo
 │       ├── ronda_cerrada/        # FSM de navegación/evasión de la Ronda Cerrada
@@ -59,7 +60,8 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │       │   └── legacy/           # Versiones superadas (archivadas, no desplegar)
 │       ├── calibracion/
 │       │   ├── calibrar_hsv.py   # Herramienta de calibración interactiva de umbrales HSV
-│       │   └── capturar_hsv.py   # Diagnóstico HSV sin GUI (guarda capturas a disco)
+│       │   ├── capturar_hsv.py   # Diagnóstico HSV sin GUI (guarda capturas a disco)
+│       │   └── analizar_log.py   # Resume los CSV de registro_metricas.py en métricas agregadas
 │       ├── requirements.txt      # Dependencias Python del entorno de la Pi 3B
 │       └── wro_start.service     # Unidad systemd real para el arranque autónomo
 ├── 3d-Models/                    # Modelos mecánicos: STL del chasis V1 (archivado) y CAD LEGO del V2
@@ -72,7 +74,8 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 ├── video/                        # Enlace oficial del video de pista y borradores de prueba
 ├── schemes/                      # Diagrama de cableado y fotos de la placa perforada
 ├── README.md                      # Documentación técnica principal (este archivo)
-└── INSTALACION.md                 # Manual paso a paso para reproducir el entorno desde cero
+├── INSTALACION.md                 # Manual paso a paso para reproducir el entorno desde cero
+└── CHANGELOG.md                   # Notas de versión por hito, referenciadas a commits reales
 
 ```
 
@@ -94,6 +97,8 @@ El repositorio mantiene un historial de commits granular (70+ confirmaciones) qu
 | **Ronda Cerrada (en curso)** | `Añadimos codigos de Calibracion HSV para la ronda cerrada`, rama `dev-close_round` | Desarrollo activo del algoritmo de evasión de obstáculos con herramienta de calibración HSV dedicada. |
 
 > **Nota de reproducibilidad:** Se puede auditar la evolución exacta de cualquier archivo con `git log --follow -p -- <archivo>`, por ejemplo `git log --follow -p -- src/pico/main.py` muestra el cambio de calibración del ángulo central documentado arriba.
+
+> **Notas de lanzamiento:** El detalle de cada hito (con los hashes de commit exactos que lo componen) está en [`CHANGELOG.md`](CHANGELOG.md). Los hitos principales también están marcados como tags de git (`git tag`, o [ver Releases en GitHub](https://github.com/Team-Los-Cedros/WRO-FE-26/tags)).
 
 ---
 
@@ -468,7 +473,25 @@ Los valores numéricos vigentes en `ronda_abierta.py`, obtenidos empíricamente 
 | Umbral de distancia de evasión | `45 cm` | Distancia LiDAR a la que se activa la maniobra de esquiva; se eligió para dar margen de reacción mecánica sin iniciar el giro tan temprano que el coche invada el carril contrario de forma innecesaria. |
 | Umbral de coincidencia de estacionamiento | `80 mm` | Tolerancia entre la firma espacial inicial y la actual (`match_firma_original`) para considerar que el coche volvió a su punto de partida. |
 
-* **Proceso de ajuste:** El equipo itera cambiando un parámetro a la vez, corriendo 2-3 vueltas consecutivas en la pista de práctica y observando el comportamiento cualitativo (oscilación lateral, choque con paredes, retraso en la reacción a curvas). No se registran tiempos de vuelta cuantitativos en este repositorio — es una limitación conocida del proceso actual que el equipo planea instrumentar (registro de `error_lateral` a un archivo `.csv` por vuelta) antes de la competencia final.
+* **Proceso de ajuste:** El equipo itera cambiando un parámetro a la vez, corriendo 2-3 vueltas consecutivas en la pista de práctica y observando el comportamiento cualitativo (oscilación lateral, choque con paredes, retraso en la reacción a curvas), validado con métricas cuantitativas de la corrida (ver abajo).
+
+#### Métricas de Validación de Rendimiento
+
+Cada corrida de `ronda_abierta.py`/`ronda_cerrada.py` instancia [`comun/registro_metricas.py`](src/pi3B/comun/registro_metricas.py), que escribe un CSV en `logs/` con una fila por barrido de LiDAR procesado (`fase`, `estado`, `heading`, `error_lateral`, `angulo`, `velocidad`). [`calibracion/analizar_log.py`](src/pi3B/calibracion/analizar_log.py) resume ese CSV en métricas agregadas — error lateral promedio/máximo/mediano en mm, porcentaje de ciclos con el servo saturado en su límite físico y número de eventos de emergencia (transiciones a `RETROCESO`):
+
+```bash
+python3 analizar_log.py logs/ronda_cerrada_<marca_de_tiempo>.csv
+```
+
+Formato de salida (ejemplo ilustrativo con datos sintéticos, no una corrida real):
+
+```
+Error lateral |e|: promedio 18.4 mm, maximo 96.0 mm, mediana 12.0 mm
+Ciclos con angulo saturado en el limite fisico del servo: 4/812 (0.5%)
+Eventos de emergencia (entradas a RETROCESO): 1
+```
+
+Esto reemplaza la validación puramente observacional: dos corridas con el mismo `KP_LATERAL` se pueden comparar por error lateral promedio y saturación del servo en vez de una impresión subjetiva de "se vio mejor". *Nota de estado:* la herramienta se agregó a este repositorio pero todavía no se ha corrido en pista con el hardware real — los CSV de corridas reales del equipo, una vez capturados, reemplazarán este ejemplo.
 
 ---
 
@@ -700,7 +723,7 @@ Consolidando los puntos de fallo detectados a lo largo de las secciones anterior
 | 5 | Falsos positivos de color por iluminación variable entre boxes y pista oficial | Los umbrales HSV se calibran en interiores (boxes) con luz artificial distinta a la luz de la pista de competencia | Herramienta `calibrar_hsv.py` dedicada para recalibrar en vivo antes de cada ronda, más limpieza morfológica (`MORPH_OPEN`/`MORPH_CLOSE`) para eliminar ruido lumínico | Sección 4.2 — Método de Calibración |
 | 6 | Pérdida de comunicación UART entre Pi 3B y Pico 2 durante la carrera | Desconexión física del cable USB o saturación del buffer serial | *Fail-safe* por software: si no llega una trama nueva en >500 ms, el sistema fuerza detención inmediata | Diagrama de arquitectura de software (sección 5) |
 | 7 | Desalineación del centro de dirección tras un cambio de calibración | Se probó un centro de servo de 180° que no correspondía a la geometría física real del `base_servo` | Reversión a 90° tras validación en pista, documentado en el historial de commits en vez de sobrescribirlo silenciosamente | Sección 2.1, 6.2, 7.3 |
-| 8 | Falta de métricas cuantitativas de desempeño (tiempos de vuelta, error lateral histórico) | El ajuste de `KP_LATERAL`/`KD_ESTABILIDAD` se valida solo de forma observacional en pista | *Limitación conocida, en mitigación activa:* se planea instrumentar registro de `error_lateral` en `.csv` por vuelta antes de la competencia final | Sección 5.4 |
+| 8 | Falta de métricas cuantitativas de desempeño (tiempos de vuelta, error lateral histórico) | El ajuste de `KP_LATERAL`/`KD_ESTABILIDAD` se validaba solo de forma observacional en pista | Se instrumentó `comun/registro_metricas.py` (log CSV por corrida) y `calibracion/analizar_log.py` (resumen agregado: error lateral, saturación del servo, eventos de emergencia). *Pendiente de validar con corridas reales en pista, ver §5.4* | Sección 5.4 |
 
 ### 8.1 Interacción Entre Subsistemas (Pensamiento Sistémico)
 

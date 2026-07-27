@@ -15,6 +15,7 @@ import RPi.GPIO as GPIO
 from lidar_driver import LidarDriver
 from lidar_geometria import ProcesadorLidar
 from enlace_pico import EnlacePico
+from registro_metricas import RegistroMetricas
 
 PIN_BOTON = 21
 
@@ -42,6 +43,7 @@ corriendo    = True
 enlace       = None
 lidar_driver = None
 lidar_geo    = None
+registro     = None
 
 fase_actual      = "ESPERANDO_BOTON"
 firma_izquierda  = 0.0
@@ -64,6 +66,8 @@ def apagar_sistema(sig=None, frame=None):
         enlace.cerrar()
     if lidar_driver:
         lidar_driver.cerrar()
+    if registro:
+        registro.cerrar()
     try:
         GPIO.cleanup()
     except Exception as e:
@@ -93,12 +97,17 @@ def al_barrido(scan):
     angulo_objetivo = ultimo_angulo + delta
     ultimo_angulo   = angulo_objetivo
 
+    heading = enlace.heading()
+
     if fase_actual == "CARRERA":
         enlace.enviar(VELOCIDAD_CRUCERO, angulo_objetivo)
+        if registro:
+            registro.registrar(fase=fase_actual, heading=f"{heading:.2f}",
+                                error_lateral=f"{error_lateral:.1f}",
+                                angulo=f"{angulo_objetivo:.2f}", velocidad=VELOCIDAD_CRUCERO)
 
         # Fin de vuelta 3 -> parqueo. abs() porque el sentido de giro de
         # la pista (horario o antihorario) no se conoce de antemano.
-        heading = enlace.heading()
         if abs(heading) >= UMBRAL_VUELTAS:
             fase_actual      = "BUSCANDO_PARQUEO"
             t_inicio_parqueo = time.time()
@@ -106,6 +115,10 @@ def al_barrido(scan):
 
     elif fase_actual == "BUSCANDO_PARQUEO":
         enlace.enviar(VELOCIDAD_PARQUEO, angulo_objetivo)
+        if registro:
+            registro.registrar(fase=fase_actual, heading=f"{heading:.2f}",
+                                error_lateral=f"{error_lateral:.1f}",
+                                angulo=f"{angulo_objetivo:.2f}", velocidad=VELOCIDAD_PARQUEO)
 
         match_firma = (abs(medicion.derecha - firma_derecha) < TOLERANCIA_FIRMA and
                        abs(medicion.izquierda - firma_izquierda) < TOLERANCIA_FIRMA)
@@ -152,6 +165,7 @@ if __name__ == '__main__':
     print("\n[START] Boton detectado! Iniciando carrera...")
     enlace.fijar_cero()           # el yaw de este instante es el 0 de carrera
     fase_actual = "CAPTURA_INICIAL"
+    registro = RegistroMetricas("ronda_abierta")
 
     # El LiDAR arranca despues del boton para que su primer barrido
     # capture la firma de pared del punto de partida

@@ -58,6 +58,11 @@ cover/
 # Django stuff:
 *.log
 local_settings.py
+
+# Logs de telemetria por corrida (comun/registro_metricas.py), se generan
+# en la Pi y no se versionan -- solo el codigo que los produce/analiza.
+src/pi3B/logs/
+logs/
 db.sqlite3
 db.sqlite3-journal
 
