@@ -99,7 +99,7 @@ El repositorio mantiene un historial de commits granular (70+ confirmaciones) qu
 
 ## 3. Diseño Evolutivo y Ciclos de Iteración
 
-El desarrollo de nuestro vehículo autónomo no fue un proceso lineal. Para alcanzar la estabilidad actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento y fallos mecánicos en pista.
+El desarrollo de nuestro vehículo autónomo no fue un proceso lineal. Para alcanzar la estabilidad actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento y fallos mecánicos en pista
 
 ### 3.1 Cuadro Comparativo Avanzado de Evolución e Iteración Técnica
 
