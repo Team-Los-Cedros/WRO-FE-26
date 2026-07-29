@@ -19,7 +19,22 @@ from registro_metricas import RegistroMetricas
 
 PIN_BOTON = 21
 
-KP_LATERAL        = 0.14
+PIN_BOTON = 21
+
+# Distancia del LiDAR al eje trasero (centro de giro Ackermann) en mm
+OFFSET_LIDAR_EJE_TRASERO = 204.0
+
+# Parametros del controlador PD + Guiñada Muro + Lookahead
+KP_LATERAL        = 0.08
+KD_LATERAL        = 0.05
+K_ANGULO_MURO     = 0.6
+K_LOOKAHEAD_CURVA = 16.0
+DIST_LOOKAHEAD    = 850.0   # mm, empieza a anticipar giro si d_frontal < 850mm
+
+# Guardias de seguridad (evita atascamiento contra pared)
+DIST_MIN_FRONTAL_RETROCESO = 150.0  # mm
+DIST_MIN_PARED_RETROCESO   = 60.0   # mm
+
 VELOCIDAD_CRUCERO = 100
 VELOCIDAD_PARQUEO = 60
 
@@ -31,9 +46,8 @@ SERVO_MAX_IZQ = 115
 DELTA_MAX_DER = SERVO_MAX_DER - SERVO_CENTRO
 DELTA_MAX_IZQ = SERVO_MAX_IZQ - SERVO_CENTRO
 
-# Limita la variacion maxima de angulo por ciclo para evitar giros bruscos
-# (mismo mecanismo que ronda_cerrada.py, ya validado en pista)
-MAX_DELTA_ANGULO_POR_CICLO = 6.0
+# Rate limiter para suavizar variacion angular por ciclo (10 Hz)
+MAX_DELTA_ANGULO_POR_CICLO = 12.0
 
 TIMEOUT_BUSQUEDA_PARQUEO = 4.0
 UMBRAL_VUELTAS           = 1010.0  # grados de yaw neto, ~3 vueltas
@@ -50,6 +64,8 @@ firma_izquierda  = 0.0
 firma_derecha    = 0.0
 t_inicio_parqueo = 0.0
 ultimo_angulo    = 0.0
+ultimo_error_eje = 0.0
+ultimo_t         = time.time()
 
 _apagando = False
 
@@ -77,23 +93,55 @@ def apagar_sistema(sig=None, frame=None):
 
 def al_barrido(scan):
     # Callback del hilo LiDAR: un ciclo de decision por barrido completo
-    global fase_actual, firma_izquierda, firma_derecha, t_inicio_parqueo, ultimo_angulo
+    global fase_actual, firma_izquierda, firma_derecha, t_inicio_parqueo
+    global ultimo_angulo, ultimo_error_eje, ultimo_t
 
     medicion = lidar_geo.procesar(scan)
 
     if fase_actual == "CAPTURA_INICIAL":
-        firma_izquierda, firma_derecha = medicion.izquierda, medicion.derecha
+        firma_izquierda, firma_derecha = medicion.d_perp_izq, medicion.d_perp_der
         fase_actual = "CARRERA"
+        ultimo_t = time.time()
         print(f"[+] Firma de parqueo: Izq={firma_izquierda:.0f} Der={firma_derecha:.0f}mm")
         print("[INICIO] Corriendo")
         return
 
-    # Centrado proporcional entre paredes, con los mismos limites fisicos
-    # y el mismo limitador de tasa que ya estaban validados en pista
-    error_lateral   = medicion.izquierda - medicion.derecha
-    angulo_crudo    = max(DELTA_MAX_DER, min(DELTA_MAX_IZQ, error_lateral * KP_LATERAL))
-    delta           = max(-MAX_DELTA_ANGULO_POR_CICLO,
-                           min(MAX_DELTA_ANGULO_POR_CICLO, angulo_crudo - ultimo_angulo))
+    t_actual = time.time()
+    dt = max(0.01, t_actual - ultimo_t)
+    ultimo_t = t_actual
+
+    # 1. Guardia de Seguridad / Retroceso si esta peligrosamente cerca de la pared
+    if medicion.frontal < DIST_MIN_FRONTAL_RETROCESO or min(medicion.d_perp_izq, medicion.d_perp_der) < DIST_MIN_PARED_RETROCESO:
+        print("[!] ALERTA COLISION: Distancia critica detectada. Aplicando retroceso de emergencia.")
+        enlace.enviar(-60, 0.0)
+        time.sleep(0.35)
+        return
+
+    # 2. Compensacion cinematica de la posicion del LiDAR (20.4 cm delante del eje trasero)
+    ang_rad = math.radians(medicion.angulo_muro)
+    error_front = medicion.d_perp_izq - medicion.d_perp_der
+    comp_cinematica = 2.0 * OFFSET_LIDAR_EJE_TRASERO * math.sin(ang_rad)
+    error_eje = error_front + comp_cinematica
+
+    # 3. Termino Derivativo del error en el eje
+    der_error = (error_eje - ultimo_error_eje) / dt
+    ultimo_error_eje = error_eje
+
+    # 4. Ley de Control Base (PD Lateral + Guiñada Paralela a Muros)
+    angulo_base = (error_eje * KP_LATERAL) + (der_error * KD_LATERAL) - (medicion.angulo_muro * K_ANGULO_MURO)
+
+    # 5. Anticipacion de Curvas por LiDAR Frontal (Lookahead)
+    angulo_curva = 0.0
+    if medicion.frontal < DIST_LOOKAHEAD:
+        factor_dist = (1.0 - (medicion.frontal / DIST_LOOKAHEAD))
+        bias_lado = 1.0 if medicion.d_perp_izq > medicion.d_perp_der else -1.0
+        angulo_curva = bias_lado * factor_dist * K_LOOKAHEAD_CURVA
+
+    angulo_crudo = max(DELTA_MAX_DER, min(DELTA_MAX_IZQ, angulo_base + angulo_curva))
+
+    # Rate Limiter suave
+    delta = max(-MAX_DELTA_ANGULO_POR_CICLO,
+                min(MAX_DELTA_ANGULO_POR_CICLO, angulo_crudo - ultimo_angulo))
     angulo_objetivo = ultimo_angulo + delta
     ultimo_angulo   = angulo_objetivo
 
@@ -103,11 +151,9 @@ def al_barrido(scan):
         enlace.enviar(VELOCIDAD_CRUCERO, angulo_objetivo)
         if registro:
             registro.registrar(fase=fase_actual, heading=f"{heading:.2f}",
-                                error_lateral=f"{error_lateral:.1f}",
+                                error_lateral=f"{error_eje:.1f}",
                                 angulo=f"{angulo_objetivo:.2f}", velocidad=VELOCIDAD_CRUCERO)
 
-        # Fin de vuelta 3 -> parqueo. abs() porque el sentido de giro de
-        # la pista (horario o antihorario) no se conoce de antemano.
         if abs(heading) >= UMBRAL_VUELTAS:
             fase_actual      = "BUSCANDO_PARQUEO"
             t_inicio_parqueo = time.time()
@@ -117,11 +163,11 @@ def al_barrido(scan):
         enlace.enviar(VELOCIDAD_PARQUEO, angulo_objetivo)
         if registro:
             registro.registrar(fase=fase_actual, heading=f"{heading:.2f}",
-                                error_lateral=f"{error_lateral:.1f}",
+                                error_lateral=f"{error_eje:.1f}",
                                 angulo=f"{angulo_objetivo:.2f}", velocidad=VELOCIDAD_PARQUEO)
 
-        match_firma = (abs(medicion.derecha - firma_derecha) < TOLERANCIA_FIRMA and
-                       abs(medicion.izquierda - firma_izquierda) < TOLERANCIA_FIRMA)
+        match_firma = (abs(medicion.d_perp_der - firma_derecha) < TOLERANCIA_FIRMA and
+                       abs(medicion.d_perp_izq - firma_izquierda) < TOLERANCIA_FIRMA)
         timeout     = (time.time() - t_inicio_parqueo) > TIMEOUT_BUSQUEDA_PARQUEO
 
         if match_firma or timeout:

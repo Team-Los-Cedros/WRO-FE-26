@@ -36,6 +36,17 @@ ANGULO_MAX_TRASDER = 170
 ANGULO_MIN_TRASIZQ = 190
 ANGULO_MAX_TRASIZQ = 270
 
+# Haces perpendiculares y diagonales para calculo cinematico de guiñada
+ANGULO_MIN_PERP_DER = 80
+ANGULO_MAX_PERP_DER = 100
+ANGULO_MIN_PERP_IZQ = 260
+ANGULO_MAX_PERP_IZQ = 280
+
+ANGULO_MIN_DIAG_DER = 40
+ANGULO_MAX_DIAG_DER = 50
+ANGULO_MIN_DIAG_IZQ = 310
+ANGULO_MAX_DIAG_IZQ = 320
+
 # Sector frontal por defecto (350 -> 10, cruza el 0). La navegacion lo
 # ensancha durante la evasion para no perder el poste al girar.
 SECTOR_FRONTAL_NORMAL = (350.0, 10.0)
@@ -64,10 +75,13 @@ class Medicion:
     # Resultado de un barrido completo
     __slots__ = ("frontal", "izquierda", "derecha", "trasera",
                  "trasera_derecha", "trasera_izquierda",
-                 "clusters_obstaculo", "perfil", "timestamp")
+                 "clusters_obstaculo", "perfil", "timestamp",
+                 "d_perp_izq", "d_perp_der", "d_diag_izq", "d_diag_der", "angulo_muro")
 
     def __init__(self, frontal, izquierda, derecha, trasera,
-                 trasera_derecha, trasera_izquierda, clusters, perfil):
+                 trasera_derecha, trasera_izquierda, clusters, perfil,
+                 d_perp_izq=2000.0, d_perp_der=2000.0, d_diag_izq=2000.0, d_diag_der=2000.0,
+                 angulo_muro=0.0):
         self.frontal   = frontal
         self.izquierda = izquierda
         self.derecha   = derecha
@@ -77,6 +91,11 @@ class Medicion:
         self.clusters_obstaculo = clusters
         self.perfil = perfil    # 360 floats, perfil[i] = distancia min en el grado i
         self.timestamp = time.time()
+        self.d_perp_izq = d_perp_izq
+        self.d_perp_der = d_perp_der
+        self.d_diag_izq = d_diag_izq
+        self.d_diag_der = d_diag_der
+        self.angulo_muro = angulo_muro
 
 
 def construir_perfil_360(scan):
@@ -171,6 +190,35 @@ class ProcesadorLidar:
         d_tras_der  = distancia_en_rango(perfil, ANGULO_MIN_TRASDER, ANGULO_MAX_TRASDER)
         d_tras_izq  = distancia_en_rango(perfil, ANGULO_MIN_TRASIZQ, ANGULO_MAX_TRASIZQ)
 
+        d_perp_der  = distancia_en_rango(perfil, ANGULO_MIN_PERP_DER, ANGULO_MAX_PERP_DER)
+        d_perp_izq  = distancia_en_rango(perfil, ANGULO_MIN_PERP_IZQ, ANGULO_MAX_PERP_IZQ)
+        d_diag_der  = distancia_en_rango(perfil, ANGULO_MIN_DIAG_DER, ANGULO_MAX_DIAG_DER)
+        d_diag_izq  = distancia_en_rango(perfil, ANGULO_MIN_DIAG_IZQ, ANGULO_MAX_DIAG_IZQ)
+
+        # Calculo de angulo respecto a la pared (orientacion de guiñada en grados)
+        ang_muro_der = 0.0
+        if d_perp_der < DIST_PARED_VALIDA_MAX and d_diag_der < DIST_PARED_VALIDA_MAX:
+            dx = d_diag_der * 0.7071 - d_perp_der
+            dy = d_diag_der * 0.7071
+            if dy > 1.0:
+                ang_muro_der = math.degrees(math.atan2(dx, dy))
+
+        ang_muro_izq = 0.0
+        if d_perp_izq < DIST_PARED_VALIDA_MAX and d_diag_izq < DIST_PARED_VALIDA_MAX:
+            dx = d_perp_izq - d_diag_izq * 0.7071
+            dy = d_diag_izq * 0.7071
+            if dy > 1.0:
+                ang_muro_izq = math.degrees(math.atan2(dx, dy))
+
+        if d_perp_der < DIST_PARED_VALIDA_MAX and d_perp_izq < DIST_PARED_VALIDA_MAX:
+            angulo_muro = (ang_muro_der + ang_muro_izq) / 2.0
+        elif d_perp_der < DIST_PARED_VALIDA_MAX:
+            angulo_muro = ang_muro_der
+        elif d_perp_izq < DIST_PARED_VALIDA_MAX:
+            angulo_muro = ang_muro_izq
+        else:
+            angulo_muro = 0.0
+
         # Modo Inercial en las paredes laterales
         if d_der < DIST_PARED_VALIDA_MAX:
             self._ultima_der = d_der
@@ -188,4 +236,7 @@ class ProcesadorLidar:
                     if es_cluster_obstaculo(c)]
 
         return Medicion(d_front, d_izq, d_der, d_tras,
-                         d_tras_der, d_tras_izq, clusters, perfil)
+                         d_tras_der, d_tras_izq, clusters, perfil,
+                         d_perp_izq=d_perp_izq, d_perp_der=d_perp_der,
+                         d_diag_izq=d_diag_izq, d_diag_der=d_diag_der,
+                         angulo_muro=angulo_muro)
