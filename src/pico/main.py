@@ -28,7 +28,7 @@ LIMITE_DER = 70    # Máximo giro a la derecha
 LIMITE_IZQ = 115   # Máximo giro a la izquierda
 
 def mover_servo(angulo):
-    # Protegemos el servo usando tus límites calibrados en lugar de 0 y 180
+    # Limita al rango calibrado en vez de 0-180 (protege el servo)
     angulo = max(LIMITE_DER, min(LIMITE_IZQ, angulo))
     duty = int(1638 + (angulo / 180.0) * (8192 - 1638))
     servo.duty_u16(duty)
@@ -117,11 +117,8 @@ while True:
                 except:
                     pass
 
-        # Lógica de dirección (LiDAR Proporcional + Amortiguador Gyro)
-        # El comando de la Pi actúa directamente sobre tu CENTRO calibrado
+        # Angulo objetivo (de la Pi) sobre el centro, con amortiguacion por gyro
         angulo_servo = CENTRO + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
-        
-        # Limitación física estricta con tus nuevos parámetros
         angulo_servo = max(LIMITE_DER, min(LIMITE_IZQ, angulo_servo))
         mover_servo(angulo_servo)
         

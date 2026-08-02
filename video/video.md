@@ -8,6 +8,6 @@ Vuelta autónoma completa del vehículo guiada por RPLiDAR C1 con control propor
 
 ## Ronda Cerrada
 
-**Estado: pendiente de grabación final.** Se está validando en pista la corrección aplicada a la lógica de evasión de obstáculos (ver historial de commits de `src/pi3B/ronda_cerrada/Close2_round.py`) antes de grabar la corrida oficial.
+**Estado: pendiente de grabación final.** Se está validando en pista la corrección aplicada a la lógica de evasión de obstáculos (ver historial de commits de `src/pi3B/ronda_cerrada/ronda_cerrada.py`) antes de grabar la corrida oficial.
 
 En `video/video-drafts/` se encuentran las grabaciones preliminares de las pruebas de desarrollo (`P1`–`P5`, aperturas y cierres de cada iteración), usadas internamente por el equipo para depurar el algoritmo de evasión antes de la grabación oficial.

@@ -107,22 +107,45 @@ No hace falta instalar ningún paquete adicional en el Pico — `main.py` solo u
 
 ## 5. Desplegar los scripts en la Raspberry Pi 3B
 
-En el repositorio, `src/pi3B/` está organizado en subcarpetas por responsabilidad (`ronda_cerrada/`, `ronda_abierta/`, `calibracion/`) para que sea más fácil de navegar. **Esa organización es solo del repositorio.** `controlador_inicio.py` referencia los scripts de carrera directamente en `/home/pi/` sin subcarpetas, y los módulos de la Ronda Cerrada se importan entre sí por nombre de archivo (`import vision`, `from lidar import LidarC1`, etc.), así que **todos los `.py` deben quedar juntos y sin subcarpetas** en `/home/pi/` al copiarlos, manteniendo la capitalización exacta:
+En el repositorio, `src/pi3B/` está organizado en subcarpetas por responsabilidad (`comun/`, `ronda_cerrada/`, `ronda_abierta/`, `calibracion/`) para que sea más fácil de navegar. **Esa organización es solo del repositorio.** `controlador_inicio.py` referencia los scripts de carrera directamente en `/home/pi/` sin subcarpetas, y los módulos se importan entre sí por nombre de archivo (`import vision`, `from lidar_driver import LidarDriver`, etc.), así que **todos los `.py` deben quedar juntos y sin subcarpetas** en `/home/pi/` al copiarlos, manteniendo la capitalización exacta.
+
+### Opción A — Clonar el repo en la Pi + `deploy.sh` (recomendada para iterar)
+
+Requiere que la Pi tenga salida a internet (para llegar a GitHub). Se clona una sola vez; después, cada actualización es un `git pull` + volver a correr el script:
+
+```bash
+ssh pi@<ip-de-la-pi>
+git clone https://github.com/Team-Los-Cedros/WRO-FE-26.git
+cd WRO-FE-26
+bash src/pi3B/deploy.sh
+```
+
+`deploy.sh` copia siempre el conjunto correcto de archivos planos a `/home/pi/` — vive dentro del repo, así que queda actualizado automáticamente cada vez que se reorganiza `src/pi3B/` (a diferencia de escribir el `scp` a mano, que hay que recordar actualizar). Para volver a desplegar después de un cambio:
+
+```bash
+cd ~/WRO-FE-26 && git pull && bash src/pi3B/deploy.sh
+```
+
+### Opción B — `scp` directo desde la laptop (sin depender de internet en la Pi)
+
+Útil el día de la competencia si el lugar no tiene wifi confiable: solo necesita que la laptop y la Pi estén en la misma red local, no acceso a GitHub.
 
 ```bash
 scp src/pi3B/controlador_inicio.py \
-    src/pi3B/ronda_abierta/Open_round.py \
-    src/pi3B/ronda_cerrada/Close2_round.py \
+    src/pi3B/comun/lidar_driver.py \
+    src/pi3B/comun/lidar_geometria.py \
+    src/pi3B/comun/enlace_pico.py \
+    src/pi3B/ronda_abierta/ronda_abierta.py \
+    src/pi3B/ronda_cerrada/ronda_cerrada.py \
     src/pi3B/ronda_cerrada/navegacion.py \
+    src/pi3B/ronda_cerrada/camara_driver.py \
     src/pi3B/ronda_cerrada/vision.py \
-    src/pi3B/ronda_cerrada/lidar.py \
     src/pi3B/ronda_cerrada/tracker.py \
-    src/pi3B/ronda_cerrada/enlace_pico.py \
     src/pi3B/calibracion/calibrar_hsv.py \
     pi@<ip-de-la-pi>:/home/pi/
 ```
 
-> No copies nada de `src/pi3B/ronda_cerrada/legacy/` — son versiones superadas de la Ronda Cerrada, archivadas solo como referencia histórica (ver el `README.md` de esa carpeta).
+> Ninguna de las dos opciones copia `src/pi3B/ronda_cerrada/legacy/` — son versiones superadas de la Ronda Cerrada, archivadas solo como referencia histórica (ver el `README.md` de esa carpeta). `deploy.sh` ya lo excluye por diseño; con `scp` simplemente no se lista.
 
 ---
 
@@ -146,7 +169,7 @@ Más detalle de este servicio y comandos de diagnóstico en [`src/pi3B/README.md
 Con el servicio detenido (`sudo systemctl stop wro_start.service`), corre manualmente para ver la salida en vivo:
 
 ```bash
-python3 -u /home/pi/Open_round.py
+python3 -u /home/pi/ronda_abierta.py
 ```
 
 Deberías ver `[+] Telemetria LiDAR activa.` y `SISTEMA LISTO...`. Presiona el botón físico (GPIO 21) y confirma que el robot centra la dirección y avanza guiado por las paredes.
@@ -160,5 +183,5 @@ Deberías ver `[+] Telemetria LiDAR activa.` y `SISTEMA LISTO...`. Presiona el b
 | `ModuleNotFoundError: No module named 'picamera2'` | Se instaló por `pip` en vez de `apt`, o el venv no tiene `--system-site-packages` | `sudo apt install -y python3-picamera2` y recrear el venv con `--system-site-packages` |
 | `error: externally-managed-environment` al hacer `pip install` | Protección PEP 668 de Raspberry Pi OS Bookworm | Usa un venv (sección 2.2, Opción A) o `--break-system-packages` (Opción B) |
 | `PermissionError` al abrir `/dev/ttyUSB0` o `/dev/ttyACM0` | Usuario `pi` no está en el grupo `dialout` | `sudo usermod -aG dialout pi` y reiniciar sesión |
-| El servicio `wro_start.service` no encuentra `Open_round.py`/`Close2_round.py` | Los archivos no están en `/home/pi/`, les falta algún módulo de soporte, o la capitalización no coincide exactamente | Ver sección 5 — `controlador_inicio.py` es sensible a mayúsculas (Linux) y `Close2_round.py` necesita sus 4 módulos en la misma carpeta |
+| El servicio `wro_start.service` no encuentra `ronda_abierta.py`/`ronda_cerrada.py` | Los archivos no están en `/home/pi/`, les falta algún módulo de soporte, o la capitalización no coincide exactamente | Ver sección 5 — `controlador_inicio.py` es sensible a mayúsculas (Linux); `ronda_cerrada.py` necesita sus 7 módulos de soporte (4 propios + 3 de `comun/`) y `ronda_abierta.py` los 3 de `comun/`, todos en la misma carpeta |
 | `lgpio.error: 'unknown handle'` al detener el script | Doble Ctrl+C mientras `apagar_sistema()` seguía en curso | Ya corregido en el código (guardia de reentrada); si persiste, usa un solo Ctrl+C y espera |

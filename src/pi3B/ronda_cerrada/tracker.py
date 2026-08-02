@@ -71,8 +71,8 @@ class TrackerObstaculo:
 
     def asociar(self, clusters, centroide_fn):
         # Corrige la prediccion con el cluster real mas cercano.
-        # centroide_fn viene de lidar.py, se pasa como argumento para no
-        # importar lidar desde aqui.
+        # centroide_fn viene de lidar_geometria.py, se pasa como argumento
+        # para no importar ese modulo desde aqui.
         if not self.activo or not clusters:
             return False
 

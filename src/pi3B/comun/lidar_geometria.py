@@ -1,7 +1,10 @@
-# Driver del RPLIDAR C1 y geometria del barrido.
-# Parsea el protocolo binario del C1, junta los puntos hasta completar una
-# vuelta (wrap-around del angulo) y por cada barrido entrega una Medicion
-# con las distancias por sector y los clusters que parecen postes.
+# Interpretacion geometrica de un barrido crudo del LiDAR (ver lidar_driver.py
+# para el protocolo/hilo). Construye un perfil de distancia minima en los
+# 360 grados completos en cada ciclo (1 bin por grado) y todo lo demas
+# (sectores de pared, diagonales traseras, modo Inercial) se deriva de ese
+# perfil -- no hay sectores calculados por separado con su propio loop.
+# Tambien hace clustering ABD para separar postes de paredes. No sabe nada
+# del puerto serial ni del protocolo binario del C1.
 #
 # Convenciones: 0 grados = frente, los angulos crecen en sentido horario.
 # Cartesianas: x+ = derecha, y+ = frente (en mm).
@@ -9,17 +12,17 @@ import time
 import math
 import threading
 
-import serial
-
-PUERTO_LIDAR   = '/dev/ttyUSB0'
-BAUDRATE_LIDAR = 460800
-
-START_MOTOR_CMD = b'\xa5\xf0\x02\x94\x02\xc1\x02'
-START_SCAN_CMD  = b'\xa5\x20'
-STOP_CMD        = b'\xa5\x25'
+# ==========================================
+# PERFIL 360 GRADOS (1 bin por grado)
+# ==========================================
+NUM_BINS       = 360
+GRADOS_POR_BIN = 360.0 / NUM_BINS
 
 # ==========================================
-# SECTORES DE PARED (grados)
+# SECTORES DE PARED Y DIAGONALES TRASERAS (grados)
+# Las diagonales traseras cubren el hueco entre "derecha"/"izquierda" y
+# "trasera" -- las usa el retroceso de emergencia para saber de que lado
+# hay mas espacio libre en vivo (ver navegacion.py, estado RETROCESO).
 # ==========================================
 ANGULO_MIN_DER = 30
 ANGULO_MAX_DER = 90
@@ -27,6 +30,11 @@ ANGULO_MIN_IZQ = 270
 ANGULO_MAX_IZQ = 330
 ANGULO_MIN_TRAS = 170
 ANGULO_MAX_TRAS = 190
+
+ANGULO_MIN_TRASDER = 90
+ANGULO_MAX_TRASDER = 170
+ANGULO_MIN_TRASIZQ = 190
+ANGULO_MAX_TRASIZQ = 270
 
 # Sector frontal por defecto (350 -> 10, cruza el 0). La navegacion lo
 # ensancha durante la evasion para no perder el poste al girar.
@@ -55,23 +63,40 @@ EXT_ANG_MIN_MURO      = 20.0    # un muro siempre ocupa mas que esto
 class Medicion:
     # Resultado de un barrido completo
     __slots__ = ("frontal", "izquierda", "derecha", "trasera",
-                 "clusters_obstaculo", "timestamp")
+                 "trasera_derecha", "trasera_izquierda",
+                 "clusters_obstaculo", "perfil", "timestamp")
 
-    def __init__(self, frontal, izquierda, derecha, trasera, clusters):
+    def __init__(self, frontal, izquierda, derecha, trasera,
+                 trasera_derecha, trasera_izquierda, clusters, perfil):
         self.frontal   = frontal
         self.izquierda = izquierda
         self.derecha   = derecha
         self.trasera   = trasera
+        self.trasera_derecha   = trasera_derecha
+        self.trasera_izquierda = trasera_izquierda
         self.clusters_obstaculo = clusters
+        self.perfil = perfil    # 360 floats, perfil[i] = distancia min en el grado i
         self.timestamp = time.time()
 
 
-def en_sector(ang, sector):
-    # Soporta sectores que cruzan el 0 (ej: 350 -> 10)
-    a_min, a_max = sector
-    if a_min <= a_max:
-        return a_min <= ang <= a_max
-    return ang >= a_min or ang <= a_max
+def construir_perfil_360(scan):
+    # Distancia minima por cada grado del circulo completo
+    perfil = [8000.0] * NUM_BINS
+    for ang, dist in scan:
+        i = int(ang / GRADOS_POR_BIN) % NUM_BINS
+        if dist < perfil[i]:
+            perfil[i] = dist
+    return perfil
+
+
+def distancia_en_rango(perfil, ang_min, ang_max):
+    # Minima distancia entre ang_min y ang_max. Soporta rangos que cruzan
+    # el 0 (ej 350 -> 10, como el sector frontal por defecto).
+    i_min = int(ang_min / GRADOS_POR_BIN) % NUM_BINS
+    i_max = int(ang_max / GRADOS_POR_BIN) % NUM_BINS
+    if i_min <= i_max:
+        return min(perfil[i_min:i_max + 1])
+    return min(min(perfil[i_min:]), min(perfil[:i_max + 1]))
 
 
 def centroide_xy_cluster(cluster):
@@ -114,12 +139,11 @@ def es_cluster_obstaculo(cluster):
             and dist_min < DIST_MAX_OBSTACULO)
 
 
-class LidarC1:
-    def __init__(self, puerto=PUERTO_LIDAR, baudrate=BAUDRATE_LIDAR):
-        self._puerto   = puerto
-        self._baudrate = baudrate
-        self._ser      = None
-
+class ProcesadorLidar:
+    # Convierte barridos crudos (de lidar_driver.LidarDriver) en Medicion.
+    # Mantiene el estado de interpretacion: sector frontal vigente (lo
+    # reconfigura la FSM de evasion) y el modo Inercial de cada pared.
+    def __init__(self):
         self._lock_sector    = threading.Lock()
         self._sector_frontal = SECTOR_FRONTAL_NORMAL
 
@@ -134,20 +158,18 @@ class LidarC1:
     def sector_frontal_normal(self):
         self.fijar_sector_frontal(*SECTOR_FRONTAL_NORMAL)
 
-    def _procesar_barrido(self, scan):
+    def procesar(self, scan):
         with self._lock_sector:
             sector_frontal = self._sector_frontal
 
-        d_der = d_izq = d_front = d_tras = 8000.0
-        for ang, dist in scan:
-            if ANGULO_MIN_DER <= ang <= ANGULO_MAX_DER:
-                d_der = min(d_der, dist)
-            elif ANGULO_MIN_IZQ <= ang <= ANGULO_MAX_IZQ:
-                d_izq = min(d_izq, dist)
-            if ANGULO_MIN_TRAS <= ang <= ANGULO_MAX_TRAS:
-                d_tras = min(d_tras, dist)
-            if en_sector(ang, sector_frontal):
-                d_front = min(d_front, dist)
+        perfil = construir_perfil_360(scan)
+
+        d_front     = distancia_en_rango(perfil, *sector_frontal)
+        d_der       = distancia_en_rango(perfil, ANGULO_MIN_DER, ANGULO_MAX_DER)
+        d_izq       = distancia_en_rango(perfil, ANGULO_MIN_IZQ, ANGULO_MAX_IZQ)
+        d_tras      = distancia_en_rango(perfil, ANGULO_MIN_TRAS, ANGULO_MAX_TRAS)
+        d_tras_der  = distancia_en_rango(perfil, ANGULO_MIN_TRASDER, ANGULO_MAX_TRASDER)
+        d_tras_izq  = distancia_en_rango(perfil, ANGULO_MIN_TRASIZQ, ANGULO_MAX_TRASIZQ)
 
         # Modo Inercial en las paredes laterales
         if d_der < DIST_PARED_VALIDA_MAX:
@@ -165,64 +187,5 @@ class LidarC1:
         clusters = [c for c in segmentar_clusters_abd(scan_relevante)
                     if es_cluster_obstaculo(c)]
 
-        return Medicion(d_front, d_izq, d_der, d_tras, clusters)
-
-    def hilo_lectura(self, obtener_corriendo, al_barrido):
-        # al_barrido(Medicion) se llama una vez por barrido completo
-        try:
-            self._ser = serial.Serial(self._puerto, baudrate=self._baudrate, timeout=1)
-            time.sleep(0.5)
-            self._ser.write(START_MOTOR_CMD)
-            time.sleep(1.5)
-            self._ser.reset_input_buffer()
-            self._ser.write(START_SCAN_CMD)
-            time.sleep(0.5)
-            if self._ser.in_waiting >= 7:          # descartar cabecera de respuesta
-                self._ser.read(7)
-            print("[+] Telemetria LiDAR activa.")
-
-            angulo_previo = 0.0
-            buffer_barrido = []
-
-            while obtener_corriendo():
-                b0 = self._ser.read(1)
-                if not b0:
-                    continue
-                byte0 = b0[0]
-                # En un paquete valido el bit de start y su inverso difieren
-                if (byte0 & 0x01) == ((byte0 >> 1) & 0x01):
-                    continue
-
-                resto = self._ser.read(4)
-                if len(resto) < 4:
-                    continue
-                byte1, byte2, byte3, byte4 = resto
-
-                if (byte1 & 0x01) != 1:            # check bit del campo angulo
-                    continue
-
-                angle       = ((byte2 << 7) | (byte1 >> 1)) / 64.0
-                distance_mm = ((byte4 << 8) | byte3) / 4.0
-
-                if not (0 < distance_mm < 6000):
-                    continue
-
-                # Wrap-around del angulo = barrido completo listo
-                if angle < angulo_previo and (angulo_previo - angle) > 300.0:
-                    if buffer_barrido:
-                        al_barrido(self._procesar_barrido(buffer_barrido))
-                    buffer_barrido = []
-                angulo_previo = angle
-                buffer_barrido.append((angle, distance_mm))
-
-        except Exception as e:
-            if obtener_corriendo():
-                print(f"[-] Falla en hilo LiDAR: {e}")
-
-    def cerrar(self):
-        if self._ser and self._ser.is_open:
-            try:
-                self._ser.write(STOP_CMD)
-                self._ser.close()
-            except Exception:
-                pass
+        return Medicion(d_front, d_izq, d_der, d_tras,
+                         d_tras_der, d_tras_izq, clusters, perfil)

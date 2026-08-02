@@ -43,19 +43,25 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │   │   └── Mpu6050.py             # Driver I2C standalone para el sensor inercial MPU6050
 │   └── pi3B/                     # Scripts de alto nivel (Python 3 - Raspberry Pi 3B)
 │       ├── controlador_inicio.py # Orquestador central (Ejecutado como servicio del sistema OS)
-│       ├── ronda_abierta/
-│       │   └── Open_round.py     # Algoritmo de navegación reactiva para la Ronda Abierta (standalone)
-│       ├── ronda_cerrada/        # FSM de navegación/evasión de la Ronda Cerrada
-│       │   ├── Close2_round.py   # Punto de entrada (importa los 4 siguientes)
-│       │   ├── navegacion.py     # Cerebro: máquina de estados de carrera/evasión/parqueo
-│       │   ├── vision.py         # Hilo de cámara: detección HSV de postes rojo/verde
-│       │   ├── lidar.py          # Driver RPLIDAR C1: paredes y clustering ABD
-│       │   ├── tracker.py        # Object persistence tracker del obstáculo activo
+│       ├── deploy.sh             # Copia los .py de carrera planos a /home/pi/
+│       ├── comun/                # Drivers compartidos por ambas rondas
+│       │   ├── lidar_driver.py   # Driver: protocolo binario RPLIDAR C1
+│       │   ├── lidar_geometria.py # Procesador: paredes y clustering ABD
 │       │   ├── enlace_pico.py    # Canal serial con la Pico 2 (consignas + telemetria IMU)
+│       │   └── registro_metricas.py # Logger CSV de telemetria por ciclo (error lateral, angulo, heading)
+│       ├── ronda_abierta/
+│       │   └── ronda_abierta.py  # Reutiliza comun/: centrado proporcional + parqueo
+│       ├── ronda_cerrada/        # FSM de navegación/evasión de la Ronda Cerrada
+│       │   ├── ronda_cerrada.py  # Punto de entrada (importa comun/ + los 4 siguientes)
+│       │   ├── navegacion.py     # Cerebro: máquina de estados de carrera/evasión/parqueo
+│       │   ├── camara_driver.py  # Driver: adquisición de frames (Picamera2)
+│       │   ├── vision.py         # Procesador: detección HSV de postes rojo/verde
+│       │   ├── tracker.py        # Object persistence tracker del obstáculo activo
 │       │   └── legacy/           # Versiones superadas (archivadas, no desplegar)
 │       ├── calibracion/
 │       │   ├── calibrar_hsv.py   # Herramienta de calibración interactiva de umbrales HSV
-│       │   └── capturar_hsv.py   # Diagnóstico HSV sin GUI (guarda capturas a disco)
+│       │   ├── capturar_hsv.py   # Diagnóstico HSV sin GUI (guarda capturas a disco)
+│       │   └── analizar_log.py   # Resume los CSV de registro_metricas.py en métricas agregadas
 │       ├── requirements.txt      # Dependencias Python del entorno de la Pi 3B
 │       └── wro_start.service     # Unidad systemd real para el arranque autónomo
 ├── 3d-Models/                    # Modelos mecánicos: STL del chasis V1 (archivado) y CAD LEGO del V2
@@ -68,7 +74,8 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 ├── video/                        # Enlace oficial del video de pista y borradores de prueba
 ├── schemes/                      # Diagrama de cableado y fotos de la placa perforada
 ├── README.md                      # Documentación técnica principal (este archivo)
-└── INSTALACION.md                 # Manual paso a paso para reproducir el entorno desde cero
+├── INSTALACION.md                 # Manual paso a paso para reproducir el entorno desde cero
+└── CHANGELOG.md                   # Notas de versión por hito, referenciadas a commits reales
 
 ```
 
@@ -91,11 +98,13 @@ El repositorio mantiene un historial de commits granular (70+ confirmaciones) qu
 
 > **Nota de reproducibilidad:** Se puede auditar la evolución exacta de cualquier archivo con `git log --follow -p -- <archivo>`, por ejemplo `git log --follow -p -- src/pico/main.py` muestra el cambio de calibración del ángulo central documentado arriba.
 
+> **Notas de lanzamiento:** El detalle de cada hito (con los hashes de commit exactos que lo componen) está en [`CHANGELOG.md`](CHANGELOG.md). Los hitos principales también están marcados como tags de git (`git tag`, o [ver Releases en GitHub](https://github.com/Team-Los-Cedros/WRO-FE-26/tags)).
+
 ---
 
 ## 3. Diseño Evolutivo y Ciclos de Iteración
 
-El desarrollo de nuestro vehículo autónomo no fue un proceso lineal. Para alcanzar la estabilidad actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento y fallos mecánicos en pista.
+El desarrollo de nuestro vehículo autónomo no fue un proceso lineal. Para alcanzar la estabilidad actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento y fallos mecánicos en pista
 
 ### 3.1 Cuadro Comparativo Avanzado de Evolución e Iteración Técnica
 
@@ -263,8 +272,8 @@ graph TD
     A["Encendido del Sistema (systemd)"] --> B["controlador_inicio.py"]
     B --> C{"¿Qué señal se detecta?"}
     
-    C -->|"Botón 1 (GPIO 21)"| D["Ejecutar: Open_round.py"]
-    C -->|"Botón 2 (GPIO 20)"| E["Ejecutar: Close2_round.py"]
+    C -->|"Botón 1 (GPIO 21)"| D["Ejecutar: ronda_abierta.py"]
+    C -->|"Botón 2 (GPIO 20)"| E["Ejecutar: ronda_cerrada.py"]
     
     D --> F["Centrado Reactivo por LiDAR C1"]
     E --> G["Fusión Sensorial: OpenCV HSV + LiDAR"]
@@ -310,7 +319,7 @@ WantedBy=multi-user.target
 
 ### 5.2 Estructura Modular del Script de Carrera (Fragmentos Clave)
 
-El script opera bajo una máquina de estados finitos (`ESPERANDO_BOTON`, `CALIBRANDO`, `CAPTURA_INICIAL`, `CARRERA`, `BUSCANDO_PARQUEO`, `DETENIDO`), compartida por `Open_round.py` y `Close2_round.py` (esta última con un sub-estado de evasión adicional dentro de `CARRERA`, ver diagrama en la sección 5.3-B):
+El script opera bajo una máquina de estados finitos (`ESPERANDO_BOTON`, `CALIBRANDO`, `CAPTURA_INICIAL`, `CARRERA`, `BUSCANDO_PARQUEO`, `DETENIDO`), compartida por `ronda_abierta.py` y `ronda_cerrada.py` (esta última con un sub-estado de evasión adicional dentro de `CARRERA`, ver diagrama en la sección 5.3-B):
 
 ```mermaid
 stateDiagram-v2
@@ -387,7 +396,7 @@ La meta en la Ronda Abierta es mantener la velocidad lineal máxima constante re
 $$e(t) = \text{dist}_{\text{izquierda}} - \text{dist}_{\text{derecha}}$$
 
 el script aplica una ganancia proporcional (`KP_LATERAL`) para enviar micro-correcciones de dirección a la Pico 2.
-* **Manejo de Casos Extremos (Puntos de Fallo) — Modo "Inercial":** Si el vehículo entra muy sesgado en una curva y el LiDAR pierde temporalmente la lectura de una de las paredes (lectura > 4000mm), el script **sostiene el último valor válido conocido de esa pared** en vez de sustituirlo por un valor fijo arbitrario. Esto se corrigió durante la depuración de la Ronda Cerrada (sección 8.2): la implementación original saltaba a un valor fijo de 2000mm apenas se perdía la lectura, lo que podía producir un giro brusco justo al entrar en una curva cerrada. La versión actual de ambos scripts (`Open_round.py` y `Close2_round.py`) sostiene el dato real más reciente. *Nota de alcance:* todavía no se integra el giroscopio de la Pico para predecir la posición de la pared durante la pérdida de señal — es una mejora identificada, no implementada aún.
+* **Manejo de Casos Extremos (Puntos de Fallo) — Modo "Inercial":** Si el vehículo entra muy sesgado en una curva y el LiDAR pierde temporalmente la lectura de una de las paredes (lectura > 4000mm), el script **sostiene el último valor válido conocido de esa pared** en vez de sustituirlo por un valor fijo arbitrario. Esto se corrigió durante la depuración de la Ronda Cerrada (sección 8.2): la implementación original saltaba a un valor fijo de 2000mm apenas se perdía la lectura, lo que podía producir un giro brusco justo al entrar en una curva cerrada. La versión actual de ambos scripts (`ronda_abierta.py` y `ronda_cerrada.py`) sostiene el dato real más reciente. *Nota de alcance:* todavía no se integra el giroscopio de la Pico para predecir la posición de la pared durante la pérdida de señal — es una mejora identificada, no implementada aún.
 
 #### B. Ronda Cerrada (Fusión Sensorial Visión Artificial + LiDAR)
 
@@ -419,13 +428,17 @@ stateDiagram-v2
     APROXIMACION --> RETROCESO: EMERGENCIA
     SOBREPASO --> RETROCESO: EMERGENCIA
     REINCORPORACION --> RETROCESO: EMERGENCIA
-    RETROCESO --> REORIENTACION: choque trasero bajo 250mm, O tiempo mayor a 3.5s
-    REORIENTACION --> CRUCERO: tiempo mayor a 0.6s
+    RETROCESO --> CRUCERO: choque trasero bajo 250mm, O tiempo mayor a 3.5s
 
     note right of APROXIMACION
-        Pure pursuit: objetivo = poste ± 260mm
-        segun regla WRO (ROJO derecha, VERDE izquierda).
-        Angulo = -bearing al objetivo (clamp ±25°)
+        Pure pursuit hacia el punto de paso, unos 260mm
+        al lado del poste, segun regla WRO (ROJO derecha,
+        VERDE izquierda). Angulo proporcional al bearing
+        hacia ese punto, con tope fisico del servo. Se
+        mezcla con el centrado de pared si la pared del
+        lado del giro se acerca (misma logica en SOBREPASO
+        y REINCORPORACION, corrigio un bug real donde la
+        evasion no veia las paredes y se les clavaba).
     end note
 
     note right of SOBREPASO
@@ -433,17 +446,26 @@ stateDiagram-v2
         mientras la odometria del tracker empuja el
         poste hacia atras en el marco del robot
     end note
+
+    note right of RETROCESO
+        Control P en vivo sobre el perfil LiDAR de 360
+        grados. Gira hacia la diagonal trasera con mas
+        espacio en cada ciclo, no un signo fijo. Corrige
+        un bug real de pista, en reversa el mismo angulo
+        de rueda gira el chasis al sentido contrario
+        respecto a marcha adelante, geometria Ackermann.
+    end note
 ```
 
-> El bloque `RETROCESO`/`REORIENTACION` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en uno de esos dos), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/ronda_cerrada/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `Close2_round.py` quedó como orquestador delgado con *watchdog* de percepción.
+> El bloque `RETROCESO` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en él), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/ronda_cerrada/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `ronda_cerrada.py` quedó como orquestador delgado con *watchdog* de percepción. El LiDAR (`src/pi3B/comun/lidar_geometria.py`) construye un perfil de distancia mínima en los 360° completos (1 grado por bin) en cada barrido; los sectores fijos (pared, frontal, diagonales traseras) son consultas sobre ese perfil, no cálculos independientes.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 
-Los valores numéricos vigentes en `Open_round.py`, obtenidos empíricamente mediante prueba y error directamente en pista (sin instrumentación de *logging* de datos, por lo que el método de validación fue observacional: repetir vueltas hasta eliminar oscilación visible contra las paredes):
+Los valores numéricos vigentes en `ronda_abierta.py`, obtenidos empíricamente mediante prueba y error directamente en pista (sin instrumentación de *logging* de datos, por lo que el método de validación fue observacional: repetir vueltas hasta eliminar oscilación visible contra las paredes):
 
 | Parámetro | Valor Vigente | Efecto observado al ajustarlo |
 | :--- | :---: | :--- |
-| `KP_LATERAL` | `0.14` | Ganancia proporcional del centrado. Valores mayores generaban zigzag (sobrecorrección) en los tramos rectos; valores menores dejaban al coche "flotando" sin corregir a tiempo antes de una curva cerrada. Unificado a `0.14` en `Open_round.py` y `Close2_round.py` (antes `Open_round.py` tenía `0.22`, un valor no probado que quedó desincronizado). |
+| `KP_LATERAL` | `0.14` | Ganancia proporcional del centrado. Valores mayores generaban zigzag (sobrecorrección) en los tramos rectos; valores menores dejaban al coche "flotando" sin corregir a tiempo antes de una curva cerrada. Unificado a `0.14` en `ronda_abierta.py` y `ronda_cerrada.py` (antes `ronda_abierta.py` tenía `0.22`, un valor no probado que quedó desincronizado). |
 | `KD_ESTABILIDAD` | `0.12` | Amortiguación derivativa en la Pico 2 (sección 6.2). Compensa el sobregiro que el término proporcional introduce al salir de una curva. |
 | `VELOCIDAD_CRUCERO` | `100` | Velocidad de PWM en tramo recto/curva estándar. |
 | `VELOCIDAD_PARQUEO` | `60` | Velocidad reducida durante la búsqueda de la posición de estacionamiento final, priorizando precisión sobre velocidad. |
@@ -451,7 +473,25 @@ Los valores numéricos vigentes en `Open_round.py`, obtenidos empíricamente med
 | Umbral de distancia de evasión | `45 cm` | Distancia LiDAR a la que se activa la maniobra de esquiva; se eligió para dar margen de reacción mecánica sin iniciar el giro tan temprano que el coche invada el carril contrario de forma innecesaria. |
 | Umbral de coincidencia de estacionamiento | `80 mm` | Tolerancia entre la firma espacial inicial y la actual (`match_firma_original`) para considerar que el coche volvió a su punto de partida. |
 
-* **Proceso de ajuste:** El equipo itera cambiando un parámetro a la vez, corriendo 2-3 vueltas consecutivas en la pista de práctica y observando el comportamiento cualitativo (oscilación lateral, choque con paredes, retraso en la reacción a curvas). No se registran tiempos de vuelta cuantitativos en este repositorio — es una limitación conocida del proceso actual que el equipo planea instrumentar (registro de `error_lateral` a un archivo `.csv` por vuelta) antes de la competencia final.
+* **Proceso de ajuste:** El equipo itera cambiando un parámetro a la vez, corriendo 2-3 vueltas consecutivas en la pista de práctica y observando el comportamiento cualitativo (oscilación lateral, choque con paredes, retraso en la reacción a curvas), validado con métricas cuantitativas de la corrida (ver abajo).
+
+#### Métricas de Validación de Rendimiento
+
+Cada corrida de `ronda_abierta.py`/`ronda_cerrada.py` instancia [`comun/registro_metricas.py`](src/pi3B/comun/registro_metricas.py), que escribe un CSV en `logs/` con una fila por barrido de LiDAR procesado (`fase`, `estado`, `heading`, `error_lateral`, `angulo`, `velocidad`). [`calibracion/analizar_log.py`](src/pi3B/calibracion/analizar_log.py) resume ese CSV en métricas agregadas — error lateral promedio/máximo/mediano en mm, porcentaje de ciclos con el servo saturado en su límite físico y número de eventos de emergencia (transiciones a `RETROCESO`):
+
+```bash
+python3 analizar_log.py logs/ronda_cerrada_<marca_de_tiempo>.csv
+```
+
+Formato de salida (ejemplo ilustrativo con datos sintéticos, no una corrida real):
+
+```
+Error lateral |e|: promedio 18.4 mm, maximo 96.0 mm, mediana 12.0 mm
+Ciclos con angulo saturado en el limite fisico del servo: 4/812 (0.5%)
+Eventos de emergencia (entradas a RETROCESO): 1
+```
+
+Esto reemplaza la validación puramente observacional: dos corridas con el mismo `KP_LATERAL` se pueden comparar por error lateral promedio y saturación del servo en vez de una impresión subjetiva de "se vio mejor". *Nota de estado:* la herramienta se agregó a este repositorio pero todavía no se ha corrido en pista con el hardware real — los CSV de corridas reales del equipo, una vez capturados, reemplazarán este ejemplo.
 
 ---
 
@@ -683,7 +723,7 @@ Consolidando los puntos de fallo detectados a lo largo de las secciones anterior
 | 5 | Falsos positivos de color por iluminación variable entre boxes y pista oficial | Los umbrales HSV se calibran en interiores (boxes) con luz artificial distinta a la luz de la pista de competencia | Herramienta `calibrar_hsv.py` dedicada para recalibrar en vivo antes de cada ronda, más limpieza morfológica (`MORPH_OPEN`/`MORPH_CLOSE`) para eliminar ruido lumínico | Sección 4.2 — Método de Calibración |
 | 6 | Pérdida de comunicación UART entre Pi 3B y Pico 2 durante la carrera | Desconexión física del cable USB o saturación del buffer serial | *Fail-safe* por software: si no llega una trama nueva en >500 ms, el sistema fuerza detención inmediata | Diagrama de arquitectura de software (sección 5) |
 | 7 | Desalineación del centro de dirección tras un cambio de calibración | Se probó un centro de servo de 180° que no correspondía a la geometría física real del `base_servo` | Reversión a 90° tras validación en pista, documentado en el historial de commits en vez de sobrescribirlo silenciosamente | Sección 2.1, 6.2, 7.3 |
-| 8 | Falta de métricas cuantitativas de desempeño (tiempos de vuelta, error lateral histórico) | El ajuste de `KP_LATERAL`/`KD_ESTABILIDAD` se valida solo de forma observacional en pista | *Limitación conocida, en mitigación activa:* se planea instrumentar registro de `error_lateral` en `.csv` por vuelta antes de la competencia final | Sección 5.4 |
+| 8 | Falta de métricas cuantitativas de desempeño (tiempos de vuelta, error lateral histórico) | El ajuste de `KP_LATERAL`/`KD_ESTABILIDAD` se validaba solo de forma observacional en pista | Se instrumentó `comun/registro_metricas.py` (log CSV por corrida) y `calibracion/analizar_log.py` (resumen agregado: error lateral, saturación del servo, eventos de emergencia). *Pendiente de validar con corridas reales en pista, ver §5.4* | Sección 5.4 |
 
 ### 8.1 Interacción Entre Subsistemas (Pensamiento Sistémico)
 
@@ -740,4 +780,10 @@ Durante el desarrollo activo de la Ronda Cerrada, el equipo reportó que el robo
 
 **Validación en pista con paredes reales:** tras aplicar los fixes, se corrió el mismo protocolo (video + `python3 -u Close2_round.py 2>&1 | tee run_log.txt`) en un circuito con bordes físicos. El log mostró 3 evasiones completas de postes rojos, todas con el lado de evasión correcto (`Evadir x DERECHA`) y la transición `DETECTADO -> ESQUIVANDO` siempre por distancia real confirmada por el LiDAR (nunca por el timeout de seguridad). El punto crítico —`RECENTRANDO`— convergió dentro del margen las 3 veces (`Error heading` de 3.9°, 3.9° y 3.2°, todos bajo el umbral de 4°), frente al fallo de 68.1° registrado antes del fix. Las dos emergencias de colisión que sí aparecieron se resolvieron limpio vía `RETROCEDIENDO -> FORZANDO_GIRO` sin entrar en el ciclo repetitivo observado en la corrida anterior.
 
-**Refactor de modularidad:** posteriormente, `Close2_round.py` (que concentraba cámara + LiDAR + tracker + FSM en ~1100 líneas) se dividió en `vision.py`, `lidar.py` y `tracker.py` por responsabilidad (ver sección 8.1). Durante esa limpieza se detectaron y archivaron en `src/pi3B/legacy/` dos copias obsoletas de la Ronda Cerrada (`Close_round.py` y una iteración experimental) que **todavía tenían la regla de color invertida** — y se descubrió que `controlador_inicio.py` apuntaba por error a esa copia rota en vez de a `Close2_round.py`, ya corregido.
+**Refactor de modularidad:** posteriormente, `Close2_round.py` (que concentraba cámara + LiDAR + tracker + FSM en ~1100 líneas) se dividió en `vision.py`, `lidar.py` y `tracker.py` por responsabilidad (ver sección 8.1). Durante esa limpieza se detectaron y archivaron en `src/pi3B/ronda_cerrada/legacy/` dos copias obsoletas de la Ronda Cerrada (`Close_round.py` y una iteración experimental) que **todavía tenían la regla de color invertida** — y se descubrió que `controlador_inicio.py` apuntaba por error a esa copia rota en vez de a `Close2_round.py`, ya corregido.
+
+---
+
+## Licencia y Dependencias de Terceros
+
+Este repositorio se distribuye bajo la [Licencia MIT](LICENSE). El software de la Raspberry Pi 3B depende de las siguientes librerías de código abierto (ver [`src/pi3B/requirements.txt`](src/pi3B/requirements.txt) e [`INSTALACION.md`](INSTALACION.md)): OpenCV (`opencv-python`), NumPy, PySerial, RPi.GPIO y `picamera2` (paquete oficial de Raspberry Pi para la Pi Camera Module 3). El firmware de la Pico 2 corre sobre MicroPython y no usa librerías externas adicionales.
