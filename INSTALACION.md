@@ -135,6 +135,7 @@ scp src/pi3B/controlador_inicio.py \
     src/pi3B/comun/lidar_driver.py \
     src/pi3B/comun/lidar_geometria.py \
     src/pi3B/comun/enlace_pico.py \
+    src/pi3B/comun/registro_metricas.py \
     src/pi3B/ronda_abierta/ronda_abierta.py \
     src/pi3B/ronda_cerrada/ronda_cerrada.py \
     src/pi3B/ronda_cerrada/navegacion.py \
