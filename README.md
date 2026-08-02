@@ -198,8 +198,8 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 
 | Componente | Foto | Justificación de selección y ubicación |
 | :--- | :---: | :--- |
-| **RPLiDAR C1** | <img src="v-photos/Componentes/RPLiDAR_C1.png" width="90"/> | Montado en el punto más alto del chasis (torre trasera) para obtener un barrido de 360° sin obstrucciones del propio cuerpo del robot; su altura se fijó por encima de los pilares de obstáculos para que la Ronda Cerrada no confunda un pilar con una pared del carril. |
-| **Pi Camera Module 3** | <img src="v-photos/Componentes/Camara.png" width="90"/> | Ubicada al frente y retrasada respecto al parachoques (ver sección 3.4) para proteger el sensor de impactos directos, con el ángulo de inclinación fijo calibrado para que el horizonte de la pista quede en el tercio superior del frame y maximice el área útil para detectar bloques de color. |
+| **RPLiDAR C1** | <img src="v-photos/Componentes/RPLiDAR_C1.png" width="90"/> | Montado a **90mm del piso**, sobre la cámara, para obtener un barrido de 360° sin obstrucciones del propio cuerpo del robot. A esa altura el haz sí intersecta tanto postes como paredes (ambos de 100mm según el reglamento) — la distinción entre uno y otro **no es por altura**, la hace la clasificación geométrica del cluster en `lidar_geometria.py` (extensión angular menor a 15° y 3-30 puntos = poste; mayor extensión o más puntos = muro). |
+| **Pi Camera Module 3 Wide** (FOV ~102°) | <img src="v-photos/Componentes/Camara.png" width="90"/> | Ubicada al frente, debajo del LiDAR y retrasada respecto al parachoques (ver sección 3.4) para proteger el sensor de impactos directos, montada a **0° de inclinación** (mirando derecho al frente, sin tilt hacia el piso). |
 | **MPU6050 (IMU)** | <img src="v-photos/Componentes/MPU6050.png" width="90"/> | Montado rígidamente sobre la placa perforada, alineado con el eje longitudinal del chasis para que la lectura del eje Z corresponda exactamente al *yaw* del vehículo sin necesidad de compensar desalineación mecánica. |
 | **Geekservo Servo (Dirección)** | <img src="v-photos/Componentes/GeekservoServo.png" width="90"/> | Acoplado directo al `base_servo` del eje delantero; se eligió por compatibilidad mecánica nativa con las vigas Technic, evitando adaptadores impresos que añaden holgura al sistema de dirección. |
 | **Geekservo DC (Tracción)** | <img src="v-photos/Componentes/GeekservoDC.png" width="90"/> | Seleccionado por su torque de bloqueo de $2.4\,\text{kg}\cdot\text{cm}$, validado matemáticamente en la sección 7.4 con un margen de seguridad de 2.55×. |
@@ -641,6 +641,7 @@ La ecuación cinemática que rige las restricciones geométricas de nuestro chas
 * **Ancho de la vía ($w$):** $115\,\text{mm}$
 * **Batalla / Distancia entre ejes ($l$):** $136\,\text{mm}$
 * **Ancho de los neumáticos:** $36\,\text{mm}$
+* **Dimensiones totales del robot:** $125\,\text{mm}$ de ancho $\times$ $222\,\text{mm}$ de largo (aprox.) — dentro del límite reglamentario de $300\times200\,\text{mm}$ de WRO Future Engineers 2026 con margen amplio en ambos ejes.
 
 $$\cot(\delta_o) - \cot(\delta_i) = \frac{w}{l} = \frac{115\,\text{mm}}{136\,\text{mm}} = 0.845$$
 
