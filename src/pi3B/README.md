@@ -12,7 +12,7 @@ Para garantizar que el vehículo sea 100% autónomo desde el momento en que se c
 
 1. **`controlador_inicio.py`**: Script demonio en Python que corre en un bucle infinito de alta frecuencia monitoreando los pines de entrada.
 2. **`wro_start.service`**: Unidad de servicio nativa de Linux (`systemd`) que fuerza el auto-arranque del script maestro inmediatamente después de inicializar el kernel.
-3. **Scripts de Carrera**: `ronda_abierta/ronda_abierta.py` (Ronda Abierta, centrado proporcional guiado por RPLiDAR C1) y `ronda_cerrada/ronda_cerrada.py` (Ronda Cerrada, fusión de visión OpenCV + LiDAR para evasión de pilares — ver estructura modular abajo). Ambas rondas comparten los drivers de `comun/`.
+3. **Scripts de Carrera**: `ronda_abierta/ronda_abierta.py` (Ronda Abierta, centrado proporcional guiado por RPLiDAR C1, autocontenido) y `ronda_cerrada/ronda_cerrada.py` (Ronda Cerrada, fusión de visión OpenCV + LiDAR para evasión de pilares, usa los drivers de `comun/` — ver estructura modular abajo).
 4. **`calibracion/calibrar_hsv.py`**: Herramienta de calibración interactiva (no se ejecuta en carrera). Levanta un servidor TCP en el puerto `5000` que recibe el streaming JPEG de la Pi Camera y expone sliders de OpenCV (`H/S/V Min/Max` por color) en la laptop del equipo para ajustar en vivo los umbrales de segmentación de los bloques verde y rojo antes de cada ronda.
 5. **`calibracion/capturar_hsv.py`**: Herramienta de diagnóstico HSV sin GUI — corre 100% en la Pi y guarda a disco el frame crudo y las máscaras rojo/verde, para revisar la calibración sin necesitar una laptop con pantalla conectada al streaming.
 6. **`calibracion/analizar_log.py`**: Herramienta offline que resume en métricas agregadas (error lateral promedio/máximo, % de ciclos con el servo saturado, eventos de emergencia) los CSV que genera `comun/registro_metricas.py` durante la carrera — ver sección 5.4 del README principal.
@@ -40,7 +40,7 @@ src/pi3B/
 │   ├── tracker.py           # Procesador: persistencia del poste activo
 │   └── legacy/              # Versiones superadas, NO desplegar
 ├── ronda_abierta/
-│   └── ronda_abierta.py     # Punto de entrada: reutiliza comun/, sin camara ni evasion
+│   └── ronda_abierta.py     # Punto de entrada, autocontenido: sin camara ni evasion
 ├── calibracion/              # Herramientas offline, no corren en carrera
 │   ├── calibrar_hsv.py
 │   ├── capturar_hsv.py
@@ -72,7 +72,7 @@ src/pi3B/
 
 > **`ronda_cerrada/legacy/`** conserva `Close_round.py` y `Close2_round_Prueba1.py`, versiones superadas de la Ronda Cerrada que **no** deben desplegarse (ver el `README.md` de esa carpeta para el detalle de por qué se archivaron).
 
-> **`ronda_abierta/ronda_abierta.py`** reutiliza `comun/lidar_driver.py`, `comun/lidar_geometria.py` y `comun/enlace_pico.py` — solo implementa el centrado proporcional y la detección de parqueo, que son específicos de esta ronda (sin cámara ni máquina de estados de evasión).
+> **`ronda_abierta/ronda_abierta.py`** es autocontenido — reimplementa su propio parseo de LiDAR y protocolo serial en vez de reutilizar `comun/lidar_driver.py`/`comun/enlace_pico.py`. Es deuda técnica conocida (duplica lo que ya resuelven esos módulos), aceptada a propósito porque esta versión está validada en pista con estacionamiento incluido.
 
 ---
 
