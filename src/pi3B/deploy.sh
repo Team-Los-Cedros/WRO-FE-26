@@ -6,6 +6,9 @@
 # como argumento) -- controlador_inicio.py y los imports entre modulos
 # dependen de que todos queden juntos, sin subcarpetas. No toca
 # ronda_cerrada/legacy/ (no se despliega, ver su README).
+#
+# Las herramientas de calibracion tambien van planas: importan los drivers
+# de comun/ por nombre de archivo igual que los scripts de carrera.
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,6 +23,9 @@ cp "$DIR"/controlador_inicio.py \
    "$DIR"/ronda_cerrada/vision.py \
    "$DIR"/ronda_cerrada/tracker.py \
    "$DIR"/calibracion/calibrar_hsv.py \
+   "$DIR"/calibracion/capturar_pista.py \
+   "$DIR"/calibracion/medir_direccion.py \
+   "$DIR"/calibracion/medir_velocidad.py \
    "$DESTINO"/
 
 echo "[+] Copiado a $DESTINO"

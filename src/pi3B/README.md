@@ -31,6 +31,7 @@ src/pi3B/
 │   ├── lidar_driver.py      # Driver: protocolo binario RPLIDAR C1
 │   ├── lidar_geometria.py   # Procesador: paredes + clustering ABD
 │   ├── enlace_pico.py       # Driver: canal serial con la Pico 2
+│   ├── geometria_robot.py   # Constantes fisicas y transformadas entre marcos
 │   └── registro_metricas.py # Driver: logger CSV de telemetria por ciclo
 ├── ronda_cerrada/           # Exclusivo de la Ronda Cerrada
 │   ├── ronda_cerrada.py     # Punto de entrada
@@ -42,8 +43,13 @@ src/pi3B/
 ├── ronda_abierta/
 │   └── ronda_abierta.py     # Punto de entrada, autocontenido: sin camara ni evasion
 ├── calibracion/              # Herramientas offline, no corren en carrera
+│   ├── MEDICIONES.md         # Protocolos de las mediciones pendientes
 │   ├── calibrar_hsv.py
 │   ├── capturar_hsv.py
+│   ├── capturar_pista.py     # Captura sincronizada LiDAR+camara+IMU en pose fija
+│   ├── revisar_captura.py    # Analisis offline de esas capturas (en la laptop)
+│   ├── medir_direccion.py    # Centro mecanico real y radio de giro
+│   ├── medir_velocidad.py    # Curva velocidad vs PWM por odometria LiDAR
 │   └── analizar_log.py       # Resume en metricas agregadas los CSV de registro_metricas.py
 ├── controlador_inicio.py     # Orquestador: decide qué ronda lanzar según el botón
 ├── deploy.sh                 # Copia los .py de carrera planos a /home/pi/ (ver INSTALACION.md)
