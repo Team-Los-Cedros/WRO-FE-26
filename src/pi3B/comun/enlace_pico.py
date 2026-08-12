@@ -2,6 +2,13 @@
 # Manda consignas "velocidad,angulo\n" (velocidad en % PWM con signo,
 # angulo en grados sobre el centro del servo, positivo = izquierda) y
 # lee la telemetria "IMU:<grados>\n" en un hilo aparte.
+#
+# Hay una tercera forma opcional, "velocidad,angulo,kd\n", que ademas
+# fija la ganancia de amortiguacion por giroscopio del firmware para ese
+# instante. Solo la usan las herramientas de calibracion (medir el radio
+# de giro exige kd=0, si no el angulo de rueda real no es el comandado).
+# Cualquier consigna de dos campos restaura el kd por defecto en la
+# Pico, asi que ningun script de carrera puede heredar un kd alterado.
 import time
 import threading
 
@@ -61,9 +68,18 @@ class EnlacePico:
         with self._lock:
             return (time.time() - self._t_ultima_imu) < TIMEOUT_TELEMETRIA
 
-    def enviar(self, velocidad, angulo):
+    def enviar(self, velocidad, angulo, kd=None):
+        # kd es el tercer campo opcional: FACTOR sobre la amortiguacion por
+        # giroscopio de la Pico (1.0 = normal, 0.0 = desactivada). En carrera
+        # va siempre en None (dos campos, comportamiento de siempre), y una
+        # consigna de dos campos devuelve el factor a 1.0 en el firmware.
+        # Solo lo usa calibracion/medir_direccion.py, donde esa amortiguacion
+        # falsearia el radio de giro medido.
+        linea = f"{int(velocidad)},{angulo:.2f}"
+        if kd is not None:
+            linea += f",{kd:.2f}"
         try:
-            self._ser.write(f"{int(velocidad)},{angulo:.2f}\n".encode())
+            self._ser.write((linea + "\n").encode())
         except serial.SerialException:
             pass
 

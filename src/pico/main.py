@@ -85,7 +85,15 @@ angulo_objetivo = 0.0
 velocidad_comandada = 0
 
 # Constante de Amortiguación: Evita que el coche devane o curve de golpe
-KD_ESTABILIDAD = 0.12  
+KD_ESTABILIDAD = 0.12
+
+# Interruptor de la amortiguación, controlado por un tercer campo opcional
+# en la consigna ("velocidad,angulo" sigue funcionando igual y deja esto en
+# 1.0). Solo lo usa calibracion/medir_direccion.py: en un giro sostenido la
+# velocidad angular es constante y no nula, asi que el termino KD desvia el
+# servo varios grados del angulo comandado -- con la amortiguación activa el
+# radio de giro que se mida NO corresponde al comando que se mando.
+kd_activo = 1.0
 
 ultima_lectura = time.ticks_ms()
 ultimo_envio_telemetria = time.ticks_ms()
@@ -111,14 +119,22 @@ while True:
             if linea:
                 try:
                     partes = linea.split(',')
-                    if len(partes) == 2:
+                    if len(partes) >= 2:
                         velocidad_comandada = int(partes[0])
                         angulo_objetivo = float(partes[1])
+                        # Una consigna de dos campos devuelve la
+                        # amortiguacion a su valor normal. Sin esto un
+                        # kd=0 de calibracion quedaria pegado hasta
+                        # reiniciar la Pico y la siguiente ronda correria
+                        # sin amortiguacion sin que nadie lo note.
+                        kd_activo = 1.0
+                    if len(partes) == 3:
+                        kd_activo = float(partes[2])
                 except:
                     pass
 
         # Angulo objetivo (de la Pi) sobre el centro, con amortiguacion por gyro
-        angulo_servo = CENTRO + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD)
+        angulo_servo = CENTRO + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD * kd_activo)
         angulo_servo = max(LIMITE_DER, min(LIMITE_IZQ, angulo_servo))
         mover_servo(angulo_servo)
         
