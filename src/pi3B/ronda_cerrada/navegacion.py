@@ -87,9 +87,9 @@ MARGEN_TIMEOUT = 1.3
 
 # APROXIMACION: desde que se confirma el poste hasta tenerlo al costado.
 # Con 1.5s el robot solo recorria 320mm de los 720 necesarios, asi que
-# saltaba a SOBREPASO con el poste todavia a 460mm por delante -- y
-# SOBREPASO endereza hacia _heading_base, o sea que deshacia el giro de
-# evasion justo delante del poste y volvia a metersele encima.
+# saltaba a SOBREPASO con el poste todavia a 460mm por delante, cuando
+# SOBREPASO todavia enderezaba hacia el rumbo previo a la evasion y por
+# tanto deshacia la esquiva justo delante del poste.
 TIMEOUT_APROXIMACION = round(
     (DIST_INICIO_EVASION_TRK - Y_POSTE_EN_PASO) / VELOCIDAD_REAL_MMS * MARGEN_TIMEOUT, 1)
 
@@ -98,7 +98,12 @@ DIST_SOBREPASO_MM = 350.0
 TIMEOUT_SOBREPASO = round(DIST_SOBREPASO_MM / VELOCIDAD_REAL_MMS * MARGEN_TIMEOUT, 1)
 
 TIMEOUT_REINCORPORACION = 2.5
-ERROR_HEADING_OK       = 5.0   # grados para dar la reincorporacion por buena
+# Margen de centrado para dar la reincorporacion por terminada. El pasillo
+# de la pista ronda los 1000mm, asi que 120mm de diferencia entre paredes
+# es estar practicamente en el eje. Se compara contra (izquierda-derecha),
+# que es una medida de POSICION y por eso no puede sobrepasar el objetivo
+# como si lo hacia el lazo de rumbo que habia antes.
+ERROR_LATERAL_OK       = 120.0
 
 # ==========================================
 # EMERGENCIA ANTI-CHOQUE
@@ -173,7 +178,7 @@ class Navegador:
         self._firma_der = 0.0
 
         self._evadir_por_izquierda = True
-        self._heading_base  = 0.0              # rumbo del pasillo al iniciar la evasion
+        self._heading_sobrepaso = 0.0          # rumbo al empezar a rebasar el poste
         self._t_estado      = 0.0
         self._t_parqueo     = 0.0
 
@@ -272,7 +277,6 @@ class Navegador:
         if poste_en_rango or vision_en_rango:
             color = trk.color if trk.activo and trk.color else color_cam
             self._evadir_por_izquierda = (color == "VERDE")
-            self._heading_base = heading
             self._entrar("APROXIMACION", ahora)
             if self._evadir_por_izquierda:
                 self._sector.fijar_sector_frontal(*SECTOR_EVASION_IZQ)
@@ -294,10 +298,12 @@ class Navegador:
         if trk.activo and (trk.y < Y_POSTE_EN_PASO or trk.al_costado(lado_poste)
                            or trk.superado()):
             self._entrar("SOBREPASO", ahora)
+            self._heading_sobrepaso = heading
             print(f"[FSM] APROXIMACION -> SOBREPASO | poste en ({trk.x:.0f},{trk.y:.0f})mm")
         elif t_en_estado > TIMEOUT_APROXIMACION:
             # Sin tracker resuelto asumimos que ya avanzamos lo suficiente
             self._entrar("SOBREPASO", ahora)
+            self._heading_sobrepaso = heading
             print("[FSM] APROXIMACION -> SOBREPASO | timeout")
 
         # Pure pursuit hacia el punto de paso al lado del poste
@@ -326,22 +332,60 @@ class Navegador:
             self._sector.sector_frontal_normal()
             print(f"[FSM] SOBREPASO -> REINCORPORACION | {razon}")
 
-        # Rumbo paralelo al pasillo mientras el poste pasa por el costado
-        error_h = self._heading_base - heading
+        # Seguir RECTO mientras el poste pasa por el costado, manteniendo el
+        # rumbo con el que se entro aqui.
+        #
+        # Antes se apuntaba al rumbo ANTERIOR a la evasion, o sea que este
+        # estado deshacia el giro de esquiva justo mientras el robot estaba
+        # a la altura del poste. Medido en la corrida 3:
+        #
+        #   t=1.54 APROXIMACION ang= -5.4 trk_x=-215   esquiva progresando
+        #   t=2.04 SOBREPASO    ang=+21.3 trk_x=-272   servo al tope opuesto
+        #   t=2.44 SOBREPASO    ang=+22.0 trk_x=-195   el poste vuelve al centro
+        #
+        # Los 278mm de separacion ganados se perdian enteros y el robot se
+        # volvia a meter encima del poste. Manteniendo el rumbo de entrada
+        # la separacion se conserva y el poste queda atras de verdad; el
+        # regreso al carril es trabajo de REINCORPORACION, que ya lo hace
+        # por posicion.
+        error_h = self._heading_sobrepaso - heading
         angulo = _clamp(error_h * KP_HEADING, 22.0)
         angulo = self._con_seguridad_pared(angulo, med)
         return (VELOCIDAD_EVASION, angulo)
 
     def _est_reincorporacion(self, med, color_cam, heading, ahora):
-        error_h = self._heading_base - heading
+        # Volver al centro del carril por POSICION, no por rumbo.
+        #
+        # Antes este estado anulaba el error contra el rumbo previo a la
+        # evasion. El rumbo no dice nada de donde esta el robot
+        # dentro del pasillo: se puede cumplir el objetivo entero y acabar
+        # pegado a un muro, porque enderezar estando desplazado deja el
+        # desplazamiento intacto. Peor aun, el giro de vuelta se hace
+        # mientras el robot avanza, asi que la correccion de rumbo se paga
+        # con MAS desplazamiento en la direccion contraria. En la corrida 4
+        # eso salio sistematico: la mediana de izquierda cae de 561mm en
+        # APROXIMACION a 310mm en SOBREPASO, con minimos de 80mm, mientras
+        # que derecha no bajo de 257mm en toda la corrida. Siempre se
+        # pasaba al mismo lado, y de las seis emergencias, tres fueron por
+        # el lateral izquierdo con el frente despejado (una con el frente a
+        # 1032mm).
+        #
+        # El error de centrado (izquierda - derecha) si es una medida de
+        # posicion y se anula sola al llegar al medio: no puede sobrepasar
+        # como lo hace un lazo de rumbo. Es ademas el mismo control que usa
+        # CRUCERO, asi que la salida de la evasion entrega el robot en el
+        # estado en que CRUCERO espera recibirlo.
+        error_lat = med.izquierda - med.derecha
         t_en_estado = ahora - self._t_estado
 
-        if abs(error_h) < ERROR_HEADING_OK or t_en_estado > TIMEOUT_REINCORPORACION:
+        if abs(error_lat) < ERROR_LATERAL_OK or t_en_estado > TIMEOUT_REINCORPORACION:
+            razon = ("centrado" if abs(error_lat) < ERROR_LATERAL_OK else "timeout")
             self._entrar("CRUCERO", ahora)
-            print(f"[FSM] REINCORPORACION -> CRUCERO | error rumbo {error_h:.1f} grados")
+            print(f"[FSM] REINCORPORACION -> CRUCERO | {razon} "
+                  f"(error lateral {error_lat:+.0f}mm)")
             return (VELOCIDAD_CRUCERO, self._centrado_paredes(med))
 
-        angulo = _clamp(error_h * KP_HEADING * 1.2, MAX_ANGULO_EVASION)
+        angulo = self._centrado_paredes(med)
         angulo = self._con_seguridad_pared(angulo, med)
         return (VELOCIDAD_EVASION, angulo)
 
