@@ -72,8 +72,31 @@ Y_POSTE_EN_PASO         = 180.0   # mm, el poste ya esta a la altura del morro
 # contra la pared cuando el carril es mas angosto de lo esperado.
 DIST_ALERTA_PARED = 220.0
 
-TIMEOUT_APROXIMACION   = 1.5   # s, red de seguridad si el tracker no resuelve
-TIMEOUT_SOBREPASO      = 1.2
+# Velocidad de avance real, medida sobre los tramos rectos del CSV de
+# metricas (corrida 3: 0.215 m/s a 55% de PWM). Los timeouts de la
+# evasion se derivan de aqui en vez de ponerse a ojo: si se cambia la
+# traccion, el PWM o las ruedas hay que volver a medirla y los tiempos se
+# recalculan solos.
+VELOCIDAD_REAL_MMS = 215.0
+
+# Margen sobre el tiempo teorico. Estos timeouts son RED DE SEGURIDAD:
+# la transicion normal es geometrica (el tracker dice donde esta el
+# poste). Si el timeout es mas corto que la fisica deja de ser una red y
+# pasa a ser la ruta principal, que es justo lo que estaba pasando.
+MARGEN_TIMEOUT = 1.3
+
+# APROXIMACION: desde que se confirma el poste hasta tenerlo al costado.
+# Con 1.5s el robot solo recorria 320mm de los 720 necesarios, asi que
+# saltaba a SOBREPASO con el poste todavia a 460mm por delante -- y
+# SOBREPASO endereza hacia _heading_base, o sea que deshacia el giro de
+# evasion justo delante del poste y volvia a metersele encima.
+TIMEOUT_APROXIMACION = round(
+    (DIST_INICIO_EVASION_TRK - Y_POSTE_EN_PASO) / VELOCIDAD_REAL_MMS * MARGEN_TIMEOUT, 1)
+
+# SOBREPASO: hay que sacar el cuerpo del robot mas el del poste.
+DIST_SOBREPASO_MM = 350.0
+TIMEOUT_SOBREPASO = round(DIST_SOBREPASO_MM / VELOCIDAD_REAL_MMS * MARGEN_TIMEOUT, 1)
+
 TIMEOUT_REINCORPORACION = 2.5
 ERROR_HEADING_OK       = 5.0   # grados para dar la reincorporacion por buena
 
