@@ -88,6 +88,7 @@ def al_barrido(scan):
                             frontal=f"{medicion.frontal:.0f}",
                             izquierda=f"{medicion.izquierda:.0f}",
                             derecha=f"{medicion.derecha:.0f}",
+                            trasera=f"{medicion.trasera:.0f}",
                             color_cam=color_cam or "",
                             trk_activo=int(trk.activo),
                             trk_color=trk.color or "",

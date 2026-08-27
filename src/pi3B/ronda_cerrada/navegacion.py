@@ -108,6 +108,17 @@ EMERGENCIA_LATERAL  = 80.0
 EMERGENCIA_TRASERA  = 250.0
 TIMEOUT_RETROCESO   = 3.5
 
+# Margenes para DAR POR TERMINADO el retroceso. Son mas holgados que los
+# de entrada a proposito: saliendo justo en el umbral, el primer ciclo de
+# CRUCERO vuelve a disparar la emergencia y el robot se queda rebotando
+# entre avanzar y retroceder sin salir del sitio.
+SALIDA_RETROCESO_FRONTAL = 300.0
+SALIDA_RETROCESO_LATERAL = 160.0
+
+# Minimo de retroceso antes de siquiera evaluar si ya esta despejado:
+# hace falta despegarse de verdad del obstaculo, no solo dejar de tocarlo.
+TIEMPO_MIN_RETROCESO = 0.6
+
 # Control P del retroceso: error = espacio diagonal-trasero derecho menos
 # izquierdo (mm), medido en vivo cada ciclo con el perfil 360 del LiDAR.
 # KP_RETROCESO=0.05 satura al tope (25 grados) con una diferencia de
@@ -336,8 +347,29 @@ class Navegador:
 
     def _est_retroceso(self, med, color_cam, heading, ahora):
         t_en_estado = ahora - self._t_estado
-        if med.trasera < EMERGENCIA_TRASERA or t_en_estado > TIMEOUT_RETROCESO:
-            razon = "obstaculo trasero" if med.trasera < EMERGENCIA_TRASERA else "tiempo maximo"
+
+        # Salir en cuanto el peligro se despeja. Antes la unica salida era
+        # el obstaculo trasero o el timeout, asi que el retroceso corria
+        # SIEMPRE los 3.5s enteros: en la corrida 4 los seis episodios
+        # salieron por "tiempo maximo", ninguno por otra cosa. Medido en
+        # ese CSV, el frente y los laterales quedaban libres a los 1.5-2.4s
+        # y el robot seguia retrocediendo con el servo puesto hasta los
+        # 3.5s. Ese sobrante es lo que lo reorientaba 54-63 grados por
+        # episodio, 324 grados en total, y lo dejaba encarando cualquier
+        # cosa al volver a CRUCERO.
+        despejado = (med.frontal    > SALIDA_RETROCESO_FRONTAL and
+                     med.izquierda  > SALIDA_RETROCESO_LATERAL and
+                     med.derecha    > SALIDA_RETROCESO_LATERAL)
+
+        if (med.trasera < EMERGENCIA_TRASERA
+                or (t_en_estado > TIEMPO_MIN_RETROCESO and despejado)
+                or t_en_estado > TIMEOUT_RETROCESO):
+            if med.trasera < EMERGENCIA_TRASERA:
+                razon = "obstaculo trasero"
+            elif despejado:
+                razon = f"despejado en {t_en_estado:.1f}s"
+            else:
+                razon = "tiempo maximo"
             self._entrar("CRUCERO", ahora)
             print(f"[FSM] RETROCESO -> CRUCERO ({razon})")
 

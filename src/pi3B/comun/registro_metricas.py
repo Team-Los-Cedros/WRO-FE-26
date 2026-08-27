@@ -22,7 +22,10 @@ CAMPOS = ["t", "fase", "estado", "heading", "error_lateral", "angulo", "velocida
           # se esta usando el ultimo valor sostenido", que piden arreglos
           # opuestos. Las tres distancias en mm; color_cam es lo que ve la
           # camara; trk_* es el poste que el tracker esta siguiendo.
-          "frontal", "izquierda", "derecha",
+          # "trasera" hace falta para auditar el RETROCESO: es una de sus
+          # condiciones de salida y sin ella no se puede saber si el
+          # retroceso paro por obstaculo detras o por otra cosa.
+          "frontal", "izquierda", "derecha", "trasera",
           "color_cam", "trk_activo", "trk_color", "trk_x", "trk_y"]
 
 
