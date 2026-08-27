@@ -106,9 +106,23 @@ SECTOR_EVASION_DER = (340.0, 30.0)
 # Rate limiter del servo en marcha normal (la emergencia lo salta)
 MAX_DELTA_ANGULO = 6.0
 
+# Topes reales del servo, medidos en la Pico: CENTRO=90 con el comando
+# recortado a [70, 115], o sea -20 grados a la derecha y +25 a la
+# izquierda. Son asimetricos, asi que un unico tope simetrico no sirve:
+# con +-25 los comandos a la derecha piden 5 grados que el servo no tiene
+# y la Pico los recorta sin avisar, dejando el giro a la derecha mas
+# debil que el de la izquierda sin que se note en el log.
+ANGULO_MAX_IZQ = 25.0
+ANGULO_MAX_DER = 20.0
+
 
 def _clamp(v, lim):
     return max(-lim, min(lim, v))
+
+
+def _clamp_servo(v):
+    # Recorte al recorrido fisico real (positivo = izquierda)
+    return max(-ANGULO_MAX_DER, min(ANGULO_MAX_IZQ, v))
 
 
 class Navegador:
@@ -202,10 +216,15 @@ class Navegador:
         # 4. Rate limiter del servo. En emergencia no se aplica, ahi el
         #    giro completo tiene que entrar de una
         if self.estado == "RETROCESO":
-            self._ultimo_angulo = angulo
+            self._ultimo_angulo = _clamp_servo(angulo)
+            angulo = self._ultimo_angulo
         else:
             delta = _clamp(angulo - self._ultimo_angulo, MAX_DELTA_ANGULO)
-            angulo = self._ultimo_angulo + delta
+            # Recorte final al recorrido real del servo: aunque cada estado
+            # ya acota lo suyo, es esta la unica salida hacia la Pico y
+            # aqui se corta cualquier windup antes de que se acumule en
+            # _ultimo_angulo y haya que desenrollarlo despues.
+            angulo = _clamp_servo(self._ultimo_angulo + delta)
             self._ultimo_angulo = angulo
 
         self._ultima_vel = velocidad
@@ -332,8 +351,20 @@ class Navegador:
         self._t_estado = ahora
 
     def _centrado_paredes(self, med):
-        # Control P clasico de centrado entre las dos paredes
-        return (med.izquierda - med.derecha) * KP_LATERAL
+        # Control P clasico de centrado entre las dos paredes.
+        #
+        # El recorte NO es cosmetico. El error es (izq - der) sin acotar, y
+        # en las esquinas el carril se abre de verdad hasta 1400mm o mas:
+        # con KP_LATERAL eso pide del orden de 200 grados de servo. Como el
+        # rate limiter de mas abajo solo mueve el comando 6 grados por
+        # ciclo, el valor se pone a rampar hacia ese objetivo imposible y
+        # sigue creciendo aunque el error ya este bajando -- windup puro.
+        # Medido en pista (corrida 2): el comando llego a -78 grados
+        # mientras el error caia de 1456 a 818mm, y a 8.6Hz devolverlo al
+        # rango util cuesta unos 2 segundos en los que el servo esta
+        # clavado en el tope y el robot no responde. El 60% de la corrida
+        # se fue en saturacion por esto.
+        return _clamp_servo((med.izquierda - med.derecha) * KP_LATERAL)
 
     def _con_seguridad_pared(self, angulo_deseado, med):
         # La evasion (pure pursuit al poste, rumbo paralelo) no sabe donde
