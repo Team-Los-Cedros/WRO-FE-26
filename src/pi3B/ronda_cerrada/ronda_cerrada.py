@@ -70,16 +70,28 @@ def al_barrido(scan):
     _t_ultimo_barrido = medicion.timestamp
 
     heading = enlace.heading()
-    consigna = navegador.procesar(medicion, vision.get_color(), heading)
+    # Una sola lectura por ciclo: el hilo de camara la actualiza por su
+    # cuenta, y si se consulta otra vez para el log el CSV podria guardar
+    # un color distinto del que realmente uso la FSM en esta decision.
+    color_cam = vision.get_color()
+    consigna = navegador.procesar(medicion, color_cam, heading)
     if consigna is None:          # carrera terminada (parqueo o timeout)
         apagar_sistema()
         return
     velocidad, angulo = consigna
     if registro:
         error_lateral = medicion.izquierda - medicion.derecha
+        trk = navegador.tracker
         registro.registrar(fase=navegador.fase, estado=navegador.estado,
                             heading=f"{heading:.2f}", error_lateral=f"{error_lateral:.1f}",
-                            angulo=f"{angulo:.2f}", velocidad=velocidad)
+                            angulo=f"{angulo:.2f}", velocidad=velocidad,
+                            frontal=f"{medicion.frontal:.0f}",
+                            izquierda=f"{medicion.izquierda:.0f}",
+                            derecha=f"{medicion.derecha:.0f}",
+                            color_cam=color_cam or "",
+                            trk_activo=int(trk.activo),
+                            trk_color=trk.color or "",
+                            trk_x=f"{trk.x:.0f}", trk_y=f"{trk.y:.0f}")
     enlace.enviar(*consigna)
 
 

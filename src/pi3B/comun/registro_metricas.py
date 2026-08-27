@@ -16,7 +16,14 @@ import time
 
 CARPETA_LOGS = "logs"
 
-CAMPOS = ["t", "fase", "estado", "heading", "error_lateral", "angulo", "velocidad"]
+CAMPOS = ["t", "fase", "estado", "heading", "error_lateral", "angulo", "velocidad",
+          # Percepcion cruda. Sin esto, error_lateral no se puede diagnosticar:
+          # un mismo valor sale de "estoy descentrado" o de "perdi una pared y
+          # se esta usando el ultimo valor sostenido", que piden arreglos
+          # opuestos. Las tres distancias en mm; color_cam es lo que ve la
+          # camara; trk_* es el poste que el tracker esta siguiendo.
+          "frontal", "izquierda", "derecha",
+          "color_cam", "trk_activo", "trk_color", "trk_x", "trk_y"]
 
 
 class RegistroMetricas:
