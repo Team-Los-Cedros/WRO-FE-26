@@ -72,12 +72,18 @@ Y_POSTE_EN_PASO         = 180.0   # mm, el poste ya esta a la altura del morro
 # contra la pared cuando el carril es mas angosto de lo esperado.
 DIST_ALERTA_PARED = 220.0
 
-# Velocidad de avance real, medida sobre los tramos rectos del CSV de
-# metricas (corrida 3: 0.215 m/s a 55% de PWM). Los timeouts de la
-# evasion se derivan de aqui en vez de ponerse a ojo: si se cambia la
-# traccion, el PWM o las ruedas hay que volver a medirla y los tiempos se
-# recalculan solos.
-VELOCIDAD_REAL_MMS = 215.0
+# Velocidad de avance en funcion del PWM, a partir de la curva medida en
+# pista (ver la nota de tracker.MM_POR_SEG_A_PWM100). Sale practicamente
+# proporcional, asi que basta escalar la constante.
+def _vel_mm_s(pwm):
+    return tracker_mod.MM_POR_SEG_A_PWM100 * abs(pwm) / 100.0
+
+
+# Los timeouts de la evasion se derivan de la velocidad a la que se corre
+# ESA fase, no de la de crucero. Con la curva medida, VELOCIDAD_EVASION=40
+# son unos 160 mm/s, no los 215 de crucero: derivarlos de la velocidad de
+# crucero los dejaba un 35% cortos justo en la fase donde se aplican.
+VELOCIDAD_EVASION_MMS = _vel_mm_s(VELOCIDAD_EVASION)
 
 # Margen sobre el tiempo teorico. Estos timeouts son RED DE SEGURIDAD:
 # la transicion normal es geometrica (el tracker dice donde esta el
@@ -91,11 +97,11 @@ MARGEN_TIMEOUT = 1.3
 # SOBREPASO todavia enderezaba hacia el rumbo previo a la evasion y por
 # tanto deshacia la esquiva justo delante del poste.
 TIMEOUT_APROXIMACION = round(
-    (DIST_INICIO_EVASION_TRK - Y_POSTE_EN_PASO) / VELOCIDAD_REAL_MMS * MARGEN_TIMEOUT, 1)
+    (DIST_INICIO_EVASION_TRK - Y_POSTE_EN_PASO) / VELOCIDAD_EVASION_MMS * MARGEN_TIMEOUT, 1)
 
 # SOBREPASO: hay que sacar el cuerpo del robot mas el del poste.
 DIST_SOBREPASO_MM = 350.0
-TIMEOUT_SOBREPASO = round(DIST_SOBREPASO_MM / VELOCIDAD_REAL_MMS * MARGEN_TIMEOUT, 1)
+TIMEOUT_SOBREPASO = round(DIST_SOBREPASO_MM / VELOCIDAD_EVASION_MMS * MARGEN_TIMEOUT, 1)
 
 TIMEOUT_REINCORPORACION = 2.5
 # Margen de centrado para dar la reincorporacion por terminada. El pasillo
