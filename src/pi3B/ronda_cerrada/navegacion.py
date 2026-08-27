@@ -99,8 +99,30 @@ MARGEN_TIMEOUT = 1.3
 TIMEOUT_APROXIMACION = round(
     (DIST_INICIO_EVASION_TRK - Y_POSTE_EN_PASO) / VELOCIDAD_EVASION_MMS * MARGEN_TIMEOUT, 1)
 
-# SOBREPASO: hay que sacar el cuerpo del robot mas el del poste.
-DIST_SOBREPASO_MM = 350.0
+# SOBREPASO: avance necesario para dejar el poste atras antes de volver
+# al carril.
+#
+# El limite no lo pone el poste sino la pared. En SOBREPASO el robot
+# mantiene el rumbo de la esquiva, que apunta ligeramente hacia la pared
+# del lado por el que paso, asi que cada segundo de mas en este estado es
+# excursion lateral acumulada. Medido en la corrida 7, con el servo casi
+# recto todo el tramo:
+#
+#   t=2.61 SOBREPASO der=366    t=3.61 der=287    t=4.81 der=186
+#   t=5.50 REINCORPORACION der=130
+#
+# Son 81 mm/s de cierre lateral sostenido. Con 350mm el estado duraba
+# 2.9s, el robot entraba a REINCORPORACION ya a 130mm de la pared y bajo
+# hasta 84mm con el servo saturado al tope contrario -- a 4mm del umbral
+# de emergencia (80mm). La direccion Ackermann necesita avance para
+# desplazarse de lado, asi que llegar saturado no basta: hay que no
+# llegar tan cerca.
+#
+# Con 200mm el estado dura ~1.6s y la excursion prevista es de unos
+# 130mm, dejando la salida de SOBREPASO cerca de 235mm de la pared. El
+# poste no corre riesgo: cuando este estado empieza ya esta a ~294mm de
+# separacion lateral, muy por encima del medio ancho del robot.
+DIST_SOBREPASO_MM = 200.0
 TIMEOUT_SOBREPASO = round(DIST_SOBREPASO_MM / VELOCIDAD_EVASION_MMS * MARGEN_TIMEOUT, 1)
 
 TIMEOUT_REINCORPORACION = 2.5
