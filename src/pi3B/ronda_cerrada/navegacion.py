@@ -19,6 +19,8 @@
 #   RETROCESO        emergencia anti-choque: reversa con control P sobre
 #                    las diagonales traseras del LiDAR (no un signo fijo,
 #                    ver nota abajo)
+#   GIRO_FORZADO     desempate de esquina simetrica: unico estado que NO
+#                    recalcula su decision cada ciclo (ver nota abajo)
 #
 # La emergencia se chequea en todos los ciclos sin importar el estado.
 # Angulo positivo = giro a la izquierda EN MARCHA ADELANTE. En reversa el
@@ -29,6 +31,20 @@
 # (med.trasera_derecha vs med.trasera_izquierda) y gira hacia ahi cada
 # ciclo, autocorrigiendose sin importar el sentido de giro de la pista.
 # El servo solo da -20/+25 grados reales, de ahi todos los clamps.
+#
+# GIRO_FORZADO existe por un caso limite medido en pista (README 8.4):
+# aproximandose a una esquina perfectamente simetrica (izquierda~derecha
+# en cada ciclo) ni angulo_muro ni el propio RETROCESO tienen ninguna
+# señal instantanea para preferir un lado -- las dos paredes se ven igual
+# de cerca todo el tiempo, asi que ambos deciden ~0 y el robot repite
+# emergencia-retroceso-reintento indefinidamente (medido: 133s, 51
+# episodios seguidos). Ningun control reactivo puro puede resolver esto:
+# hace falta memoria ENTRE ciclos. _racha_retroceso cuenta reintentos de
+# RETROCESO seguidos sin avance neto de rumbo; al llegar al umbral, se
+# entra a GIRO_FORZADO con un lado decidido UNA VEZ (la ultima asimetria
+# real vista, o un lado por defecto si nunca hubo ninguna) y mantenido
+# hasta romper el empate, en vez de recalcularse cada ciclo como todo lo
+# demas en este archivo.
 import math
 import time
 
@@ -167,6 +183,46 @@ KP_RETROCESO         = 0.05
 MAX_ANGULO_RETROCESO = 25.0
 
 # ==========================================
+# DESEMPATE DE ESQUINA SIMETRICA (GIRO_FORZADO)
+# Unico bloque de estado de este archivo que persiste MAS ALLA de un solo
+# episodio de RETROCESO -- ver la nota de cabecera y README 8.4.
+# ==========================================
+
+# Reintentos de RETROCESO seguidos, sin avance neto de rumbo, antes de
+# forzar el giro. En 4 cabe una esquina con algo de asimetria real (caso
+# normal, README 8.4-1) resolviendose sola por angulo_muro antes de que
+# esto intervenga -- no es la primera linea de defensa, es la red debajo
+# de angulo_muro cuando este no tiene nada que triangular.
+RACHA_RETROCESO_PARA_FORZAR = 4
+
+# Avance de rumbo (grados, valor absoluto) que cuenta como progreso real
+# desde que empezo la racha. Por debajo de esto el robot esta
+# reintentando en el mismo sitio, no avanzando por la pista.
+AVANCE_RUMBO_MINIMO = 8.0
+
+# Por debajo de esto en |izquierda-derecha| no hay pista real, es ruido
+# tipico del C1 (~15mm). Por encima, el signo se guarda como la ultima
+# preferencia de lado observada -- la esquina rara vez es simetrica
+# perfecta desde lejos, asi que normalmente hay un sesgo minusculo pero
+# real que capturar antes de que se cierre del todo.
+UMBRAL_MEMORIA_ASIMETRIA = 30.0
+
+# Lado por defecto cuando nunca hubo ninguna asimetria que memorizar (la
+# esquina fue simetrica desde el primer ciclo, caso de la corrida del
+# 8.4-3). No hay ninguna pista fisica para elegir aqui -- es arbitrario a
+# proposito, y el punto es que sea consistente y termine el bucle, no que
+# acierte el lado "correcto" (no lo hay).
+LADO_POR_DEFECTO = 1.0     # +1.0 = izquierda
+
+ANGULO_GIRO_FORZADO    = MAX_ANGULO_EVASION
+VELOCIDAD_GIRO_FORZADO = VELOCIDAD_EVASION
+TIMEOUT_GIRO_FORZADO   = 2.5   # s, tope de seguridad si nunca se desatasca
+
+# Salida por geometria: la pared del lado hacia el que se fuerza el giro
+# se abre de verdad (la esquina dejo de ser simetrica), no solo ruido.
+SALIDA_GIRO_FORZADO_ASIMETRIA = 150.0
+
+# ==========================================
 # CARRERA / PARQUEO
 # ==========================================
 UMBRAL_VUELTAS       = 1010.0  # grados de yaw neto, ~3 vueltas
@@ -221,6 +277,13 @@ class Navegador:
         self._ultima_vel    = 0
         self._t_ultimo_ciclo = None
 
+        # Desempate de esquina simetrica (GIRO_FORZADO), ver constantes
+        # arriba y la nota de cabecera del archivo
+        self._racha_retroceso       = 0
+        self._heading_inicio_racha  = None
+        self._signo_memoria_asimetria = LADO_POR_DEFECTO
+        self._signo_giro_forzado      = 0.0
+
     def procesar(self, med, color_cam, heading, ahora=None):
         # Una llamada por barrido completo. Devuelve (velocidad, angulo)
         # o None cuando la carrera termino.
@@ -258,16 +321,29 @@ class Navegador:
         else:
             self._intentar_capturar_poste(med, color_cam, heading)
 
+        # 0b. Memoria de la ultima asimetria REAL entre paredes (por
+        # encima del ruido del LiDAR). Vive fuera de cualquier estado a
+        # proposito: es la pista que GIRO_FORZADO usa para desempatar una
+        # esquina que, cuando por fin dispara la emergencia, puede que ya
+        # se vea perfectamente simetrica -- pero rara vez lo fue desde
+        # lejos. Sin esto, la unica alternativa es un lado fijo siempre.
+        diff_paredes = med.izquierda - med.derecha
+        if abs(diff_paredes) > UMBRAL_MEMORIA_ASIMETRIA:
+            self._signo_memoria_asimetria = 1.0 if diff_paredes > 0 else -1.0
+
         # 1. Emergencia anti-choque, prioridad sobre cualquier estado
         if (med.frontal < EMERGENCIA_FRONTAL
                 or med.izquierda < EMERGENCIA_LATERAL
                 or med.derecha < EMERGENCIA_LATERAL):
-            if self.estado != "RETROCESO":
+            if self.estado not in ("RETROCESO", "GIRO_FORZADO"):
+                if self._racha_retroceso == 0:
+                    self._heading_inicio_racha = heading
+                self._racha_retroceso += 1
                 self._entrar("RETROCESO", ahora)
                 self.tracker.desactivar("emergencia")
                 self._sector.sector_frontal_normal()
                 print(f"[EMERGENCIA] F:{med.frontal:.0f} I:{med.izquierda:.0f} "
-                      f"D:{med.derecha:.0f}mm -> RETROCESO")
+                      f"D:{med.derecha:.0f}mm -> RETROCESO (racha {self._racha_retroceso})")
 
         # 2. Vueltas completas -> parqueo. Solo desde CRUCERO para no
         #    abandonar una evasion a medias con un poste al lado
@@ -284,6 +360,7 @@ class Navegador:
             "SOBREPASO":       self._est_sobrepaso,
             "REINCORPORACION": self._est_reincorporacion,
             "RETROCESO":       self._est_retroceso,
+            "GIRO_FORZADO":    self._est_giro_forzado,
         }[self.estado]
         velocidad, angulo = manejador(med, color_cam, heading, ahora)
 
@@ -449,8 +526,27 @@ class Navegador:
                 razon = f"despejado en {t_en_estado:.1f}s"
             else:
                 razon = "tiempo maximo"
-            self._entrar("CRUCERO", ahora)
-            print(f"[FSM] RETROCESO -> CRUCERO ({razon})")
+
+            # Si el rumbo ya se movio de verdad desde que empezo la
+            # racha, esto no es un atasco -- es evasion/crucero normal
+            # que de casualidad tuvo un par de frenazos. Se corta la
+            # racha aqui, no solo al llegar al umbral, para no forzar un
+            # giro por reintentos que ya iban progresando.
+            if (self._heading_inicio_racha is not None and
+                    abs(heading - self._heading_inicio_racha) >= AVANCE_RUMBO_MINIMO):
+                self._racha_retroceso = 0
+                self._heading_inicio_racha = None
+
+            if self._racha_retroceso >= RACHA_RETROCESO_PARA_FORZAR:
+                self._signo_giro_forzado = self._signo_memoria_asimetria
+                self._entrar("GIRO_FORZADO", ahora)
+                lado = "IZQUIERDA" if self._signo_giro_forzado > 0 else "DERECHA"
+                print(f"[FSM] RETROCESO -> GIRO_FORZADO ({razon}) | "
+                      f"{self._racha_retroceso} reintentos sin avance de rumbo "
+                      f"-> giro forzado hacia {lado}")
+            else:
+                self._entrar("CRUCERO", ahora)
+                print(f"[FSM] RETROCESO -> CRUCERO ({razon})")
 
         # Control P en vivo sobre las diagonales traseras: gira hacia el
         # lado con mas espacio libre medido en ESTE ciclo, no un signo
@@ -460,6 +556,38 @@ class Navegador:
         error  = med.trasera_derecha - med.trasera_izquierda
         angulo = _clamp(error * KP_RETROCESO, MAX_ANGULO_RETROCESO)
         return (VELOCIDAD_REVERSA, angulo)
+
+    def _est_giro_forzado(self, med, color_cam, heading, ahora):
+        # Desempate de esquina simetrica -- ver README 8.4 y la nota de
+        # cabecera del archivo. A diferencia de todos los demas estados,
+        # NO recalcula su decision cada ciclo: el lado (self._signo_giro_
+        # forzado) se fijo una sola vez al entrar, en _est_retroceso.
+        # Recalcularlo aqui con la misma señal simetrica que causo el
+        # atasco lo volveria a poner en 0 y deshace el punto entero de
+        # este estado.
+        t_en_estado = ahora - self._t_estado
+
+        # Salida geometrica: la pared del lado hacia el que se esta
+        # forzando el giro se abrio de verdad (diff a favor de ese lado
+        # por encima del ruido), es decir, la esquina dejo de ser
+        # simetrica y ya hay una pared real que seguir.
+        diff = med.izquierda - med.derecha
+        asimetria_recuperada = (diff * self._signo_giro_forzado) > SALIDA_GIRO_FORZADO_ASIMETRIA
+
+        if asimetria_recuperada or t_en_estado > TIMEOUT_GIRO_FORZADO:
+            razon = "asimetria recuperada" if asimetria_recuperada else "tiempo maximo"
+            # Cuenta como intento de desatascarse, exitoso o no: la
+            # proxima racha de RETROCESO (si la hay) empieza de cero, no
+            # arrastra los reintentos de este atasco.
+            self._racha_retroceso      = 0
+            self._heading_inicio_racha = None
+            self._entrar("CRUCERO", ahora)
+            print(f"[FSM] GIRO_FORZADO -> CRUCERO ({razon}, {t_en_estado:.1f}s)")
+            return (VELOCIDAD_CRUCERO, self._centrado_paredes(med))
+
+        angulo    = self._signo_giro_forzado * ANGULO_GIRO_FORZADO
+        velocidad = self._con_frenado(VELOCIDAD_GIRO_FORZADO, med.frontal)
+        return (max(VELOCIDAD_MINIMA, velocidad), angulo)
 
     # ==========================================
     # FASE PARQUEO
