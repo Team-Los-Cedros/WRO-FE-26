@@ -147,6 +147,40 @@ KP_HEADING           = 1.0    # P de rumbo en SOBREPASO / REINCORPORACION
 MAX_ANGULO_EVASION   = 25.0   # tope fisico util del servo
 ANGULO_EVASION_CIEGA = 18.0   # sesgo fijo si hay color pero todavia no hay cluster
 
+# ==========================================
+# APAREO COLOR <-> CLUSTER (que poste es cual)
+# ==========================================
+# La camara dice QUE color hay delante y el LiDAR DONDE hay postes, pero
+# hasta ahora se juntaban con dos criterios independientes: el color del
+# blob de mayor area y el cluster mas cercano. Con dos postes en el mismo
+# frame pueden caer en postes distintos, y el color acaba pegado a la
+# posicion equivocada -- el robot esquiva hacia el lado contrario al que
+# manda el reglamento (rojo por la derecha, verde por la izquierda).
+# Estaba anotado como pendiente en el README 8.3.
+#
+# Con el cx del blob (vision.get_deteccion) se puede aparear por ANGULO:
+# se convierte el pixel a rumbo con el modelo estenopeico
+#   rumbo = atan((cx - c0) / f)
+# y se elige el cluster que este en ese mismo rumbo, no el mas cercano.
+#
+# c0 y f DEBERIAN salir de calib_fov.py (que ya existe y ajusta justo
+# este modelo contra postes reales), pero nunca se ha corrido: no hay
+# resultados guardados. Mientras tanto se derivan del FOV de catalogo de
+# la Camera Module 3 Wide documentado en README 4.2 (~102 grados), con
+# el centro optico en el centro geometrico del frame. Correr calib_fov.py
+# y sustituir estos dos numeros es la forma de afinarlo.
+ANCHO_FRAME_CAM   = 320.0
+CX_CENTRO_OPTICO  = ANCHO_FRAME_CAM / 2.0          # c0, px
+HFOV_CAMARA       = 102.0                          # grados, catalogo
+FOCAL_PX          = (ANCHO_FRAME_CAM / 2.0) / math.tan(math.radians(HFOV_CAMARA / 2.0))
+
+# Cuanto puede discrepar el rumbo de la camara del rumbo del cluster para
+# darlos por el mismo poste. Generoso a proposito: camara y LiDAR estan a
+# alturas distintas del chasis (paralaje) y la focal es de catalogo, sin
+# calibrar. Si en pista se ve que rechaza apareos buenos, el arreglo es
+# correr calib_fov.py, no abrir mas la tolerancia.
+TOLERANCIA_APAREO_GRADOS = 20.0
+
 DIST_INICIO_EVASION_TRK = 900.0   # mm, poste confirmado por tracker
 DIST_INICIO_EVASION_CAM = 700.0   # mm, frontal LiDAR + color de camara
 Y_POSTE_EN_PASO         = 180.0   # mm, el poste ya esta a la altura del morro
@@ -369,7 +403,7 @@ class Navegador:
         self._signo_memoria_asimetria = LADO_POR_DEFECTO
         self._signo_giro_forzado      = 0.0
 
-    def procesar(self, med, color_cam, heading, ahora=None):
+    def procesar(self, med, color_cam, heading, ahora=None, cx_cam=None):
         # Una llamada por barrido completo. Devuelve (velocidad, angulo)
         # o None cuando la carrera termino.
         if ahora is None:
@@ -387,7 +421,7 @@ class Navegador:
             return (0, 0.0)
 
         if self.fase == "CARRERA":
-            return self._ciclo_carrera(med, color_cam, heading, ahora, dt)
+            return self._ciclo_carrera(med, color_cam, heading, ahora, dt, cx_cam)
 
         if self.fase == "PARQUEO":
             return self._ciclo_parqueo(med, ahora)
@@ -397,14 +431,14 @@ class Navegador:
     # ==========================================
     # FASE CARRERA
     # ==========================================
-    def _ciclo_carrera(self, med, color_cam, heading, ahora, dt):
+    def _ciclo_carrera(self, med, color_cam, heading, ahora, dt, cx_cam=None):
         # 0. Odometria del tracker (rotacion IMU + avance estimado)
         avance_mm = (self._ultima_vel / 100.0) * tracker_mod.MM_POR_SEG_A_PWM100 * dt
         self.tracker.predecir(heading, avance_mm)
         if self.tracker.activo:
             self.tracker.asociar(med.clusters_obstaculo, centroide_xy_cluster)
         else:
-            self._intentar_capturar_poste(med, color_cam, heading)
+            self._intentar_capturar_poste(med, color_cam, heading, cx_cam)
 
         # 0b. Memoria de la ultima asimetria REAL entre paredes (por
         # encima del ruido del LiDAR). Vive fuera de cualquier estado a
@@ -816,18 +850,50 @@ class Navegador:
         proporcion = (frontal - DIST_FRENADO_MIN) / (DIST_FRENADO_INICIO - DIST_FRENADO_MIN)
         return int(VELOCIDAD_MINIMA + proporcion * (velocidad_base - VELOCIDAD_MINIMA))
 
-    def _intentar_capturar_poste(self, med, color_cam, heading):
-        # Crea el tracker cuando camara y LiDAR coinciden en un poste frontal
+    def _intentar_capturar_poste(self, med, color_cam, heading, cx_cam=None):
+        # Crea el tracker cuando camara y LiDAR coinciden en un poste
+        # frontal. El apareo va por RUMBO cuando la camara da la posicion
+        # del blob (ver el bloque APAREO COLOR <-> CLUSTER): asi el color
+        # se pega al poste que la camara realmente esta viendo, no al que
+        # casualmente esta mas cerca.
         if color_cam is None or not med.clusters_obstaculo:
             return
 
-        mejor_d, mejor_xy = 1e9, None
+        rumbo_cam = None
+        if cx_cam is not None:
+            rumbo_cam = math.degrees(math.atan2(cx_cam - CX_CENTRO_OPTICO, FOCAL_PX))
+
+        candidatos = []
         for clust in med.clusters_obstaculo:
             cx, cy = centroide_xy_cluster(clust)
             if cy > 80.0 and abs(cx) < 450.0:      # zona frontal razonable
-                d = math.hypot(cx, cy)
-                if d < mejor_d:
-                    mejor_d, mejor_xy = d, (cx, cy)
+                candidatos.append((cx, cy, math.hypot(cx, cy),
+                                   math.degrees(math.atan2(cx, cy))))
+        if not candidatos:
+            return
 
-        if mejor_xy is not None:
-            self.tracker.iniciar(color_cam, mejor_xy[0], mejor_xy[1], heading)
+        # El mas cercano, que es lo que se usaba antes; sirve de
+        # referencia para avisar cuando el apareo por rumbo cambia la
+        # decision (o sea, cuando esto acaba de evitar un error).
+        cercano = min(candidatos, key=lambda c: c[2])
+
+        if rumbo_cam is None:
+            elegido = cercano
+        else:
+            en_rumbo = [c for c in candidatos
+                        if abs(c[3] - rumbo_cam) <= TOLERANCIA_APAREO_GRADOS]
+            if not en_rumbo:
+                # La camara ve un color donde el LiDAR no tiene ningun
+                # poste. Antes se le encajaba al cluster mas cercano
+                # igualmente; ahora no se inventa el apareo. La evasion
+                # sigue disponible por vision (_est_crucero mira el color
+                # con la distancia frontal), solo que sin tracker.
+                return
+            elegido = min(en_rumbo, key=lambda c: abs(c[3] - rumbo_cam))
+
+            if elegido is not cercano:
+                print(f"[APAREO] camara en {rumbo_cam:+.0f}deg -> poste en "
+                      f"{elegido[3]:+.0f}deg ({elegido[2]:.0f}mm); el mas cercano "
+                      f"era otro en {cercano[3]:+.0f}deg ({cercano[2]:.0f}mm)")
+
+        self.tracker.iniciar(color_cam, elegido[0], elegido[1], heading)

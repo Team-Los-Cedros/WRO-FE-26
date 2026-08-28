@@ -84,6 +84,25 @@ def get_color():
         return poste_color
 
 
+def get_deteccion():
+    """Color y posición horizontal del poste, como (color, cx) en píxeles.
+
+    `poste_cx` ya se calculaba pero no salía de este módulo, así que
+    `navegacion.py` sabía QUÉ color hay delante pero no DÓNDE, y para
+    aparearlo con el LiDAR usaba "el cluster más cercano" -- un criterio
+    independiente del que eligió el color (el blob de mayor área). Con
+    dos postes en el mismo frame los dos criterios pueden caer en postes
+    distintos y el color acaba pegado a la posición equivocada, con la
+    evasión saliendo hacia el lado contrario al que manda el reglamento.
+    Devolviendo también el cx, el apareo se puede hacer por ángulo.
+
+    cx va de 0 (borde izquierdo) a ANCHO_FRAME (derecho); es None cuando
+    no hay detección estable.
+    """
+    with lock_vision:
+        return poste_color, poste_cx
+
+
 def _guardar_depuracion(frame, hsv, color_nuevo, area):
     # Solo se llama si DEPURAR_FRAMES esta activo. Guarda el frame crudo
     # (BGR real, tal como lo ve procesar_frame) y la mascara del color en
