@@ -5,31 +5,52 @@ commits (ver `git log`). Formato inspirado en [Keep a Changelog](https://keepach
 Cada versión referencia los commits representativos de ese hito para
 poder auditar el cambio exacto con `git show <hash>`.
 
-## [v0.7.2] — 2026-08-28 — Desempate de esquina simétrica (GIRO_FORZADO)
+## [v0.7.2] — 2026-08-28 — Escape frontal y desempate de esquina
 
 Continuación directa del pendiente de v0.7.1. Caso de estudio en README
-sección 8.5.
+sección 8.5. El desempate se diseñó primero contra el síntoma descrito
+en 8.4-3; al probarlo en pista apareció que el bucle tenía otra causa
+—dos términos de control cancelándose— que es lo que arregla el escape
+frontal. Ambos quedan: el escape ataca la causa medida, `GIRO_FORZADO`
+es la red de abajo para el caso simétrico puro.
 
 ### Agregado
 - `ronda_cerrada/navegacion.py`: nuevo estado `GIRO_FORZADO`, único con
-  memoria entre ciclos. Cuenta reintentos de `RETROCESO` seguidos sin
-  avance neto de rumbo; a los 4, fuerza un giro comprometido hacia un
-  lado decidido una vez (última asimetría real memorizada entre paredes,
-  o un lado por defecto si nunca hubo ninguna) y lo mantiene hasta que
-  la esquina se abra de verdad o por timeout de seguridad. Rompe el
-  bucle emergencia-retroceso-reintento de la corrida del gauntlet
-  (133s, 51 episodios).
+  memoria entre ciclos. Cuenta emergencias encadenadas (cada una dentro
+  de `VENTANA_ATASCO` desde la anterior); a las 4, fuerza un giro
+  comprometido hacia un lado decidido una vez (última asimetría real
+  memorizada entre paredes, o un lado por defecto si nunca hubo
+  ninguna) y lo mantiene hasta que la esquina se abra de verdad o por
+  timeout de seguridad. Pensado para el bucle del gauntlet de 8.4-3
+  (133s, 51 episodios); no llegó a dispararse en la corrida de
+  validación porque el escape frontal lo resolvió antes.
+
+### Corregido
+- `ronda_cerrada/navegacion.py`: **causa real del bucle**, encontrada al
+  probar lo anterior en pista. Los dos términos de `_centrado_paredes`
+  (posición `izq-der` y orientación `angulo_muro`) apuntan a lados
+  opuestos acercándose a una esquina y se anulan: 274 de 394 ciclos con
+  el frente bajo 400mm quedaban con un comando mediano de 1.5° con un
+  servo que da 20-25°. El robot entraba recto contra la pared con la
+  dirección centrada. Nuevo `_con_escape_frontal`: giro hacia el lado
+  libre con autoridad creciente según se cierra el frente, mezclado
+  sobre el centrado (no sumado, que la cancelación se lo comería).
+- Criterio de racha de `GIRO_FORZADO`: el "avance neto de rumbo" no
+  funcionó en pista (el robot giraba 5-7° por episodio sin escapar, así
+  que la racha se reiniciaba y nunca alcanzaba el umbral). Sustituido
+  por cadencia entre emergencias (`VENTANA_ATASCO=10s`), que sí separa
+  atasco de incidente aislado.
 
 ### Validado
-- Solo fuera de pista: barridos LiDAR sintéticos reproduciendo el bucle
-  medido (rompe a la 4ª racha), un caso negativo (no dispara si el
-  rumbo sí progresa entre emergencias) y la memoria de asimetría
-  (recuerda el lado real en vez del default cuando lo hay). **Pendiente
-  de validar con motores en pista** — la simulación confirma la lógica
-  de la máquina de estados, no si `ANGULO_GIRO_FORZADO`/`TIMEOUT_GIRO_FORZADO`
-  bastan con la geometría real del chasis.
+- Con motores, mismo montaje que la corrida fallida: emergencias 12→1,
+  tiempo en `RETROCESO` 32%→2%, ciclos en peligro sin autoridad de
+  dirección 71%→8%, rumbo recorrido 106°→442°, evasiones iniciadas 0→8.
+  `GIRO_FORZADO` no llegó a dispararse (queda como red de abajo).
+  Corrida cortada a los 84s a petición del equipo: falta confirmar una
+  vuelta completa sin interrupción.
 
 - `6b74f8e` feat(navegacion): forzar giro tras N retrocesos sin avance de rumbo
+- `9626e80` fix(navegacion): escape frontal, el centrado se anulaba a si mismo
 
 ## [v0.7.1] — 2026-08-28 — Asistencia de esquina y límite de la reactividad pura
 

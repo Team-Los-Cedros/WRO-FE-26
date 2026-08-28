@@ -919,7 +919,38 @@ Continuación directa de 8.4-3. La conclusión de esa sección fue que ningún c
 
 Commit `6b74f8e`.
 
-**Pendiente:** validar con motores en pista, con el mismo protocolo de cámara cenital + `registro_metricas.py` de las secciones 8.3/8.4. La simulación sintética confirma la lógica de la máquina de estados, no la geometría real (si `ANGULO_GIRO_FORZADO=25°` y `TIMEOUT_GIRO_FORZADO=2.5s` bastan para abrir la esquina en la pista física, con las diagonales laterales asimétricas reales del chasis).
+**Al probarlo en pista, no funcionó — y el log explicó por qué en el primer minuto.** La racha se reiniciaba sola: `racha 1, 1, 1, 2, 3, 1...`, sin llegar nunca al umbral de 4. El CSV lo confirmó: el robot **sí giraba** 5-7° por episodio (rumbo de -37° a +39° a lo largo de 12 emergencias) pero sin escapar de la esquina. El criterio de "avance neto de rumbo" era falso de raíz — el rumbo se mueve sin que el robot progrese, así que no sirve como medida de escape. Sustituido por la **cadencia**, que sí distingue los dos casos sin ambigüedad: atascado, las emergencias caen cada 4.7-5.8s como un reloj (12 episodios medidos, mediana 4.8s); en una corrida sana no hay ninguna (corridas 6, 7 y 8 de la sección 8.3).
+
+**Pero ese ni siquiera era el fallo principal.** Al mirar el acercamiento ciclo a ciclo apareció la causa real, y no era la esquina simétrica de 8.4-3:
+
+| t | frontal | izq | der | izq-der | angulo_muro | **ángulo** |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 44.96 | 278 | 206 | 244 | -38 | -6.4 | **-1.3** |
+| 45.96 | 208 | 144 | 174 | -30 | -5.9 | **-0.5** |
+| 46.86 | 124 | 87 | 115 | -28 | -3.5 | **-1.6** |
+
+El frente se cierra de 302 a 124mm en 3 segundos con **el servo en ~1°**: el robot entra recto contra la pared con la dirección prácticamente centrada. Descomponiendo `_centrado_paredes`, los dos términos apuntan a lados **opuestos** y se anulan (`T_pos=-5.32` contra `T_muro=+4.17` → `-1.15`). Ocurre en **274 de los 394 ciclos** con el frente por debajo de 400mm (70%), dejando un comando mediano de **1.5° con un servo que da 20-25°**.
+
+La raíz es que los dos términos miden cosas distintas —posición entre paredes y orientación respecto al muro— y ninguno mira el frente. `(izq-der)` dice dónde está el robot *entre* las paredes, no cuánto espacio queda: en un pasillo que se cierra a 200mm de ancho vale casi cero aunque el robot esté a punto de chocar con las dos. (Se descartó por medición la hipótesis alternativa de que el haz diagonal estuviera contaminado por la pared frontal: no lo estaba en ninguno de los ciclos.)
+
+**Corrección: `_con_escape_frontal`.** Introduce la pregunta que faltaba —"hay pared delante, hacia dónde salgo"— con autoridad creciente según se cierra el frente (`DIST_ESCAPE_FRONTAL=500mm`, `ANGULO_ESCAPE_MAX=22°`), *mezclándose sobre* el centrado en vez de sumarse, porque sumar dejaría que la cancelación se lo siguiera comiendo. Cuando las dos paredes están dentro del ruido del LiDAR usa la misma memoria persistente que `GIRO_FORZADO`, para que las dos defensas elijan el mismo lado.
+
+**Validado con motores, mismo montaje que la corrida anterior:**
+
+| | Antes | Después |
+| :--- | ---: | ---: |
+| Emergencias | 12 | **1** |
+| Tiempo en `RETROCESO` | 32% | **2%** |
+| Ciclos en peligro sin autoridad de dirección (<3°) | 71% | **8%** |
+| Rumbo recorrido | 106° | **442°** |
+| Evasiones iniciadas | 0 | **8** |
+| Pared mínima | 75mm | 114mm |
+
+El bucle desapareció y el robot volvió a encadenar evasiones (8 en 84s, rojo y verde). `GIRO_FORZADO` **nunca llegó a dispararse**, que es exactamente el diseño: el escape frontal ataca la causa y el desempate queda como red de abajo para el caso simétrico puro de 8.4-3, que esta corrida no volvió a reproducir. Commits `6b74f8e` (desempate) y `9626e80` (escape frontal + criterio de cadencia).
+
+> **Lección metodológica:** el arreglo de la primera mitad de esta sección se diseñó contra el síntoma descrito en 8.4-3 ("esquina simétrica") sin volver a mirar datos crudos, y en pista resultó que el bucle observado tenía otra causa — dos términos de control cancelándose, que ninguna cantidad de simulación sintética iba a revelar porque la simulación reproducía la hipótesis, no la pista. La validación sintética sirve para comprobar que la lógica hace lo que se cree, no para descubrir qué está pasando en el robot.
+
+**Pendiente:** la corrida se cortó a los 84s a petición del equipo, así que queda por confirmar una vuelta completa (3 vueltas + parqueo) sin interrupción.
 
 ---
 
