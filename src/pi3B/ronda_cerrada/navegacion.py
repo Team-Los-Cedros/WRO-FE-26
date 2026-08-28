@@ -129,6 +129,23 @@ Y_POSTE_EN_PASO         = 180.0   # mm, el poste ya esta a la altura del morro
 # contra la pared cuando el carril es mas angosto de lo esperado.
 DIST_ALERTA_PARED = 220.0
 
+# Distancia a la que el centrado toma el mando POR COMPLETO, dejando de
+# perseguir el poste. Antes no existia: el peso era 1 - pared/220, que
+# vale 0.25 a 164mm y solo 0.64 a 80mm (el umbral de emergencia), o sea
+# que la persecucion del poste conservaba el 36% del comando incluso
+# pegado a la pared. Medido en la corrida del README 8.6, ciclo a ciclo:
+#
+#   t=74.16 izq=164 der=807 ang=+25.0   pared izquierda cerca,
+#   t=74.86 izq=136 der=858 ang= +7.7   pasillo abierto a la derecha,
+#   t=75.46 izq=100 der=946 ang= +0.5   y el robot girando A LA IZQUIERDA
+#   t=75.96 izq= 76         EMERGENCIA
+#
+# Con izq-der=-672, _centrado_paredes pedia -20 (todo a la derecha), pero
+# la mezcla al 25% lo convertia en +14.7: giro hacia la pared. Con la
+# rampa saturando a 120mm el centrado manda entero con 40mm de margen
+# antes de la emergencia, que a 100mm/s es medio segundo de reaccion.
+DIST_PARED_CRITICA = 120.0
+
 # Velocidad de avance en funcion del PWM, a partir de la curva medida en
 # pista (ver la nota de tracker.MM_POR_SEG_A_PWM100). Sale practicamente
 # proporcional, asi que basta escalar la constante.
@@ -725,14 +742,35 @@ class Navegador:
     def _con_seguridad_pared(self, angulo_deseado, med):
         # La evasion (pure pursuit al poste, rumbo paralelo) no sabe donde
         # esta la pared -- persigue al poste sin mirar el LiDAR lateral.
-        # Si la pared del lado hacia el que se esta girando se acerca,
-        # mezcla el comando deseado con el centrado de pared normal, cada
-        # vez con mas peso segun se acerca. Angulo negativo = giro a la
-        # derecha = se acerca a la pared derecha, y viceversa.
-        pared = med.derecha if angulo_deseado < 0 else med.izquierda
+        # Segun se acerca una pared, este mezclador le va quitando mando a
+        # la persecucion y se lo da al centrado normal.
+        #
+        # Se mira la pared MAS CERCANA, no la del lado hacia el que se
+        # gira. Antes era `med.derecha if angulo_deseado < 0 else
+        # med.izquierda`, y eso deja un hueco: con el comando ya girando
+        # para alejarse, la proteccion se apagaba justo mientras el robot
+        # seguia trasladandose hacia la pared por inercia. Medido en la
+        # corrida del README 8.6, con la pared izquierda cerrandose:
+        #
+        #   t=75.46 izq=100 der=946 ang=+0.5   protege (mira izquierda)
+        #   t=75.56 izq= 95 der=954 ang=-0.6   deja de proteger (mira derecha)
+        #   t=75.86 izq= 80 der=981 ang=-3.6   EMERGENCIA
+        #
+        # En Ackermann girar no te separa de la pared al instante: hace
+        # falta avanzar. Por eso la pared cercana importa aunque ya estes
+        # girando para el otro lado.
+        pared = min(med.izquierda, med.derecha)
         if pared >= DIST_ALERTA_PARED:
             return angulo_deseado
-        peso_pared = 1.0 - (pared / DIST_ALERTA_PARED)
+
+        # Rampa que SATURA (ver DIST_PARED_CRITICA): a 120mm el centrado
+        # manda del todo. La anterior (1 - pared/220) nunca llegaba a 1 y
+        # dejaba a la persecucion del poste un 36% del comando incluso en
+        # el umbral de emergencia.
+        peso_pared = ((DIST_ALERTA_PARED - pared) /
+                      (DIST_ALERTA_PARED - DIST_PARED_CRITICA))
+        peso_pared = max(0.0, min(1.0, peso_pared))
+
         mezcla = angulo_deseado * (1.0 - peso_pared) + self._centrado_paredes(med) * peso_pared
         return _clamp(mezcla, MAX_ANGULO_EVASION)
 
