@@ -19,6 +19,8 @@
 #   RETROCESO        emergencia anti-choque: reversa con control P sobre
 #                    las diagonales traseras del LiDAR (no un signo fijo,
 #                    ver nota abajo)
+#   GIRO_FORZADO     desempate de esquina simetrica: unico estado que NO
+#                    recalcula su decision cada ciclo (ver nota abajo)
 #
 # La emergencia se chequea en todos los ciclos sin importar el estado.
 # Angulo positivo = giro a la izquierda EN MARCHA ADELANTE. En reversa el
@@ -29,6 +31,25 @@
 # (med.trasera_derecha vs med.trasera_izquierda) y gira hacia ahi cada
 # ciclo, autocorrigiendose sin importar el sentido de giro de la pista.
 # El servo solo da -20/+25 grados reales, de ahi todos los clamps.
+#
+# GIRO_FORZADO existe por un caso limite medido en pista (README 8.4):
+# aproximandose a una esquina perfectamente simetrica (izquierda~derecha
+# en cada ciclo) ni angulo_muro ni el propio RETROCESO tienen ninguna
+# señal instantanea para preferir un lado -- las dos paredes se ven igual
+# de cerca todo el tiempo, asi que ambos deciden ~0 y el robot repite
+# emergencia-retroceso-reintento indefinidamente (medido: 133s, 51
+# episodios seguidos). Ningun control reactivo puro puede resolver esto:
+# hace falta memoria ENTRE ciclos. _racha_retroceso cuenta emergencias
+# encadenadas (cada una poco despues de la anterior, ver VENTANA_ATASCO);
+# al llegar al umbral se entra a GIRO_FORZADO con un lado decidido UNA
+# VEZ (la ultima asimetria real vista, o un lado por defecto si nunca
+# hubo ninguna) y mantenido hasta romper el empate, en vez de
+# recalcularse cada ciclo como todo lo demas en este archivo.
+#
+# GIRO_FORZADO es la ultima red, no la primera: el caso que de verdad se
+# midio en pista (README 8.5) lo resuelve antes _con_escape_frontal, que
+# ataca la causa -- el centrado se anulaba a si mismo y nadie miraba el
+# frente. Ver la nota de DIST_ESCAPE_FRONTAL.
 import math
 import time
 
@@ -56,8 +77,66 @@ KP_LATERAL = 0.14            # calibrado en pista, mismo valor que la Ronda Abie
 # esquina (angulo_muro ~ -3 grados) el aporte es de 1-2 grados, despreciable.
 KP_ANGULO_MURO = 0.65
 
+# La asistencia de esquina se calibro (README 8.4) suponiendo que lejos
+# de una esquina angulo_muro ronda los -3 grados y aporta "1-2 grados,
+# despreciable", con -22 grados estables al apuntar a una esquina real.
+# Esa validacion se hizo en una corrida limpia SIN pilares. Con la pista
+# completa la suposicion no se cumple: medido en la corrida del README
+# 8.6, |angulo_muro| tiene mediana 18-22 grados TODO el rato (7 veces el
+# baseline supuesto) y rango -59..+45, y su aporte satura el servo el
+# solo en el 22% de los ciclos y domina sobre el termino de posicion en
+# el 32%. El robot se iba a un lado y al otro sin acumular rumbo: 20
+# inversiones de sentido de giro, recorrido estancado en 367 grados
+# durante 42s.
+#
+# Dos condiciones, las dos conservadoras: preservan intacto el caso que
+# SI se valido (esquina real con el frente cerrandose, -22 grados ->
+# 14.3 de aporte) y recortan lo que va mas alla.
+
+# 1. Una esquina de verdad tiene algo delante. Con el pasillo despejado
+#    no hay esquina que asistir, y ahi es donde la señal era pura basura:
+#    206 ciclos (25% de las lecturas fuertes) con el frente a mas de
+#    900mm, el robot centrado (|izq-der| mediana 200mm) y la asistencia
+#    inyectando 20 grados de media sin ningun motivo.
+DIST_ASISTENCIA_ESQUINA = 900.0
+
+# 2. Asistencia quiere decir asistir, no mandar. Con lecturas de +-40/50
+#    grados el aporte llegaba a 26-32 grados y saturaba el servo por si
+#    solo, tapando por completo el control de posicion. El tope deja
+#    pasar entero el caso validado (14.3) y corta el resto.
+MAX_APORTE_ANGULO_MURO = 15.0
+
 DIST_FRENADO_INICIO = 900.0  # mm, empieza a bajar velocidad
 DIST_FRENADO_MIN    = 300.0  # mm, velocidad minima alcanzada
+
+# ==========================================
+# ESCAPE FRONTAL
+# ==========================================
+# Los dos terminos de _centrado_paredes miden cosas distintas -- posicion
+# entre paredes (izq-der) y orientacion respecto al muro (angulo_muro) --
+# y acercandose a una esquina apuntan a lados OPUESTOS y se anulan.
+# Medido en la corrida del 8.5, ciclo a ciclo:
+#
+#   t=44.96 front=278 izq-der=-38 a_muro=-6.4 | T_pos=-5.32 T_muro=+4.17 -> -1.15
+#   t=45.96 front=208 izq-der=-30 a_muro=-5.9 | T_pos=-4.20 T_muro=+3.82 -> -0.38
+#
+# 274 de los 394 ciclos con el frente por debajo de 400mm (70%) tienen
+# los dos terminos cancelandose, dejando un comando mediano de 1.5
+# grados con un servo que da 20-25. El robot entra recto contra la pared
+# con la direccion practicamente centrada, dispara EMERGENCIA a 120mm,
+# retrocede y repite: 12 episodios, uno cada 4.7-5.8s.
+#
+# Ademas ninguno de los dos terminos mira el frente: (izq-der) dice donde
+# esta el robot ENTRE las paredes, no cuanto espacio total queda, y en un
+# pasillo que se cierra a 200mm de ancho vale casi cero aunque el robot
+# este a punto de chocar contra las dos.
+#
+# El escape mete la unica pregunta que faltaba -- "hay pared delante, hacia
+# donde salgo" -- y le da autoridad creciente segun se cierra el frente,
+# mezclandose sobre el centrado normal en vez de sumarse (sumar dejaria
+# que la cancelacion se lo siguiera comiendo).
+DIST_ESCAPE_FRONTAL = 500.0   # mm, por encima de esto no interviene
+ANGULO_ESCAPE_MAX   = 22.0    # grados a plena urgencia
 
 # ==========================================
 # EVASION
@@ -67,6 +146,61 @@ KP_PURSUIT           = 1.0    # grados de comando por grado de bearing
 KP_HEADING           = 1.0    # P de rumbo en SOBREPASO / REINCORPORACION
 MAX_ANGULO_EVASION   = 25.0   # tope fisico util del servo
 ANGULO_EVASION_CIEGA = 18.0   # sesgo fijo si hay color pero todavia no hay cluster
+
+# ==========================================
+# APAREO COLOR <-> CLUSTER (que poste es cual)
+# ==========================================
+# La camara dice QUE color hay delante y el LiDAR DONDE hay postes, pero
+# hasta ahora se juntaban con dos criterios independientes: el color del
+# blob de mayor area y el cluster mas cercano. Con dos postes en el mismo
+# frame pueden caer en postes distintos, y el color acaba pegado a la
+# posicion equivocada -- el robot esquiva hacia el lado contrario al que
+# manda el reglamento (rojo por la derecha, verde por la izquierda).
+# Estaba anotado como pendiente en el README 8.3.
+#
+# Con el cx del blob (vision.get_deteccion) se puede aparear por ANGULO:
+# se convierte el pixel a rumbo con el modelo estenopeico
+#   rumbo = atan((cx - c0) / f)
+# y se elige el cluster que este en ese mismo rumbo, no el mas cercano.
+#
+# c0 y f DEBERIAN salir de calib_fov.py (que ya existe y ajusta justo
+# este modelo contra postes reales), pero nunca se ha corrido: no hay
+# resultados guardados. Mientras tanto se derivan del FOV de catalogo de
+# la Camera Module 3 Wide documentado en README 4.2 (~102 grados), con
+# el centro optico en el centro geometrico del frame. Correr calib_fov.py
+# y sustituir estos dos numeros es la forma de afinarlo.
+ANCHO_FRAME_CAM   = 320.0
+CX_CENTRO_OPTICO  = ANCHO_FRAME_CAM / 2.0          # c0, px
+HFOV_CAMARA       = 102.0                          # grados, catalogo
+FOCAL_PX          = (ANCHO_FRAME_CAM / 2.0) / math.tan(math.radians(HFOV_CAMARA / 2.0))
+
+# Cuanto puede discrepar el rumbo de la camara del rumbo del cluster para
+# darlos por el mismo poste. Generoso a proposito: camara y LiDAR estan a
+# alturas distintas del chasis (paralaje) y la focal es de catalogo, sin
+# calibrar. Si en pista se ve que rechaza apareos buenos, el arreglo es
+# correr calib_fov.py, no abrir mas la tolerancia.
+TOLERANCIA_APAREO_GRADOS = 20.0
+
+# Hasta donde se buscan postes candidatos, EN ANGULO. Antes la puerta era
+# rectangular (abs(cx) < 450mm), y un filtro en milimetros laterales se
+# cierra en angulo segun te alejas: 450mm de lado son 48 grados a 400mm
+# pero solo 26.6 a 900mm, justo donde el poste deberia engancharse para
+# que la evasion tenga margen. La camara ve +-51 grados (HFOV 102), asi
+# que veia postes que este filtro rechazaba -- y precisamente los
+# LEJANOS. El mismo poste acababa entrando al acercarse, cuando la
+# puerta ya se habia abierto en angulo, pero para entonces estaba encima.
+#
+# Medido en la corrida 6: el color se detecta a 858mm de mediana pero el
+# tracker no engancha hasta los 676mm, y el 70% de los enganches ocurren
+# con el poste ya a menos de 700mm. Son 224mm por debajo de
+# DIST_INICIO_EVASION_TRK (900mm), o sea 1.4s de maniobra perdidos a la
+# velocidad de evasion.
+#
+# Con una puerta angular el criterio deja de depender de la distancia y
+# se alinea con lo que la camara puede ver. El apareo por rumbo ya acota
+# de verdad cual es el poste bueno (TOLERANCIA_APAREO_GRADOS); esta
+# puerta solo marca el borde del campo de busqueda.
+SECTOR_BUSQUEDA_POSTE = 50.0   # grados a cada lado del frente
 
 DIST_INICIO_EVASION_TRK = 900.0   # mm, poste confirmado por tracker
 DIST_INICIO_EVASION_CAM = 700.0   # mm, frontal LiDAR + color de camara
@@ -78,6 +212,23 @@ Y_POSTE_EN_PASO         = 180.0   # mm, el poste ya esta a la altura del morro
 # donde esta la pared -- esto evita que la persecucion mande al robot
 # contra la pared cuando el carril es mas angosto de lo esperado.
 DIST_ALERTA_PARED = 220.0
+
+# Distancia a la que el centrado toma el mando POR COMPLETO, dejando de
+# perseguir el poste. Antes no existia: el peso era 1 - pared/220, que
+# vale 0.25 a 164mm y solo 0.64 a 80mm (el umbral de emergencia), o sea
+# que la persecucion del poste conservaba el 36% del comando incluso
+# pegado a la pared. Medido en la corrida del README 8.6, ciclo a ciclo:
+#
+#   t=74.16 izq=164 der=807 ang=+25.0   pared izquierda cerca,
+#   t=74.86 izq=136 der=858 ang= +7.7   pasillo abierto a la derecha,
+#   t=75.46 izq=100 der=946 ang= +0.5   y el robot girando A LA IZQUIERDA
+#   t=75.96 izq= 76         EMERGENCIA
+#
+# Con izq-der=-672, _centrado_paredes pedia -20 (todo a la derecha), pero
+# la mezcla al 25% lo convertia en +14.7: giro hacia la pared. Con la
+# rampa saturando a 120mm el centrado manda entero con 40mm de margen
+# antes de la emergencia, que a 100mm/s es medio segundo de reaccion.
+DIST_PARED_CRITICA = 120.0
 
 # Velocidad de avance en funcion del PWM, a partir de la curva medida en
 # pista (ver la nota de tracker.MM_POR_SEG_A_PWM100). Sale practicamente
@@ -167,6 +318,51 @@ KP_RETROCESO         = 0.05
 MAX_ANGULO_RETROCESO = 25.0
 
 # ==========================================
+# DESEMPATE DE ESQUINA SIMETRICA (GIRO_FORZADO)
+# Unico bloque de estado de este archivo que persiste MAS ALLA de un solo
+# episodio de RETROCESO -- ver la nota de cabecera y README 8.4.
+# ==========================================
+
+# Reintentos de RETROCESO seguidos antes de forzar el giro. En 4 cabe una
+# esquina con algo de asimetria real (caso normal, README 8.4-1)
+# resolviendose sola antes de que esto intervenga -- no es la primera
+# linea de defensa, es la red de debajo.
+RACHA_RETROCESO_PARA_FORZAR = 4
+
+# Que cuenta como "seguidos": una emergencia nueva dentro de esta ventana
+# desde la anterior. Primer intento de esto uso el avance de rumbo entre
+# episodios y NO funciono en pista (corrida del 8.5): el robot giraba
+# 5-7 grados por ciclo sin escapar de la esquina, asi que la racha se
+# reiniciaba cada dos episodios y nunca llegaba al umbral. El rumbo se
+# mueve sin que el robot progrese -- no sirve como medida de escape.
+# La cadencia si distingue los dos casos sin ambiguedad: atascado, las
+# emergencias caen cada 4.7-5.8s como un reloj (12 episodios medidos);
+# en una corrida sana no hay ninguna (corridas 6, 7 y 8 de README 8.3).
+VENTANA_ATASCO = 10.0   # s
+
+# Por debajo de esto en |izquierda-derecha| no hay pista real, es ruido
+# tipico del C1 (~15mm). Por encima, el signo se guarda como la ultima
+# preferencia de lado observada -- la esquina rara vez es simetrica
+# perfecta desde lejos, asi que normalmente hay un sesgo minusculo pero
+# real que capturar antes de que se cierre del todo.
+UMBRAL_MEMORIA_ASIMETRIA = 30.0
+
+# Lado por defecto cuando nunca hubo ninguna asimetria que memorizar (la
+# esquina fue simetrica desde el primer ciclo, caso de la corrida del
+# 8.4-3). No hay ninguna pista fisica para elegir aqui -- es arbitrario a
+# proposito, y el punto es que sea consistente y termine el bucle, no que
+# acierte el lado "correcto" (no lo hay).
+LADO_POR_DEFECTO = 1.0     # +1.0 = izquierda
+
+ANGULO_GIRO_FORZADO    = MAX_ANGULO_EVASION
+VELOCIDAD_GIRO_FORZADO = VELOCIDAD_EVASION
+TIMEOUT_GIRO_FORZADO   = 2.5   # s, tope de seguridad si nunca se desatasca
+
+# Salida por geometria: la pared del lado hacia el que se fuerza el giro
+# se abre de verdad (la esquina dejo de ser simetrica), no solo ruido.
+SALIDA_GIRO_FORZADO_ASIMETRIA = 150.0
+
+# ==========================================
 # CARRERA / PARQUEO
 # ==========================================
 UMBRAL_VUELTAS       = 1010.0  # grados de yaw neto, ~3 vueltas
@@ -221,7 +417,14 @@ class Navegador:
         self._ultima_vel    = 0
         self._t_ultimo_ciclo = None
 
-    def procesar(self, med, color_cam, heading, ahora=None):
+        # Desempate de esquina simetrica (GIRO_FORZADO), ver constantes
+        # arriba y la nota de cabecera del archivo
+        self._racha_retroceso       = 0
+        self._t_ultima_emergencia   = None
+        self._signo_memoria_asimetria = LADO_POR_DEFECTO
+        self._signo_giro_forzado      = 0.0
+
+    def procesar(self, med, color_cam, heading, ahora=None, cx_cam=None):
         # Una llamada por barrido completo. Devuelve (velocidad, angulo)
         # o None cuando la carrera termino.
         if ahora is None:
@@ -239,7 +442,7 @@ class Navegador:
             return (0, 0.0)
 
         if self.fase == "CARRERA":
-            return self._ciclo_carrera(med, color_cam, heading, ahora, dt)
+            return self._ciclo_carrera(med, color_cam, heading, ahora, dt, cx_cam)
 
         if self.fase == "PARQUEO":
             return self._ciclo_parqueo(med, ahora)
@@ -249,25 +452,44 @@ class Navegador:
     # ==========================================
     # FASE CARRERA
     # ==========================================
-    def _ciclo_carrera(self, med, color_cam, heading, ahora, dt):
+    def _ciclo_carrera(self, med, color_cam, heading, ahora, dt, cx_cam=None):
         # 0. Odometria del tracker (rotacion IMU + avance estimado)
         avance_mm = (self._ultima_vel / 100.0) * tracker_mod.MM_POR_SEG_A_PWM100 * dt
         self.tracker.predecir(heading, avance_mm)
         if self.tracker.activo:
             self.tracker.asociar(med.clusters_obstaculo, centroide_xy_cluster)
         else:
-            self._intentar_capturar_poste(med, color_cam, heading)
+            self._intentar_capturar_poste(med, color_cam, heading, cx_cam)
+
+        # 0b. Memoria de la ultima asimetria REAL entre paredes (por
+        # encima del ruido del LiDAR). Vive fuera de cualquier estado a
+        # proposito: es la pista que GIRO_FORZADO usa para desempatar una
+        # esquina que, cuando por fin dispara la emergencia, puede que ya
+        # se vea perfectamente simetrica -- pero rara vez lo fue desde
+        # lejos. Sin esto, la unica alternativa es un lado fijo siempre.
+        diff_paredes = med.izquierda - med.derecha
+        if abs(diff_paredes) > UMBRAL_MEMORIA_ASIMETRIA:
+            self._signo_memoria_asimetria = 1.0 if diff_paredes > 0 else -1.0
 
         # 1. Emergencia anti-choque, prioridad sobre cualquier estado
         if (med.frontal < EMERGENCIA_FRONTAL
                 or med.izquierda < EMERGENCIA_LATERAL
                 or med.derecha < EMERGENCIA_LATERAL):
-            if self.estado != "RETROCESO":
+            if self.estado not in ("RETROCESO", "GIRO_FORZADO"):
+                # Racha por CADENCIA, no por rumbo: una emergencia nueva
+                # poco despues de la anterior es un atasco; una aislada
+                # despues de mucho rato es un incidente normal.
+                if (self._t_ultima_emergencia is not None and
+                        (ahora - self._t_ultima_emergencia) <= VENTANA_ATASCO):
+                    self._racha_retroceso += 1
+                else:
+                    self._racha_retroceso = 1
+                self._t_ultima_emergencia = ahora
                 self._entrar("RETROCESO", ahora)
                 self.tracker.desactivar("emergencia")
                 self._sector.sector_frontal_normal()
                 print(f"[EMERGENCIA] F:{med.frontal:.0f} I:{med.izquierda:.0f} "
-                      f"D:{med.derecha:.0f}mm -> RETROCESO")
+                      f"D:{med.derecha:.0f}mm -> RETROCESO (racha {self._racha_retroceso})")
 
         # 2. Vueltas completas -> parqueo. Solo desde CRUCERO para no
         #    abandonar una evasion a medias con un poste al lado
@@ -284,6 +506,7 @@ class Navegador:
             "SOBREPASO":       self._est_sobrepaso,
             "REINCORPORACION": self._est_reincorporacion,
             "RETROCESO":       self._est_retroceso,
+            "GIRO_FORZADO":    self._est_giro_forzado,
         }[self.estado]
         velocidad, angulo = manejador(med, color_cam, heading, ahora)
 
@@ -449,8 +672,17 @@ class Navegador:
                 razon = f"despejado en {t_en_estado:.1f}s"
             else:
                 razon = "tiempo maximo"
-            self._entrar("CRUCERO", ahora)
-            print(f"[FSM] RETROCESO -> CRUCERO ({razon})")
+
+            if self._racha_retroceso >= RACHA_RETROCESO_PARA_FORZAR:
+                self._signo_giro_forzado = self._signo_memoria_asimetria
+                self._entrar("GIRO_FORZADO", ahora)
+                lado = "IZQUIERDA" if self._signo_giro_forzado > 0 else "DERECHA"
+                print(f"[FSM] RETROCESO -> GIRO_FORZADO ({razon}) | "
+                      f"{self._racha_retroceso} emergencias encadenadas "
+                      f"-> giro forzado hacia {lado}")
+            else:
+                self._entrar("CRUCERO", ahora)
+                print(f"[FSM] RETROCESO -> CRUCERO ({razon})")
 
         # Control P en vivo sobre las diagonales traseras: gira hacia el
         # lado con mas espacio libre medido en ESTE ciclo, no un signo
@@ -460,6 +692,38 @@ class Navegador:
         error  = med.trasera_derecha - med.trasera_izquierda
         angulo = _clamp(error * KP_RETROCESO, MAX_ANGULO_RETROCESO)
         return (VELOCIDAD_REVERSA, angulo)
+
+    def _est_giro_forzado(self, med, color_cam, heading, ahora):
+        # Desempate de esquina simetrica -- ver README 8.4 y la nota de
+        # cabecera del archivo. A diferencia de todos los demas estados,
+        # NO recalcula su decision cada ciclo: el lado (self._signo_giro_
+        # forzado) se fijo una sola vez al entrar, en _est_retroceso.
+        # Recalcularlo aqui con la misma señal simetrica que causo el
+        # atasco lo volveria a poner en 0 y deshace el punto entero de
+        # este estado.
+        t_en_estado = ahora - self._t_estado
+
+        # Salida geometrica: la pared del lado hacia el que se esta
+        # forzando el giro se abrio de verdad (diff a favor de ese lado
+        # por encima del ruido), es decir, la esquina dejo de ser
+        # simetrica y ya hay una pared real que seguir.
+        diff = med.izquierda - med.derecha
+        asimetria_recuperada = (diff * self._signo_giro_forzado) > SALIDA_GIRO_FORZADO_ASIMETRIA
+
+        if asimetria_recuperada or t_en_estado > TIMEOUT_GIRO_FORZADO:
+            razon = "asimetria recuperada" if asimetria_recuperada else "tiempo maximo"
+            # Cuenta como intento de desatascarse, exitoso o no: la
+            # proxima racha de RETROCESO (si la hay) empieza de cero, no
+            # arrastra los reintentos de este atasco.
+            self._racha_retroceso     = 0
+            self._t_ultima_emergencia = None
+            self._entrar("CRUCERO", ahora)
+            print(f"[FSM] GIRO_FORZADO -> CRUCERO ({razon}, {t_en_estado:.1f}s)")
+            return (VELOCIDAD_CRUCERO, self._centrado_paredes(med))
+
+        angulo    = self._signo_giro_forzado * ANGULO_GIRO_FORZADO
+        velocidad = self._con_frenado(VELOCIDAD_GIRO_FORZADO, med.frontal)
+        return (max(VELOCIDAD_MINIMA, velocidad), angulo)
 
     # ==========================================
     # FASE PARQUEO
@@ -518,21 +782,83 @@ class Navegador:
         # pasillo realmente se abre. No hace falta saber el sentido de
         # giro de la pista (sigue la seccion 5.3-C): la señal sale fresca
         # del barrido de cada ciclo, sea cual sea el lado que se abra.
-        ang += -med.angulo_muro * KP_ANGULO_MURO
+        # Solo cuando hay algo delante que pueda ser una esquina, y sin
+        # dejar que la asistencia mande por encima del control de
+        # posicion (ver DIST_ASISTENCIA_ESQUINA y MAX_APORTE_ANGULO_MURO).
+        if med.frontal_muro < DIST_ASISTENCIA_ESQUINA:
+            ang += _clamp(-med.angulo_muro * KP_ANGULO_MURO, MAX_APORTE_ANGULO_MURO)
 
-        return _clamp_servo(ang)
+        return _clamp_servo(self._con_escape_frontal(ang, med))
+
+    def _con_escape_frontal(self, ang, med):
+        # Ver la nota de DIST_ESCAPE_FRONTAL. Los dos terminos de arriba se
+        # cancelan justo cuando mas falta hacen; esto pone un giro
+        # comprometido hacia el lado con mas espacio, con peso creciente
+        # segun el frente se cierra, y a plena urgencia manda del todo.
+        # Contra la PARED, no contra los postes: un poste de 10cm es mas
+        # estrecho que el sector frontal, asi que entra y sale de el al
+        # avanzar y hace saltar `frontal` entre ~200 y ~3000mm en ciclos
+        # seguidos (24 saltos medidos en una corrida, 83% con un poste
+        # confirmado delante). Con `frontal` este escape se encendia y
+        # apagaba 17 veces por minuto y metia un 50% mas de temblor en la
+        # direccion. Los postes ya los rodea la FSM de evasion; aqui
+        # estorban. Ver README 8.5.
+        frontal = med.frontal_muro
+
+        if frontal >= DIST_ESCAPE_FRONTAL:
+            return ang
+
+        # 0 al empezar a ver la pared, 1 justo en el umbral de emergencia
+        urgencia = ((DIST_ESCAPE_FRONTAL - frontal) /
+                    (DIST_ESCAPE_FRONTAL - EMERGENCIA_FRONTAL))
+        urgencia = max(0.0, min(1.0, urgencia))
+
+        # Hacia el lado con mas espacio. Si las dos paredes estan dentro
+        # del ruido del LiDAR el escape no tiene a quien preferir (la
+        # esquina simetrica de README 8.4-3): ahi tira de la misma memoria
+        # persistente que usa GIRO_FORZADO, para que las dos defensas
+        # elijan el MISMO lado y no se peleen entre si.
+        diff = med.izquierda - med.derecha
+        if abs(diff) > UMBRAL_MEMORIA_ASIMETRIA:
+            signo = 1.0 if diff > 0 else -1.0
+        else:
+            signo = self._signo_memoria_asimetria
+
+        objetivo = signo * ANGULO_ESCAPE_MAX
+        return ang * (1.0 - urgencia) + objetivo * urgencia
 
     def _con_seguridad_pared(self, angulo_deseado, med):
         # La evasion (pure pursuit al poste, rumbo paralelo) no sabe donde
         # esta la pared -- persigue al poste sin mirar el LiDAR lateral.
-        # Si la pared del lado hacia el que se esta girando se acerca,
-        # mezcla el comando deseado con el centrado de pared normal, cada
-        # vez con mas peso segun se acerca. Angulo negativo = giro a la
-        # derecha = se acerca a la pared derecha, y viceversa.
-        pared = med.derecha if angulo_deseado < 0 else med.izquierda
+        # Segun se acerca una pared, este mezclador le va quitando mando a
+        # la persecucion y se lo da al centrado normal.
+        #
+        # Se mira la pared MAS CERCANA, no la del lado hacia el que se
+        # gira. Antes era `med.derecha if angulo_deseado < 0 else
+        # med.izquierda`, y eso deja un hueco: con el comando ya girando
+        # para alejarse, la proteccion se apagaba justo mientras el robot
+        # seguia trasladandose hacia la pared por inercia. Medido en la
+        # corrida del README 8.6, con la pared izquierda cerrandose:
+        #
+        #   t=75.46 izq=100 der=946 ang=+0.5   protege (mira izquierda)
+        #   t=75.56 izq= 95 der=954 ang=-0.6   deja de proteger (mira derecha)
+        #   t=75.86 izq= 80 der=981 ang=-3.6   EMERGENCIA
+        #
+        # En Ackermann girar no te separa de la pared al instante: hace
+        # falta avanzar. Por eso la pared cercana importa aunque ya estes
+        # girando para el otro lado.
+        pared = min(med.izquierda, med.derecha)
         if pared >= DIST_ALERTA_PARED:
             return angulo_deseado
-        peso_pared = 1.0 - (pared / DIST_ALERTA_PARED)
+
+        # Rampa que SATURA (ver DIST_PARED_CRITICA): a 120mm el centrado
+        # manda del todo. La anterior (1 - pared/220) nunca llegaba a 1 y
+        # dejaba a la persecucion del poste un 36% del comando incluso en
+        # el umbral de emergencia.
+        peso_pared = ((DIST_ALERTA_PARED - pared) /
+                      (DIST_ALERTA_PARED - DIST_PARED_CRITICA))
+        peso_pared = max(0.0, min(1.0, peso_pared))
+
         mezcla = angulo_deseado * (1.0 - peso_pared) + self._centrado_paredes(med) * peso_pared
         return _clamp(mezcla, MAX_ANGULO_EVASION)
 
@@ -545,18 +871,50 @@ class Navegador:
         proporcion = (frontal - DIST_FRENADO_MIN) / (DIST_FRENADO_INICIO - DIST_FRENADO_MIN)
         return int(VELOCIDAD_MINIMA + proporcion * (velocidad_base - VELOCIDAD_MINIMA))
 
-    def _intentar_capturar_poste(self, med, color_cam, heading):
-        # Crea el tracker cuando camara y LiDAR coinciden en un poste frontal
+    def _intentar_capturar_poste(self, med, color_cam, heading, cx_cam=None):
+        # Crea el tracker cuando camara y LiDAR coinciden en un poste
+        # frontal. El apareo va por RUMBO cuando la camara da la posicion
+        # del blob (ver el bloque APAREO COLOR <-> CLUSTER): asi el color
+        # se pega al poste que la camara realmente esta viendo, no al que
+        # casualmente esta mas cerca.
         if color_cam is None or not med.clusters_obstaculo:
             return
 
-        mejor_d, mejor_xy = 1e9, None
+        rumbo_cam = None
+        if cx_cam is not None:
+            rumbo_cam = math.degrees(math.atan2(cx_cam - CX_CENTRO_OPTICO, FOCAL_PX))
+
+        candidatos = []
         for clust in med.clusters_obstaculo:
             cx, cy = centroide_xy_cluster(clust)
-            if cy > 80.0 and abs(cx) < 450.0:      # zona frontal razonable
-                d = math.hypot(cx, cy)
-                if d < mejor_d:
-                    mejor_d, mejor_xy = d, (cx, cy)
+            rumbo = math.degrees(math.atan2(cx, cy))
+            if cy > 80.0 and abs(rumbo) <= SECTOR_BUSQUEDA_POSTE:
+                candidatos.append((cx, cy, math.hypot(cx, cy), rumbo))
+        if not candidatos:
+            return
 
-        if mejor_xy is not None:
-            self.tracker.iniciar(color_cam, mejor_xy[0], mejor_xy[1], heading)
+        # El mas cercano, que es lo que se usaba antes; sirve de
+        # referencia para avisar cuando el apareo por rumbo cambia la
+        # decision (o sea, cuando esto acaba de evitar un error).
+        cercano = min(candidatos, key=lambda c: c[2])
+
+        if rumbo_cam is None:
+            elegido = cercano
+        else:
+            en_rumbo = [c for c in candidatos
+                        if abs(c[3] - rumbo_cam) <= TOLERANCIA_APAREO_GRADOS]
+            if not en_rumbo:
+                # La camara ve un color donde el LiDAR no tiene ningun
+                # poste. Antes se le encajaba al cluster mas cercano
+                # igualmente; ahora no se inventa el apareo. La evasion
+                # sigue disponible por vision (_est_crucero mira el color
+                # con la distancia frontal), solo que sin tracker.
+                return
+            elegido = min(en_rumbo, key=lambda c: abs(c[3] - rumbo_cam))
+
+            if elegido is not cercano:
+                print(f"[APAREO] camara en {rumbo_cam:+.0f}deg -> poste en "
+                      f"{elegido[3]:+.0f}deg ({elegido[2]:.0f}mm); el mas cercano "
+                      f"era otro en {cercano[3]:+.0f}deg ({cercano[2]:.0f}mm)")
+
+        self.tracker.iniciar(color_cam, elegido[0], elegido[1], heading)

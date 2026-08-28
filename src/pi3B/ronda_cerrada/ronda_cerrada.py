@@ -73,8 +73,11 @@ def al_barrido(scan):
     # Una sola lectura por ciclo: el hilo de camara la actualiza por su
     # cuenta, y si se consulta otra vez para el log el CSV podria guardar
     # un color distinto del que realmente uso la FSM en esta decision.
-    color_cam = vision.get_color()
-    consigna = navegador.procesar(medicion, color_cam, heading)
+    # cx_cam es la posicion horizontal del poste en el frame; la usa el
+    # apareo por rumbo de navegacion para decidir CUAL de los clusters
+    # del LiDAR es el que tiene ese color (ver APAREO COLOR <-> CLUSTER).
+    color_cam, cx_cam = vision.get_deteccion()
+    consigna = navegador.procesar(medicion, color_cam, heading, cx_cam=cx_cam)
     if consigna is None:          # carrera terminada (parqueo o timeout)
         apagar_sistema()
         return
@@ -86,6 +89,7 @@ def al_barrido(scan):
                             heading=f"{heading:.2f}", error_lateral=f"{error_lateral:.1f}",
                             angulo=f"{angulo:.2f}", velocidad=velocidad,
                             frontal=f"{medicion.frontal:.0f}",
+                            frontal_muro=f"{medicion.frontal_muro:.0f}",
                             izquierda=f"{medicion.izquierda:.0f}",
                             derecha=f"{medicion.derecha:.0f}",
                             trasera=f"{medicion.trasera:.0f}",
