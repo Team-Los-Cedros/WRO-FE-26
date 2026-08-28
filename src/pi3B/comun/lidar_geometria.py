@@ -56,6 +56,10 @@ SECTOR_FRONTAL_NORMAL = (350.0, 10.0)
 # en las curvas cerradas.
 DIST_PARED_VALIDA_MAX = 4000.0
 
+# Valor de "no hay pared frontal medible" (ver distancia_en_rango_sin_bins).
+# Deliberadamente grande: significa via libre, no pared lejana.
+SIN_PARED_FRONTAL = 8000.0
+
 # ==========================================
 # CLUSTERING ABD (Adaptive Breakpoint Detection)
 # Si el salto radial entre dos puntos seguidos supera r*FACTOR + OFFSET,
@@ -70,10 +74,17 @@ DIST_MAX_OBSTACULO    = 1200.0  # mm, postes mas lejos no interesan todavia
 EXT_ANG_MAX_OBSTACULO = 15.0    # grados, arco maximo de un poste de 10cm
 EXT_ANG_MIN_MURO      = 20.0    # un muro siempre ocupa mas que esto
 
+# Ancho fisico maximo (longitud de arco, mm) para dar un cluster por
+# "objeto estrecho" y no por pared. Un poste del reglamento mide 100mm;
+# 260mm deja margen de sobra para el ruido del C1 y para el ensanche por
+# el propio haz, sin llegar a admitir un tramo de muro (que a 500mm ya
+# pasa de 500mm de arco en cuanto ocupa 60 grados). Ver es_objeto_estrecho.
+ANCHO_MAX_OBJETO_MM = 260.0
+
 
 class Medicion:
     # Resultado de un barrido completo
-    __slots__ = ("frontal", "izquierda", "derecha", "trasera",
+    __slots__ = ("frontal", "frontal_muro", "izquierda", "derecha", "trasera",
                  "trasera_derecha", "trasera_izquierda",
                  "clusters_obstaculo", "perfil", "timestamp",
                  "d_perp_izq", "d_perp_der", "d_diag_izq", "d_diag_der", "angulo_muro")
@@ -81,8 +92,12 @@ class Medicion:
     def __init__(self, frontal, izquierda, derecha, trasera,
                  trasera_derecha, trasera_izquierda, clusters, perfil,
                  d_perp_izq=2000.0, d_perp_der=2000.0, d_diag_izq=2000.0, d_diag_der=2000.0,
-                 angulo_muro=0.0):
+                 angulo_muro=0.0, frontal_muro=None):
         self.frontal   = frontal
+        # Distancia a la PARED de enfrente, ignorando los postes que
+        # tapan el sector (ver distancia_en_rango_sin_bins). Sin este
+        # dato la navegacion cae a `frontal`, que es lo que hacia antes.
+        self.frontal_muro = frontal if frontal_muro is None else frontal_muro
         self.izquierda = izquierda
         self.derecha   = derecha
         self.trasera   = trasera
@@ -108,14 +123,71 @@ def construir_perfil_360(scan):
     return perfil
 
 
+def _indices_de_rango(ang_min, ang_max):
+    # Bins que cubre un rango angular, soportando el cruce por el 0
+    # (ej 350 -> 10, como el sector frontal por defecto).
+    i_min = int(ang_min / GRADOS_POR_BIN) % NUM_BINS
+    i_max = int(ang_max / GRADOS_POR_BIN) % NUM_BINS
+    if i_min <= i_max:
+        return range(i_min, i_max + 1)
+    return list(range(i_min, NUM_BINS)) + list(range(0, i_max + 1))
+
+
 def distancia_en_rango(perfil, ang_min, ang_max):
-    # Minima distancia entre ang_min y ang_max. Soporta rangos que cruzan
-    # el 0 (ej 350 -> 10, como el sector frontal por defecto).
+    # Minima distancia entre ang_min y ang_max.
     i_min = int(ang_min / GRADOS_POR_BIN) % NUM_BINS
     i_max = int(ang_max / GRADOS_POR_BIN) % NUM_BINS
     if i_min <= i_max:
         return min(perfil[i_min:i_max + 1])
     return min(min(perfil[i_min:]), min(perfil[:i_max + 1]))
+
+
+def bins_de_clusters(clusters):
+    # Bins del perfil ocupados por los clusters dados
+    ocupados = set()
+    for cluster in clusters:
+        for ang_deg, _ in cluster:
+            ocupados.add(int(ang_deg / GRADOS_POR_BIN) % NUM_BINS)
+    return ocupados
+
+
+def es_objeto_estrecho(cluster):
+    # Filtro por ancho FISICO (longitud de arco), no angular.
+    #
+    # es_cluster_obstaculo() acota el arco en grados (EXT_ANG_MAX_OBSTACULO
+    # = 15), y eso solo vale de lejos: un poste de 100mm subtiende 15
+    # grados a 380mm, pero 25.6 grados a 220mm. O sea que el poste deja
+    # de reconocerse justo cuando esta encima -- que es cuando tapa el
+    # sector frontal. Por eso este filtro es aparte y mide milimetros:
+    # ancho = arco_en_radianes * distancia, que da ~100mm para un poste
+    # a cualquier distancia y varios cientos para un tramo de muro.
+    #
+    # No se toca es_cluster_obstaculo(): la evasion depende de ese
+    # criterio y hoy funciona (8 evasiones correctas en la corrida del
+    # README 8.5). Este filtro solo decide que bins ignora el control de
+    # pared, no que persigue la FSM.
+    ext_ang = cluster[-1][0] - cluster[0][0]
+    if ext_ang < 0:                       # cluster que cruza el 0
+        ext_ang += 360.0
+    d_min = min(p[1] for p in cluster)
+    ancho_mm = math.radians(ext_ang) * d_min
+    return ancho_mm <= ANCHO_MAX_OBJETO_MM and d_min < DIST_MAX_OBSTACULO
+
+
+def distancia_en_rango_sin_bins(perfil, ang_min, ang_max, excluidos):
+    # Como distancia_en_rango pero ignorando los bins indicados. Se usa
+    # para separar "pared de frente" de "poste de frente": el perfil
+    # guarda el minimo por bin, asi que un poste tapa la pared que tiene
+    # detras y ese bin no dice nada de donde esta la pared.
+    #
+    # Si TODOS los bins del sector estan tapados por postes no hay pared
+    # medible, que no es lo mismo que tenerla encima: se devuelve el
+    # valor de "sin pared a la vista" para que el control no reaccione a
+    # un poste como si fuera un muro (los postes los maneja la FSM de
+    # evasion, ver navegacion.py).
+    vals = [perfil[i] for i in _indices_de_rango(ang_min, ang_max)
+            if i not in excluidos]
+    return min(vals) if vals else SIN_PARED_FRONTAL
 
 
 def centroide_xy_cluster(cluster):
@@ -232,11 +304,23 @@ class ProcesadorLidar:
         # Clustering solo adelante y a los lados, la trasera no hace falta
         # y ahorra CPU en la Pi 3B
         scan_relevante = [p for p in scan if not (120.0 < p[0] < 240.0)]
-        clusters = [c for c in segmentar_clusters_abd(scan_relevante)
-                    if es_cluster_obstaculo(c)]
+        todos = segmentar_clusters_abd(scan_relevante)
+        clusters = [c for c in todos if es_cluster_obstaculo(c)]
+        estrechos = [c for c in todos if es_objeto_estrecho(c)]
+
+        # Pared frontal con los postes descontados. Medido en pista
+        # (README 8.5): un poste de 10cm es mas estrecho que el sector
+        # frontal de 20 grados, asi que al avanzar entra y sale del
+        # sector y el minimo salta entre el poste (~200mm) y el pasillo
+        # de detras (~3000mm) en ciclos seguidos -- 24 saltos de factor
+        # >=3x en una corrida, el 83% con un poste confirmado delante.
+        # `frontal` sigue incluyendolos porque la emergencia anti-choque
+        # SI tiene que ver los postes; el control de pared, no.
+        d_front_muro = distancia_en_rango_sin_bins(
+            perfil, sector_frontal[0], sector_frontal[1], bins_de_clusters(estrechos))
 
         return Medicion(d_front, d_izq, d_der, d_tras,
                          d_tras_der, d_tras_izq, clusters, perfil,
                          d_perp_izq=d_perp_izq, d_perp_der=d_perp_der,
                          d_diag_izq=d_diag_izq, d_diag_der=d_diag_der,
-                         angulo_muro=angulo_muro)
+                         angulo_muro=angulo_muro, frontal_muro=d_front_muro)

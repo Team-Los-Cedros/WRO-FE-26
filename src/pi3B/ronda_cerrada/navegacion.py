@@ -690,11 +690,21 @@ class Navegador:
         # cancelan justo cuando mas falta hacen; esto pone un giro
         # comprometido hacia el lado con mas espacio, con peso creciente
         # segun el frente se cierra, y a plena urgencia manda del todo.
-        if med.frontal >= DIST_ESCAPE_FRONTAL:
+        # Contra la PARED, no contra los postes: un poste de 10cm es mas
+        # estrecho que el sector frontal, asi que entra y sale de el al
+        # avanzar y hace saltar `frontal` entre ~200 y ~3000mm en ciclos
+        # seguidos (24 saltos medidos en una corrida, 83% con un poste
+        # confirmado delante). Con `frontal` este escape se encendia y
+        # apagaba 17 veces por minuto y metia un 50% mas de temblor en la
+        # direccion. Los postes ya los rodea la FSM de evasion; aqui
+        # estorban. Ver README 8.5.
+        frontal = med.frontal_muro
+
+        if frontal >= DIST_ESCAPE_FRONTAL:
             return ang
 
         # 0 al empezar a ver la pared, 1 justo en el umbral de emergencia
-        urgencia = ((DIST_ESCAPE_FRONTAL - med.frontal) /
+        urgencia = ((DIST_ESCAPE_FRONTAL - frontal) /
                     (DIST_ESCAPE_FRONTAL - EMERGENCIA_FRONTAL))
         urgencia = max(0.0, min(1.0, urgencia))
 
