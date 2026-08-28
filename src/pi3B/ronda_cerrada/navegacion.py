@@ -49,6 +49,13 @@ VELOCIDAD_MINIMA   = 25      # piso del frenado progresivo
 # ==========================================
 KP_LATERAL = 0.14            # calibrado en pista, mismo valor que la Ronda Abierta
 
+# Ganancia de la asistencia de esquina por angulo_muro (ver _centrado_paredes).
+# Con la lectura estable medida en pista (-22 grados apuntando a una esquina
+# real) esto aporta unos 13-15 grados de giro extra hacia el lado que se abre,
+# encima de lo que ya de por si de izq-der. En el baseline lejos de cualquier
+# esquina (angulo_muro ~ -3 grados) el aporte es de 1-2 grados, despreciable.
+KP_ANGULO_MURO = 0.65
+
 DIST_FRENADO_INICIO = 900.0  # mm, empieza a bajar velocidad
 DIST_FRENADO_MIN    = 300.0  # mm, velocidad minima alcanzada
 
@@ -491,7 +498,29 @@ class Navegador:
         # rango util cuesta unos 2 segundos en los que el servo esta
         # clavado en el tope y el robot no responde. El 60% de la corrida
         # se fue en saturacion por esto.
-        return _clamp_servo((med.izquierda - med.derecha) * KP_LATERAL)
+        ang = (med.izquierda - med.derecha) * KP_LATERAL
+
+        # Asistencia de esquina por angulo_muro (triangulacion perp+diag,
+        # lidar_geometria.py). izq-der por si solo puede dar señal casi
+        # nula acercandose a una esquina si ambos lados se cierran
+        # parejo -- exactamente lo que paso en la sesion del dia 2: el
+        # robot fue derecho a una esquina con frontal/izq/der cayendo
+        # juntos de ~500 a 110mm en 5s sin apenas girar, hasta disparar
+        # EMERGENCIA. angulo_muro detecta la esquina antes y mas fuerte:
+        # medido en pista con el robot centrado apuntando a esa misma
+        # esquina, perp_izq=234mm pero diag_izq=3000mm (el muro
+        # izquierdo se "abrio" -- el haz diagonal ya no lo encuentra),
+        # dando angulo_muro=-22 grados estable, mientras que izq-der solo
+        # (234-153mm) hubiera pedido apenas +11 grados: la mitad de
+        # fuerte y mas tarde. El signo se verifico con esa misma medicion:
+        # pared abierta a la izquierda -> angulo_muro negativo -> con el
+        # signo invertido da giro positivo (izquierda), hacia donde el
+        # pasillo realmente se abre. No hace falta saber el sentido de
+        # giro de la pista (sigue la seccion 5.3-C): la señal sale fresca
+        # del barrido de cada ciclo, sea cual sea el lado que se abra.
+        ang += -med.angulo_muro * KP_ANGULO_MURO
+
+        return _clamp_servo(ang)
 
     def _con_seguridad_pared(self, angulo_deseado, med):
         # La evasion (pure pursuit al poste, rumbo paralelo) no sabe donde

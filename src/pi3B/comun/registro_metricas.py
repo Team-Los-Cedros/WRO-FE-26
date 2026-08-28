@@ -24,7 +24,12 @@ CAMPOS = ["t", "fase", "estado", "heading", "error_lateral", "angulo", "velocida
           # condiciones de salida y sin ella no se puede saber si el
           # retroceso paro por obstaculo detras o por otra cosa.
           "frontal", "izquierda", "derecha", "trasera",
-          "color_cam", "trk_activo", "trk_color", "trk_x", "trk_y"]
+          "color_cam", "trk_activo", "trk_color", "trk_x", "trk_y",
+          # angulo_muro (triangulacion perp+diag de lidar_geometria.py) ahora
+          # entra en _centrado_paredes como asistencia de esquina. Sin
+          # registrarlo no se puede auditar si de verdad esta anticipando la
+          # esquina en la proxima corrida, o si el KP quedo mal calibrado.
+          "angulo_muro"]
 
 
 class RegistroMetricas:

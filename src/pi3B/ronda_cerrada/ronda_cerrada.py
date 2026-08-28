@@ -92,7 +92,8 @@ def al_barrido(scan):
                             color_cam=color_cam or "",
                             trk_activo=int(trk.activo),
                             trk_color=trk.color or "",
-                            trk_x=f"{trk.x:.0f}", trk_y=f"{trk.y:.0f}")
+                            trk_x=f"{trk.x:.0f}", trk_y=f"{trk.y:.0f}",
+                            angulo_muro=f"{medicion.angulo_muro:.2f}")
     enlace.enviar(*consigna)
 
 
