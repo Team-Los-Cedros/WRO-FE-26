@@ -181,6 +181,27 @@ FOCAL_PX          = (ANCHO_FRAME_CAM / 2.0) / math.tan(math.radians(HFOV_CAMARA 
 # correr calib_fov.py, no abrir mas la tolerancia.
 TOLERANCIA_APAREO_GRADOS = 20.0
 
+# Hasta donde se buscan postes candidatos, EN ANGULO. Antes la puerta era
+# rectangular (abs(cx) < 450mm), y un filtro en milimetros laterales se
+# cierra en angulo segun te alejas: 450mm de lado son 48 grados a 400mm
+# pero solo 26.6 a 900mm, justo donde el poste deberia engancharse para
+# que la evasion tenga margen. La camara ve +-51 grados (HFOV 102), asi
+# que veia postes que este filtro rechazaba -- y precisamente los
+# LEJANOS. El mismo poste acababa entrando al acercarse, cuando la
+# puerta ya se habia abierto en angulo, pero para entonces estaba encima.
+#
+# Medido en la corrida 6: el color se detecta a 858mm de mediana pero el
+# tracker no engancha hasta los 676mm, y el 70% de los enganches ocurren
+# con el poste ya a menos de 700mm. Son 224mm por debajo de
+# DIST_INICIO_EVASION_TRK (900mm), o sea 1.4s de maniobra perdidos a la
+# velocidad de evasion.
+#
+# Con una puerta angular el criterio deja de depender de la distancia y
+# se alinea con lo que la camara puede ver. El apareo por rumbo ya acota
+# de verdad cual es el poste bueno (TOLERANCIA_APAREO_GRADOS); esta
+# puerta solo marca el borde del campo de busqueda.
+SECTOR_BUSQUEDA_POSTE = 50.0   # grados a cada lado del frente
+
 DIST_INICIO_EVASION_TRK = 900.0   # mm, poste confirmado por tracker
 DIST_INICIO_EVASION_CAM = 700.0   # mm, frontal LiDAR + color de camara
 Y_POSTE_EN_PASO         = 180.0   # mm, el poste ya esta a la altura del morro
@@ -866,9 +887,9 @@ class Navegador:
         candidatos = []
         for clust in med.clusters_obstaculo:
             cx, cy = centroide_xy_cluster(clust)
-            if cy > 80.0 and abs(cx) < 450.0:      # zona frontal razonable
-                candidatos.append((cx, cy, math.hypot(cx, cy),
-                                   math.degrees(math.atan2(cx, cy))))
+            rumbo = math.degrees(math.atan2(cx, cy))
+            if cy > 80.0 and abs(rumbo) <= SECTOR_BUSQUEDA_POSTE:
+                candidatos.append((cx, cy, math.hypot(cx, cy), rumbo))
         if not candidatos:
             return
 
