@@ -5,6 +5,32 @@ commits (ver `git log`). Formato inspirado en [Keep a Changelog](https://keepach
 Cada versión referencia los commits representativos de ese hito para
 poder auditar el cambio exacto con `git show <hash>`.
 
+## [v0.7.2] — 2026-08-28 — Desempate de esquina simétrica (GIRO_FORZADO)
+
+Continuación directa del pendiente de v0.7.1. Caso de estudio en README
+sección 8.5.
+
+### Agregado
+- `ronda_cerrada/navegacion.py`: nuevo estado `GIRO_FORZADO`, único con
+  memoria entre ciclos. Cuenta reintentos de `RETROCESO` seguidos sin
+  avance neto de rumbo; a los 4, fuerza un giro comprometido hacia un
+  lado decidido una vez (última asimetría real memorizada entre paredes,
+  o un lado por defecto si nunca hubo ninguna) y lo mantiene hasta que
+  la esquina se abra de verdad o por timeout de seguridad. Rompe el
+  bucle emergencia-retroceso-reintento de la corrida del gauntlet
+  (133s, 51 episodios).
+
+### Validado
+- Solo fuera de pista: barridos LiDAR sintéticos reproduciendo el bucle
+  medido (rompe a la 4ª racha), un caso negativo (no dispara si el
+  rumbo sí progresa entre emergencias) y la memoria de asimetría
+  (recuerda el lado real en vez del default cuando lo hay). **Pendiente
+  de validar con motores en pista** — la simulación confirma la lógica
+  de la máquina de estados, no si `ANGULO_GIRO_FORZADO`/`TIMEOUT_GIRO_FORZADO`
+  bastan con la geometría real del chasis.
+
+- `6b74f8e` feat(navegacion): forzar giro tras N retrocesos sin avance de rumbo
+
 ## [v0.7.1] — 2026-08-28 — Asistencia de esquina y límite de la reactividad pura
 
 Caso de estudio completo en README sección 8.4. Gauntlet de 6 pilares
