@@ -5,6 +5,37 @@ commits (ver `git log`). Formato inspirado en [Keep a Changelog](https://keepach
 Cada versión referencia los commits representativos de ese hito para
 poder auditar el cambio exacto con `git show <hash>`.
 
+## [v0.7.1] — 2026-08-28 — Asistencia de esquina y límite de la reactividad pura
+
+Caso de estudio completo en README sección 8.4. Gauntlet de 6 pilares
+(el doble del reglamento) para estresar la fusión sensorial.
+
+### Corregido
+- `ronda_cerrada/navegacion.py`: emergencias en esquinas sin ningún poste
+  cerca — `_centrado_paredes` no usaba `angulo_muro` (triangulación
+  perp+diag ya calculada en `lidar_geometria.py`, nunca leída).
+  Verificado sin motores antes de tocar la dirección; validado con
+  motores en una corrida limpia: pared mínima 76mm→412mm, 5→0 emergencias.
+
+### Agregado
+- `ronda_cerrada/vision.py`: guardado opcional de frame+máscara en cada
+  transición de color (`WRO_DEBUG_VISION=1`), para poder auditar un
+  falso positivo de "ROJO" detectado una sola vez sin ningún pilar en
+  pista, no reproducido todavía.
+
+### Encontrado, pendiente de resolver
+- Repitiendo el gauntlet completo con el arreglo activo: el robot quedó
+  atrapado 133s en una esquina abordada de forma perfectamente simétrica
+  (`izquierda`≈`derecha` en cada ciclo de acercamiento, `angulo_muro`
+  nunca superó ±4°). Es un límite de cualquier controlador reactivo sin
+  memoria entre ciclos, no un defecto del arreglo de esquina — no hay
+  asimetría instantánea que triangular cuando los dos lados son
+  honestamente idénticos. Necesita un mecanismo de "esta atascado, romper
+  la simetría" con estado persistente entre ciclos, sin diseñar todavía.
+
+- `71ede18` fix(navegacion): asistencia de esquina con angulo_muro, antes sin usar
+- `a6358eb` feat(vision): guardar frame+mascara en cada transicion de color, opcional
+
 ## [v0.7.0] — 2026-08-27 — Reactivación de la Ronda Cerrada modular en pista
 
 Sesión de depuración en pista de `src/pi3B/ronda_cerrada/` (la pila
