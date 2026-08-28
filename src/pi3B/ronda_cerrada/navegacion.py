@@ -77,6 +77,35 @@ KP_LATERAL = 0.14            # calibrado en pista, mismo valor que la Ronda Abie
 # esquina (angulo_muro ~ -3 grados) el aporte es de 1-2 grados, despreciable.
 KP_ANGULO_MURO = 0.65
 
+# La asistencia de esquina se calibro (README 8.4) suponiendo que lejos
+# de una esquina angulo_muro ronda los -3 grados y aporta "1-2 grados,
+# despreciable", con -22 grados estables al apuntar a una esquina real.
+# Esa validacion se hizo en una corrida limpia SIN pilares. Con la pista
+# completa la suposicion no se cumple: medido en la corrida del README
+# 8.6, |angulo_muro| tiene mediana 18-22 grados TODO el rato (7 veces el
+# baseline supuesto) y rango -59..+45, y su aporte satura el servo el
+# solo en el 22% de los ciclos y domina sobre el termino de posicion en
+# el 32%. El robot se iba a un lado y al otro sin acumular rumbo: 20
+# inversiones de sentido de giro, recorrido estancado en 367 grados
+# durante 42s.
+#
+# Dos condiciones, las dos conservadoras: preservan intacto el caso que
+# SI se valido (esquina real con el frente cerrandose, -22 grados ->
+# 14.3 de aporte) y recortan lo que va mas alla.
+
+# 1. Una esquina de verdad tiene algo delante. Con el pasillo despejado
+#    no hay esquina que asistir, y ahi es donde la señal era pura basura:
+#    206 ciclos (25% de las lecturas fuertes) con el frente a mas de
+#    900mm, el robot centrado (|izq-der| mediana 200mm) y la asistencia
+#    inyectando 20 grados de media sin ningun motivo.
+DIST_ASISTENCIA_ESQUINA = 900.0
+
+# 2. Asistencia quiere decir asistir, no mandar. Con lecturas de +-40/50
+#    grados el aporte llegaba a 26-32 grados y saturaba el servo por si
+#    solo, tapando por completo el control de posicion. El tope deja
+#    pasar entero el caso validado (14.3) y corta el resto.
+MAX_APORTE_ANGULO_MURO = 15.0
+
 DIST_FRENADO_INICIO = 900.0  # mm, empieza a bajar velocidad
 DIST_FRENADO_MIN    = 300.0  # mm, velocidad minima alcanzada
 
@@ -698,7 +727,11 @@ class Navegador:
         # pasillo realmente se abre. No hace falta saber el sentido de
         # giro de la pista (sigue la seccion 5.3-C): la señal sale fresca
         # del barrido de cada ciclo, sea cual sea el lado que se abra.
-        ang += -med.angulo_muro * KP_ANGULO_MURO
+        # Solo cuando hay algo delante que pueda ser una esquina, y sin
+        # dejar que la asistencia mande por encima del control de
+        # posicion (ver DIST_ASISTENCIA_ESQUINA y MAX_APORTE_ANGULO_MURO).
+        if med.frontal_muro < DIST_ASISTENCIA_ESQUINA:
+            ang += _clamp(-med.angulo_muro * KP_ANGULO_MURO, MAX_APORTE_ANGULO_MURO)
 
         return _clamp_servo(self._con_escape_frontal(ang, med))
 
