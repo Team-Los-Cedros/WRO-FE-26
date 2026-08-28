@@ -5,8 +5,9 @@ import sys
 import signal
 import RPi.GPIO as GPIO
 
+# ==========================================
 # CONFIGURACION DE PUERTOS Y COMUNICACION
-
+# ==========================================
 PUERTO_LIDAR = '/dev/ttyUSB0'
 PUERTO_PICO = '/dev/ttyACM0'  
 BAUDRATE_LIDAR = 460800
@@ -16,25 +17,28 @@ START_MOTOR_CMD = b'\xa5\xf0\x02\x94\x02\xc1\x02'
 START_SCAN_CMD = b'\xa5\x20'
 STOP_CMD = b'\xa5\x25'
 
+# ==========================================
 # CONFIGURACION DEL BOTON FISICO (GPIO 21)
-
+# ==========================================
 PIN_BOTON = 21
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(PIN_BOTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
+# ==========================================
 # CONSTANTES DE NAVEGACION Y CONTEO NARANJA
-
+# ==========================================
 KP_LATERAL = 0.14  
 VELOCIDAD_CRUCERO = 90
 VELOCIDAD_PARQUEO = 55
 
-# Ajuste de lineas naranjas detectadas para estacionamiento
-
+# Ajusta LINEAS_POR_VUELTA:
+# - Pon 4 si el sentido de giro hace que pises 4 lineas naranjas por vuelta.
+# - Pon 1 si solo hay 1 linea naranja por vuelta (linea de meta).
 VUELTAS_OBJETIVO = 3
 LINEAS_POR_VUELTA = 4
 TOTAL_LINEAS_OBJETIVO = VUELTAS_OBJETIVO * LINEAS_POR_VUELTA
 
-TIEMPO_AVANCE_70CM = 1.8  # Tiempo para avanzar los 70 cm dentro del cajon
+TIEMPO_AVANCE_70CM = 3.8  # Tiempo para avanzar los 70 cm dentro del cajon
 
 # Sectores angulares del LiDAR (Angulos en grados)
 ANGULO_MIN_DER = 30
@@ -42,8 +46,9 @@ ANGULO_MAX_DER = 90
 ANGULO_MIN_IZQ = 270
 ANGULO_MAX_IZQ = 330
 
+# ==========================================
 # VARIABLES GLOBALES DE ESTADO
-
+# ==========================================
 corriendo = True
 ser_lidar = None
 ser_pico = None

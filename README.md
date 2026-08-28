@@ -58,6 +58,7 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │       │   ├── vision.py         # Procesador: detección HSV de postes rojo/verde
 │       │   ├── tracker.py        # Object persistence tracker del obstáculo activo
 │       │   └── legacy/           # Versiones superadas (archivadas, no desplegar)
+│       ├── prueba/               # Borradores nunca desplegados (distinto de legacy/, ver su README)
 │       ├── calibracion/
 │       │   ├── calibrar_hsv.py   # Herramienta de calibración interactiva de umbrales HSV
 │       │   ├── capturar_hsv.py   # Diagnóstico HSV sin GUI (guarda capturas a disco)
@@ -209,7 +210,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **Reguladores XL1509 / XL4016** | <img src="v-photos/Componentes/Xl1509.png" width="90"/> <img src="v-photos/Componentes/Xl4016.png" width="90"/> | Ver arquitectura de desacoplamiento por etapas en la sección 4.1 y análisis de margen de seguridad en la sección 4.3. |
 | **Baterías 21700 (2S)** | <img src="v-photos/Componentes/baterias.jpg" width="90"/> | Ver justificación de densidad de corriente en la sección 3.4. |
 | **Botón físico (x2)** | <img src="v-photos/Componentes/Boton.png" width="90"/> | Selección de ronda (Abierta/Cerrada) por hardware puro (GPIO con pull-up) en vez de un menú por software, para minimizar el tiempo entre el arranque de la batería y el inicio de la marcha, tal como exige el reglamento. |
-| **Sensor de Color TCS3472** | — | Montado bajo el chasis, mirando el piso, en un bus $\text{I}^2\text{C}$ independiente de la IMU (sección 4.3) para no competir por el bus con el MPU6050. Lee la línea de color del punto de arranque para fijar el sentido de carrera (AZUL/NARANJA) por HSV con umbral de saturación calibrado en vivo — ver método abajo y la nota de estado en la sección 5.3-C. |
+| **Sensor de Color TCS3472** | <img src="v-photos/Componentes/TCS3472.jpg" width="90"/> | Montado bajo el chasis, mirando el piso, en un bus $\text{I}^2\text{C}$ independiente de la IMU (sección 4.3) para no competir por el bus con el MPU6050. Lee la línea de color del punto de arranque para fijar el sentido de carrera (AZUL/NARANJA) por HSV con umbral de saturación calibrado en vivo — ver método abajo y la nota de estado en la sección 5.3-C. |
 
 #### Método de Calibración de Sensores
 
@@ -325,69 +326,94 @@ WantedBy=multi-user.target
 
 ### 5.2 Estructura Modular del Script de Carrera (Fragmentos Clave)
 
-El script opera bajo una máquina de estados finitos (`ESPERANDO_BOTON`, `CALIBRANDO`, `CAPTURA_INICIAL`, `CARRERA`, `BUSCANDO_PARQUEO`, `DETENIDO`), compartida por `ronda_abierta.py` y `ronda_cerrada.py` (esta última con un sub-estado de evasión adicional dentro de `CARRERA`, ver diagrama en la sección 5.3-B):
+El script opera bajo su propia máquina de estados finitos, distinta de la de `ronda_cerrada.py` (que usa `CAPTURA_FIRMA -> CARRERA -> PARQUEO -> FIN`, ver diagrama en la sección 5.3-B) — comparten el nombre `CARRERA` pero no el resto; no vale asumir que un fix de una fase aplica a la otra ronda por tener el mismo nombre. La detección de fin de carrera y la maniobra final cambiaron de raíz: en vez de contar vueltas por deriva de IMU (`angulo_acumulado_robot >= 1010°`) y frenar cuando la geometría de pared vuelve a parecerse a la inicial, ahora se cuentan directamente las **líneas naranjas de las esquinas** con el sensor de color de piso (TCS3472, sección 4.2) — 4 por vuelta × 3 vueltas = 12 líneas — y al cruzar la última se ejecuta un avance final cronometrado hacia el cajón, sin depender de que el ángulo neto de la IMU no haya derivado en una carrera larga:
 
 ```mermaid
 stateDiagram-v2
     [*] --> ESPERANDO_BOTON
-    ESPERANDO_BOTON --> CALIBRANDO: Botón GPIO21/20 presionado (fase_actual = "CALIBRANDO")
+    ESPERANDO_BOTON --> CALIBRANDO: Botón GPIO21 presionado (fase_actual = "CALIBRANDO")
     CALIBRANDO --> CAPTURA_INICIAL: Hilo LiDAR detecta fase "CALIBRANDO" y activa el barrido
     CAPTURA_INICIAL --> CARRERA: Primer barrido completo -- guarda la firma de pared inicial (Izq/Der en mm)
-    CARRERA --> BUSCANDO_PARQUEO: angulo_acumulado_robot alcanza 1010 grados (3 vueltas netas, via IMU por UART)
-    BUSCANDO_PARQUEO --> DETENIDO: Firma de pared coincide con la inicial (tolerancia 80mm) O tiempo mayor a TIMEOUT_BUSQUEDA_PARQUEO
-    DETENIDO --> [*]: apagar_sistema() -- detiene motores, GPIO.cleanup(), sys.exit(0)
+    CARRERA --> BUSCANDO_PARQUEO: linea naranja #11 detectada (penultima de 12 -- 3 vueltas x 4 esquinas)
+    BUSCANDO_PARQUEO --> AVANZANDO_AL_PARQUEO: linea naranja #12 detectada (meta) -- velocidad ya reducida a VELOCIDAD_PARQUEO
+    AVANZANDO_AL_PARQUEO --> PARANDO: avance de TIEMPO_AVANCE_70CM=1.8s cumplido, O firma de pared vuelve a coincidir (tolerancia 80mm)
+    PARANDO --> [*]: apagar_sistema() -- detiene motores, GPIO.cleanup(), sys.exit(0)
+
+    note right of CARRERA
+        Cada linea naranja se filtra con
+        1.2s minimo entre detecciones y 0.3s
+        fuera de la linea para darla por
+        cruzada -- evita contar la misma
+        linea dos veces por ruido del sensor.
+        Las lineas azules se ignoran a
+        proposito (ver seccion 5.3-C: el
+        sentido de giro no hace falta para
+        el centrado simetrico de pared).
+    end note
 ```
 
 A continuación se detallan las funciones de sincronización asíncrona y telemetría:
 
 ```python
 def hilo_comunicacion_pico():
-    """ Hilo asíncrono para telemetría y procesamiento de odometría inercial global """
-    global ser_pico, angulo_acumulado_robot, fase_actual, tiempo_inicio_parqueo, angulo_inicial_imu
-    # ... [Inicialización serial a 115200 bps] ...
+    """ Hilo asincrono: telemetria IMU+color y conteo de lineas naranjas """
+    global ser_pico, angulo_acumulado_robot, fase_actual, angulo_inicial_imu
+    global color_actual, lineas_naranjas_detectadas, en_linea_color
+    global ultimo_tiempo_linea, tiempo_fuera_linea, tiempo_inicio_avance
+    # ... [Inicializacion serial a 115200 bps] ...
     while corriendo:
         if ser_pico.in_waiting > 0:
             try:
                 linea = ser_pico.readline().decode('utf-8').strip()
-                if linea.startswith("IMU:"):
-                    valor_crudo_imu = abs(float(linea.split(":")[1]))
-                    
+                if "IMU:" in linea and "COLOR:" in linea:
+                    partes = linea.split(',')
+                    valor_crudo_imu = abs(float(partes[0].split(':')[1]))
+                    color_actual = partes[1].split(':')[1]
+
                     if fase_actual in ["ESPERANDO_BOTON", "CALIBRANDO"] or angulo_inicial_imu is None:
                         angulo_inicial_imu = valor_crudo_imu
-                    
-                    # Cálculo del ángulo absoluto neto de carrera
                     angulo_acumulado_robot = valor_crudo_imu - angulo_inicial_imu
-                    
-                    # Transición automática de parada tras completar 3 vueltas completas (~1010 grados netos)
-                    if fase_actual == "CARRERA" and angulo_acumulado_robot >= 1010.0:
-                        fase_actual = "BUSCANDO_PARQUEO"
-                        tiempo_inicio_parqueo = time.time() 
+
+                    # Solo lineas NARANJAS cuentan -- las azules se ignoran
+                    if color_actual == "NARANJA":
+                        tiempo_actual = time.time()
+                        if not en_linea_color and (tiempo_actual - ultimo_tiempo_linea > 1.2):
+                            en_linea_color = True
+                            lineas_naranjas_detectadas += 1
+                            ultimo_tiempo_linea = tiempo_actual
+
+                            if lineas_naranjas_detectadas == (TOTAL_LINEAS_OBJETIVO - 1):
+                                fase_actual = "BUSCANDO_PARQUEO"
+                            elif lineas_naranjas_detectadas >= TOTAL_LINEAS_OBJETIVO:
+                                fase_actual = "AVANZANDO_AL_PARQUEO"
+                                tiempo_inicio_avance = time.time()
             except: pass
-        time.sleep(0.01)
+        time.sleep(0.005)
 
 def procesar_ciclo_completo_lidar():
-    """ Algoritmo de guiado proporcional y validación de firmas mecánicas de estacionamiento """
-    global dist_derecha_min, dist_izquierda_min, fase_actual, initial_derecha, initial_izquierda
-    
-    # Cálculo del control proporcional lateralizado
+    """ Guiado proporcional por fase, mas la maniobra final de parqueo """
+    global dist_derecha_min, dist_izquierda_min, fase_actual, tiempo_inicio_avance
+
     error_lateral = dist_izquierda_min - dist_derecha_min
     angulo_objetivo = error_lateral * KP_LATERAL
-    
+
     if fase_actual == "CARRERA":
-        comando = f"{VELOCIDAD_CRUCERO},{angulo_objetivo:.2f}\n"
-        ser_pico.write(comando.encode())
+        ser_pico.write(f"{VELOCIDAD_CRUCERO},{angulo_objetivo:.2f}\n".encode())
     elif fase_actual == "BUSCANDO_PARQUEO":
-        comando = f"{VELOCIDAD_PARQUEO},{angulo_objetivo:.2f}\n"
-        ser_pico.write(comando.encode())
-        
-        # Validación matemática de firma espacial para frenado seguro
-        match_firma_original = abs(dist_derecha_min - initial_derecha) < 80.0 and abs(dist_izquierda_min - initial_izquierda) < 80.0
-        if match_firma_original or (time.time() - tiempo_inicio_parqueo > TIMEOUT_BUSQUEDA_PARQUEO):
-            fase_actual = "DETENIDO"
-            for _ in range(5): ser_pico.write(b"0,0\n")
+        ser_pico.write(f"{VELOCIDAD_PARQUEO},{angulo_objetivo:.2f}\n".encode())
+    elif fase_actual == "AVANZANDO_AL_PARQUEO":
+        ser_pico.write(f"{VELOCIDAD_PARQUEO},{angulo_objetivo:.2f}\n".encode())
+        tiempo_transcurrido = time.time() - tiempo_inicio_avance
+        coincidencia_geometrica = (abs(dist_izquierda_min - initial_izquierda) < 80.0
+                                    and abs(dist_derecha_min - initial_derecha) < 80.0)
+        if tiempo_transcurrido >= TIEMPO_AVANCE_70CM or coincidencia_geometrica:
+            fase_actual = "PARANDO"
+            for _ in range(8): ser_pico.write(b"0,0\n")
             apagar_sistema(None, None)
 
 ```
+
+> **Nota honesta sobre lo que se perdió en el rediseño:** esta versión eliminó el uso de `comun/registro_metricas.py` — ya no queda un CSV por corrida de la Ronda Abierta como el que sí tiene `ronda_cerrada.py` (sección 8.3). Si se quiere volver a instrumentar, es agregar las mismas tres llamadas a `registro.registrar(...)` que tenía la versión anterior, ahora dentro de las ramas `CARRERA`/`BUSCANDO_PARQUEO`/`AVANZANDO_AL_PARQUEO` de `procesar_ciclo_completo_lidar()`.
 
 ### 5.3 Estrategia de Navegación Justificada por Rondas (Geometría del Campo)
 
