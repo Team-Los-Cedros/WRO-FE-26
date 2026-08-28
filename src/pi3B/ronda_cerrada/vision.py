@@ -1,12 +1,29 @@
 # Deteccion HSV de postes rojo/verde con histeresis de estabilizacion.
 # No captura frames -- los recibe por callback desde camara_driver.py
 # via procesar_frame(). Umbrales y logica de contorno sin cambios.
+import os
 import threading
+import time
 
 import numpy as np
 import cv2
 
 AREA_MIN_DETECCION = 350
+
+# Depuracion opcional: guarda a disco el frame + mascara cada vez que
+# color_crudo CAMBIA (entra, sale o cambia de color), para poder auditar
+# despues un falso positivo que ocurrio en movimiento y que no se pudo
+# reproducir con el robot quieto (ver sesion del dia 2: "ROJO" detectado
+# sin ningun pilar en pista, solo durante un giro rapido). Apagado por
+# defecto -- no agrega I/O a disco en carrera normal. Activar con
+# WRO_DEBUG_VISION=1 antes de lanzar el script.
+DEPURAR_FRAMES = os.environ.get("WRO_DEBUG_VISION") == "1"
+_DIR_DEPURACION = "/home/pi/diag_vision"
+_MAX_FRAMES_DEPURACION = 200  # limite duro, no llenar la SD en una corrida larga
+_n_frames_guardados = 0
+if DEPURAR_FRAMES:
+    os.makedirs(_DIR_DEPURACION, exist_ok=True)
+    print(f"[vision] WRO_DEBUG_VISION=1: guardando transiciones de color en {_DIR_DEPURACION}/")
 
 CONFIRMACIONES_PARA_ENTRAR = 2
 CONFIRMACIONES_PARA_SALIR  = 4
@@ -67,6 +84,28 @@ def get_color():
         return poste_color
 
 
+def _guardar_depuracion(frame, hsv, color_nuevo, area):
+    # Solo se llama si DEPURAR_FRAMES esta activo. Guarda el frame crudo
+    # (BGR real, tal como lo ve procesar_frame) y la mascara del color en
+    # cuestion, para poder inspeccionar despues exactamente que disparo
+    # la deteccion -- reflejo, objeto real, ruido de sensor, etc.
+    global _n_frames_guardados
+    if _n_frames_guardados >= _MAX_FRAMES_DEPURACION:
+        return
+    _n_frames_guardados += 1
+    ts = time.strftime("%H%M%S")
+    etiqueta = color_nuevo if color_nuevo else "NINGUNO"
+    try:
+        cv2.imwrite(f"{_DIR_DEPURACION}/{_n_frames_guardados:03d}_{ts}_{etiqueta}.jpg", frame)
+        if color_nuevo:
+            mask = (cv2.inRange(hsv, ROJO_BAJO_1, ROJO_ALTO_1) | cv2.inRange(hsv, ROJO_BAJO_2, ROJO_ALTO_2)
+                    if color_nuevo == "ROJO" else cv2.inRange(hsv, VERDE_BAJO, VERDE_ALTO))
+            cv2.imwrite(f"{_DIR_DEPURACION}/{_n_frames_guardados:03d}_{ts}_{etiqueta}_mask.jpg", mask)
+        print(f"[vision] deteccion #{_n_frames_guardados}: {etiqueta} area={area} -> guardado")
+    except Exception as e:
+        print(f"[vision] fallo guardando frame de depuracion: {e}")
+
+
 def procesar_frame(frame):
     """
     Procesa un frame (llamado por camara_driver.hilo_captura, uno por
@@ -117,6 +156,7 @@ def procesar_frame(frame):
                         mejor_area  = area
 
         with lock_vision:
+            color_anterior = color_crudo
             if mejor_area > 0:
                 color_crudo = mejor_color
                 cx_crudo    = mejor_cx
@@ -126,6 +166,9 @@ def procesar_frame(frame):
                 cx_crudo    = None
                 area_cruda  = 0
             _aplicar_histeresis()
+
+            if DEPURAR_FRAMES and color_crudo != color_anterior:
+                _guardar_depuracion(frame, hsv, color_crudo, area_cruda)
 
     except Exception as e:
         print(f"[-] Falla procesando frame de camara: {e}")
