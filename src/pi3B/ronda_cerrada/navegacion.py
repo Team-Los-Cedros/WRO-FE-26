@@ -39,12 +39,17 @@
 # de cerca todo el tiempo, asi que ambos deciden ~0 y el robot repite
 # emergencia-retroceso-reintento indefinidamente (medido: 133s, 51
 # episodios seguidos). Ningun control reactivo puro puede resolver esto:
-# hace falta memoria ENTRE ciclos. _racha_retroceso cuenta reintentos de
-# RETROCESO seguidos sin avance neto de rumbo; al llegar al umbral, se
-# entra a GIRO_FORZADO con un lado decidido UNA VEZ (la ultima asimetria
-# real vista, o un lado por defecto si nunca hubo ninguna) y mantenido
-# hasta romper el empate, en vez de recalcularse cada ciclo como todo lo
-# demas en este archivo.
+# hace falta memoria ENTRE ciclos. _racha_retroceso cuenta emergencias
+# encadenadas (cada una poco despues de la anterior, ver VENTANA_ATASCO);
+# al llegar al umbral se entra a GIRO_FORZADO con un lado decidido UNA
+# VEZ (la ultima asimetria real vista, o un lado por defecto si nunca
+# hubo ninguna) y mantenido hasta romper el empate, en vez de
+# recalcularse cada ciclo como todo lo demas en este archivo.
+#
+# GIRO_FORZADO es la ultima red, no la primera: el caso que de verdad se
+# midio en pista (README 8.5) lo resuelve antes _con_escape_frontal, que
+# ataca la causa -- el centrado se anulaba a si mismo y nadie miraba el
+# frente. Ver la nota de DIST_ESCAPE_FRONTAL.
 import math
 import time
 
@@ -74,6 +79,35 @@ KP_ANGULO_MURO = 0.65
 
 DIST_FRENADO_INICIO = 900.0  # mm, empieza a bajar velocidad
 DIST_FRENADO_MIN    = 300.0  # mm, velocidad minima alcanzada
+
+# ==========================================
+# ESCAPE FRONTAL
+# ==========================================
+# Los dos terminos de _centrado_paredes miden cosas distintas -- posicion
+# entre paredes (izq-der) y orientacion respecto al muro (angulo_muro) --
+# y acercandose a una esquina apuntan a lados OPUESTOS y se anulan.
+# Medido en la corrida del 8.5, ciclo a ciclo:
+#
+#   t=44.96 front=278 izq-der=-38 a_muro=-6.4 | T_pos=-5.32 T_muro=+4.17 -> -1.15
+#   t=45.96 front=208 izq-der=-30 a_muro=-5.9 | T_pos=-4.20 T_muro=+3.82 -> -0.38
+#
+# 274 de los 394 ciclos con el frente por debajo de 400mm (70%) tienen
+# los dos terminos cancelandose, dejando un comando mediano de 1.5
+# grados con un servo que da 20-25. El robot entra recto contra la pared
+# con la direccion practicamente centrada, dispara EMERGENCIA a 120mm,
+# retrocede y repite: 12 episodios, uno cada 4.7-5.8s.
+#
+# Ademas ninguno de los dos terminos mira el frente: (izq-der) dice donde
+# esta el robot ENTRE las paredes, no cuanto espacio total queda, y en un
+# pasillo que se cierra a 200mm de ancho vale casi cero aunque el robot
+# este a punto de chocar contra las dos.
+#
+# El escape mete la unica pregunta que faltaba -- "hay pared delante, hacia
+# donde salgo" -- y le da autoridad creciente segun se cierra el frente,
+# mezclandose sobre el centrado normal en vez de sumarse (sumar dejaria
+# que la cancelacion se lo siguiera comiendo).
+DIST_ESCAPE_FRONTAL = 500.0   # mm, por encima de esto no interviene
+ANGULO_ESCAPE_MAX   = 22.0    # grados a plena urgencia
 
 # ==========================================
 # EVASION
@@ -188,17 +222,22 @@ MAX_ANGULO_RETROCESO = 25.0
 # episodio de RETROCESO -- ver la nota de cabecera y README 8.4.
 # ==========================================
 
-# Reintentos de RETROCESO seguidos, sin avance neto de rumbo, antes de
-# forzar el giro. En 4 cabe una esquina con algo de asimetria real (caso
-# normal, README 8.4-1) resolviendose sola por angulo_muro antes de que
-# esto intervenga -- no es la primera linea de defensa, es la red debajo
-# de angulo_muro cuando este no tiene nada que triangular.
+# Reintentos de RETROCESO seguidos antes de forzar el giro. En 4 cabe una
+# esquina con algo de asimetria real (caso normal, README 8.4-1)
+# resolviendose sola antes de que esto intervenga -- no es la primera
+# linea de defensa, es la red de debajo.
 RACHA_RETROCESO_PARA_FORZAR = 4
 
-# Avance de rumbo (grados, valor absoluto) que cuenta como progreso real
-# desde que empezo la racha. Por debajo de esto el robot esta
-# reintentando en el mismo sitio, no avanzando por la pista.
-AVANCE_RUMBO_MINIMO = 8.0
+# Que cuenta como "seguidos": una emergencia nueva dentro de esta ventana
+# desde la anterior. Primer intento de esto uso el avance de rumbo entre
+# episodios y NO funciono en pista (corrida del 8.5): el robot giraba
+# 5-7 grados por ciclo sin escapar de la esquina, asi que la racha se
+# reiniciaba cada dos episodios y nunca llegaba al umbral. El rumbo se
+# mueve sin que el robot progrese -- no sirve como medida de escape.
+# La cadencia si distingue los dos casos sin ambiguedad: atascado, las
+# emergencias caen cada 4.7-5.8s como un reloj (12 episodios medidos);
+# en una corrida sana no hay ninguna (corridas 6, 7 y 8 de README 8.3).
+VENTANA_ATASCO = 10.0   # s
 
 # Por debajo de esto en |izquierda-derecha| no hay pista real, es ruido
 # tipico del C1 (~15mm). Por encima, el signo se guarda como la ultima
@@ -280,7 +319,7 @@ class Navegador:
         # Desempate de esquina simetrica (GIRO_FORZADO), ver constantes
         # arriba y la nota de cabecera del archivo
         self._racha_retroceso       = 0
-        self._heading_inicio_racha  = None
+        self._t_ultima_emergencia   = None
         self._signo_memoria_asimetria = LADO_POR_DEFECTO
         self._signo_giro_forzado      = 0.0
 
@@ -336,9 +375,15 @@ class Navegador:
                 or med.izquierda < EMERGENCIA_LATERAL
                 or med.derecha < EMERGENCIA_LATERAL):
             if self.estado not in ("RETROCESO", "GIRO_FORZADO"):
-                if self._racha_retroceso == 0:
-                    self._heading_inicio_racha = heading
-                self._racha_retroceso += 1
+                # Racha por CADENCIA, no por rumbo: una emergencia nueva
+                # poco despues de la anterior es un atasco; una aislada
+                # despues de mucho rato es un incidente normal.
+                if (self._t_ultima_emergencia is not None and
+                        (ahora - self._t_ultima_emergencia) <= VENTANA_ATASCO):
+                    self._racha_retroceso += 1
+                else:
+                    self._racha_retroceso = 1
+                self._t_ultima_emergencia = ahora
                 self._entrar("RETROCESO", ahora)
                 self.tracker.desactivar("emergencia")
                 self._sector.sector_frontal_normal()
@@ -527,22 +572,12 @@ class Navegador:
             else:
                 razon = "tiempo maximo"
 
-            # Si el rumbo ya se movio de verdad desde que empezo la
-            # racha, esto no es un atasco -- es evasion/crucero normal
-            # que de casualidad tuvo un par de frenazos. Se corta la
-            # racha aqui, no solo al llegar al umbral, para no forzar un
-            # giro por reintentos que ya iban progresando.
-            if (self._heading_inicio_racha is not None and
-                    abs(heading - self._heading_inicio_racha) >= AVANCE_RUMBO_MINIMO):
-                self._racha_retroceso = 0
-                self._heading_inicio_racha = None
-
             if self._racha_retroceso >= RACHA_RETROCESO_PARA_FORZAR:
                 self._signo_giro_forzado = self._signo_memoria_asimetria
                 self._entrar("GIRO_FORZADO", ahora)
                 lado = "IZQUIERDA" if self._signo_giro_forzado > 0 else "DERECHA"
                 print(f"[FSM] RETROCESO -> GIRO_FORZADO ({razon}) | "
-                      f"{self._racha_retroceso} reintentos sin avance de rumbo "
+                      f"{self._racha_retroceso} emergencias encadenadas "
                       f"-> giro forzado hacia {lado}")
             else:
                 self._entrar("CRUCERO", ahora)
@@ -579,8 +614,8 @@ class Navegador:
             # Cuenta como intento de desatascarse, exitoso o no: la
             # proxima racha de RETROCESO (si la hay) empieza de cero, no
             # arrastra los reintentos de este atasco.
-            self._racha_retroceso      = 0
-            self._heading_inicio_racha = None
+            self._racha_retroceso     = 0
+            self._t_ultima_emergencia = None
             self._entrar("CRUCERO", ahora)
             print(f"[FSM] GIRO_FORZADO -> CRUCERO ({razon}, {t_en_estado:.1f}s)")
             return (VELOCIDAD_CRUCERO, self._centrado_paredes(med))
@@ -648,7 +683,34 @@ class Navegador:
         # del barrido de cada ciclo, sea cual sea el lado que se abra.
         ang += -med.angulo_muro * KP_ANGULO_MURO
 
-        return _clamp_servo(ang)
+        return _clamp_servo(self._con_escape_frontal(ang, med))
+
+    def _con_escape_frontal(self, ang, med):
+        # Ver la nota de DIST_ESCAPE_FRONTAL. Los dos terminos de arriba se
+        # cancelan justo cuando mas falta hacen; esto pone un giro
+        # comprometido hacia el lado con mas espacio, con peso creciente
+        # segun el frente se cierra, y a plena urgencia manda del todo.
+        if med.frontal >= DIST_ESCAPE_FRONTAL:
+            return ang
+
+        # 0 al empezar a ver la pared, 1 justo en el umbral de emergencia
+        urgencia = ((DIST_ESCAPE_FRONTAL - med.frontal) /
+                    (DIST_ESCAPE_FRONTAL - EMERGENCIA_FRONTAL))
+        urgencia = max(0.0, min(1.0, urgencia))
+
+        # Hacia el lado con mas espacio. Si las dos paredes estan dentro
+        # del ruido del LiDAR el escape no tiene a quien preferir (la
+        # esquina simetrica de README 8.4-3): ahi tira de la misma memoria
+        # persistente que usa GIRO_FORZADO, para que las dos defensas
+        # elijan el MISMO lado y no se peleen entre si.
+        diff = med.izquierda - med.derecha
+        if abs(diff) > UMBRAL_MEMORIA_ASIMETRIA:
+            signo = 1.0 if diff > 0 else -1.0
+        else:
+            signo = self._signo_memoria_asimetria
+
+        objetivo = signo * ANGULO_ESCAPE_MAX
+        return ang * (1.0 - urgencia) + objetivo * urgencia
 
     def _con_seguridad_pared(self, angulo_deseado, med):
         # La evasion (pure pursuit al poste, rumbo paralelo) no sabe donde
