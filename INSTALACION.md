@@ -107,7 +107,7 @@ No hace falta instalar ningún paquete adicional en el Pico — `main.py` solo u
 
 ## 5. Desplegar los scripts en la Raspberry Pi 3B
 
-En el repositorio, `src/pi3B/` está organizado en subcarpetas por responsabilidad (`comun/`, `ronda_cerrada/`, `ronda_abierta/`, `calibracion/`) para que sea más fácil de navegar. **Esa organización es solo del repositorio.** `controlador_inicio.py` referencia los scripts de carrera directamente en `/home/pi/` sin subcarpetas, y los módulos se importan entre sí por nombre de archivo (`import vision`, `from lidar_driver import LidarDriver`, etc.), así que **todos los `.py` deben quedar juntos y sin subcarpetas** en `/home/pi/` al copiarlos, manteniendo la capitalización exacta.
+En el repositorio, `src/pi3B/` está organizado en subcarpetas por responsabilidad (`comun/`, `ronda_cerrada/`, `ronda_abierta/`) para que sea más fácil de navegar. **Esa organización es solo del repositorio.** `controlador_inicio.py` referencia los scripts de carrera directamente en `/home/pi/` sin subcarpetas, y los módulos se importan entre sí por nombre de archivo (`import vision`, `from lidar_driver import LidarDriver`, etc.), así que **todos los `.py` deben quedar juntos y sin subcarpetas** en `/home/pi/` al copiarlos, manteniendo la capitalización exacta.
 
 ### Opción A — Clonar el repo en la Pi + `deploy.sh` (recomendada para iterar)
 
@@ -135,13 +135,13 @@ scp src/pi3B/controlador_inicio.py \
     src/pi3B/comun/lidar_driver.py \
     src/pi3B/comun/lidar_geometria.py \
     src/pi3B/comun/enlace_pico.py \
+    src/pi3B/comun/registro_metricas.py \
     src/pi3B/ronda_abierta/ronda_abierta.py \
     src/pi3B/ronda_cerrada/ronda_cerrada.py \
     src/pi3B/ronda_cerrada/navegacion.py \
     src/pi3B/ronda_cerrada/camara_driver.py \
     src/pi3B/ronda_cerrada/vision.py \
     src/pi3B/ronda_cerrada/tracker.py \
-    src/pi3B/calibracion/calibrar_hsv.py \
     pi@<ip-de-la-pi>:/home/pi/
 ```
 

@@ -19,7 +19,6 @@ cp "$DIR"/controlador_inicio.py \
    "$DIR"/ronda_cerrada/camara_driver.py \
    "$DIR"/ronda_cerrada/vision.py \
    "$DIR"/ronda_cerrada/tracker.py \
-   "$DIR"/calibracion/calibrar_hsv.py \
    "$DESTINO"/
 
 echo "[+] Copiado a $DESTINO"

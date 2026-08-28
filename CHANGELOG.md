@@ -5,6 +5,136 @@ commits (ver `git log`). Formato inspirado en [Keep a Changelog](https://keepach
 Cada versión referencia los commits representativos de ese hito para
 poder auditar el cambio exacto con `git show <hash>`.
 
+## [v0.7.2] — 2026-08-28 — Escape frontal y desempate de esquina
+
+Continuación directa del pendiente de v0.7.1. Caso de estudio en README
+sección 8.5. El desempate se diseñó primero contra el síntoma descrito
+en 8.4-3; al probarlo en pista apareció que el bucle tenía otra causa
+—dos términos de control cancelándose— que es lo que arregla el escape
+frontal. Ambos quedan: el escape ataca la causa medida, `GIRO_FORZADO`
+es la red de abajo para el caso simétrico puro.
+
+### Agregado
+- `ronda_cerrada/navegacion.py`: nuevo estado `GIRO_FORZADO`, único con
+  memoria entre ciclos. Cuenta emergencias encadenadas (cada una dentro
+  de `VENTANA_ATASCO` desde la anterior); a las 4, fuerza un giro
+  comprometido hacia un lado decidido una vez (última asimetría real
+  memorizada entre paredes, o un lado por defecto si nunca hubo
+  ninguna) y lo mantiene hasta que la esquina se abra de verdad o por
+  timeout de seguridad. Pensado para el bucle del gauntlet de 8.4-3
+  (133s, 51 episodios); no llegó a dispararse en la corrida de
+  validación porque el escape frontal lo resolvió antes.
+
+### Corregido
+- `ronda_cerrada/navegacion.py`: **causa real del bucle**, encontrada al
+  probar lo anterior en pista. Los dos términos de `_centrado_paredes`
+  (posición `izq-der` y orientación `angulo_muro`) apuntan a lados
+  opuestos acercándose a una esquina y se anulan: 274 de 394 ciclos con
+  el frente bajo 400mm quedaban con un comando mediano de 1.5° con un
+  servo que da 20-25°. El robot entraba recto contra la pared con la
+  dirección centrada. Nuevo `_con_escape_frontal`: giro hacia el lado
+  libre con autoridad creciente según se cierra el frente, mezclado
+  sobre el centrado (no sumado, que la cancelación se lo comería).
+- Criterio de racha de `GIRO_FORZADO`: el "avance neto de rumbo" no
+  funcionó en pista (el robot giraba 5-7° por episodio sin escapar, así
+  que la racha se reiniciaba y nunca alcanzaba el umbral). Sustituido
+  por cadencia entre emergencias (`VENTANA_ATASCO=10s`), que sí separa
+  atasco de incidente aislado.
+
+### Validado
+- Con motores, mismo montaje que la corrida fallida: emergencias 12→1,
+  tiempo en `RETROCESO` 32%→2%, ciclos en peligro sin autoridad de
+  dirección 71%→8%, rumbo recorrido 106°→442°, evasiones iniciadas 0→8.
+  `GIRO_FORZADO` no llegó a dispararse (queda como red de abajo).
+  Corrida cortada a los 84s a petición del equipo: falta confirmar una
+  vuelta completa sin interrupción.
+
+- `6b74f8e` feat(navegacion): forzar giro tras N retrocesos sin avance de rumbo
+- `9626e80` fix(navegacion): escape frontal, el centrado se anulaba a si mismo
+
+## [v0.7.1] — 2026-08-28 — Asistencia de esquina y límite de la reactividad pura
+
+Caso de estudio completo en README sección 8.4. Gauntlet de 6 pilares
+(el doble del reglamento) para estresar la fusión sensorial.
+
+### Corregido
+- `ronda_cerrada/navegacion.py`: emergencias en esquinas sin ningún poste
+  cerca — `_centrado_paredes` no usaba `angulo_muro` (triangulación
+  perp+diag ya calculada en `lidar_geometria.py`, nunca leída).
+  Verificado sin motores antes de tocar la dirección; validado con
+  motores en una corrida limpia: pared mínima 76mm→412mm, 5→0 emergencias.
+
+### Agregado
+- `ronda_cerrada/vision.py`: guardado opcional de frame+máscara en cada
+  transición de color (`WRO_DEBUG_VISION=1`), para poder auditar un
+  falso positivo de "ROJO" detectado una sola vez sin ningún pilar en
+  pista, no reproducido todavía.
+
+### Encontrado, pendiente de resolver
+- Repitiendo el gauntlet completo con el arreglo activo: el robot quedó
+  atrapado 133s en una esquina abordada de forma perfectamente simétrica
+  (`izquierda`≈`derecha` en cada ciclo de acercamiento, `angulo_muro`
+  nunca superó ±4°). Es un límite de cualquier controlador reactivo sin
+  memoria entre ciclos, no un defecto del arreglo de esquina — no hay
+  asimetría instantánea que triangular cuando los dos lados son
+  honestamente idénticos. Necesita un mecanismo de "esta atascado, romper
+  la simetría" con estado persistente entre ciclos, sin diseñar todavía.
+
+- `71ede18` fix(navegacion): asistencia de esquina con angulo_muro, antes sin usar
+- `a6358eb` feat(vision): guardar frame+mascara en cada transicion de color, opcional
+
+## [v0.7.0] — 2026-08-27 — Reactivación de la Ronda Cerrada modular en pista
+
+Sesión de depuración en pista de `src/pi3B/ronda_cerrada/` (la pila
+modular de v0.5.0, nunca desplegada en la Pi hasta ahora) con evidencia
+cuantitativa por corrida — caso de estudio completo en README sección
+8.3. De un robot que no completaba una sola evasión a tres corridas
+seguidas sin emergencias, esquivando el pilar rojo por la derecha y
+reincorporándose al carril.
+
+### Corregido
+- `comun/enlace_pico.py`: la telemetría con sensor de color rompía el
+  parseo del *heading* en silencio (la IMU quedaba clavada en 0.0).
+- `ronda_cerrada/camara_driver.py`: el frame no se rotaba pese a que la
+  cámara va montada invertida en el chasis.
+- `ronda_cerrada/navegacion.py`: *windup* en `_centrado_paredes` sin
+  recorte al servo; timeouts de evasión más cortos que la física real;
+  salida de `RETROCESO` que no comprobaba si el peligro ya se había
+  despejado; `SOBREPASO`/`REINCORPORACION` corrigiendo por rumbo en vez
+  de por posición (podían cumplir el objetivo entero y acabar contra un
+  muro); `DIST_SOBREPASO_MM` dimensionado por el poste cuando en la
+  práctica lo limita la pared.
+- `ronda_cerrada/tracker.py`: `MM_POR_SEG_A_PWM100` sobreestimaba 2.3
+  veces la velocidad real (medida en pista: curva PWM→velocidad).
+- Hardware: regulador XL4015/4016 entregando 4.9V, la Raspberry en bajo
+  voltaje activo incluso en reposo (`vcgencmd get_throttled` = `0x50005`
+  → `0x50000` tras reajustar el trimpot a 5.132V).
+
+### Agregado
+- `comun/registro_metricas.py`: percepción cruda por ciclo (`frontal`,
+  `izquierda`, `derecha`, `trasera`, `color_cam`, estado del tracker),
+  necesaria para diagnosticar de dónde sale cada error en vez de solo el
+  error ya derivado.
+- `src/pico/main.py`: sincronizado con el sensor de color TCS3472 (que
+  ya estaba flasheado en el Pico físico pero nunca se había commiteado)
+  y con el campo opcional `kd` de la consigna serial (que la versión
+  flasheada había perdido al agregar el sensor).
+- README secciones 5.3-C (estado real del sentido de carrera: hardware
+  instalado, telemetría parseada, no consumido por `navegacion.py` — y
+  por qué eso es un diseño deliberado, no una omisión) y 8.3 (caso de
+  estudio completo con evidencia por corrida).
+
+- `c84f387` fix(comun): parsear la telemetria de la Pico con sensor de color
+- `268c633` fix(ronda_cerrada): enderezar el frame, la camara va montada invertida
+- `528aef5` feat(metricas): registrar percepcion cruda por ciclo, no solo el error
+- `ad74c17` fix(navegacion): recortar el centrado al servo, elimina el windup
+- `e78884f` fix(navegacion): derivar los timeouts de evasion de la velocidad real
+- `9e857da` fix(navegacion): terminar el retroceso al despejarse, no por reloj
+- `cb4f710` refactor(navegacion): salir de la evasion por posicion, no por rumbo
+- `12ca0f1` fix(tracker): medir la velocidad real, el modelo sobreestimaba 2.3 veces
+- `e5999af` fix(navegacion): acortar SOBREPASO, lo limita la pared y no el poste
+- `c8219c1` feat(pico): sincronizar el firmware con el sensor de color TCS3472
+
 ## [v0.6.0] — 2026-07-27 — Métricas cuantitativas de rendimiento
 
 ### Agregado

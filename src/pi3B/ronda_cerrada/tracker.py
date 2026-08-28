@@ -10,10 +10,27 @@ import math
 import time
 import threading
 
-# Avance del robot a PWM 100%, en mm/s. Calibrar en pista: cronometrar
-# 2m a velocidad fija y despejar. Si queda impreciso no pasa nada grave,
-# el LiDAR re-ancla la posicion en cada barrido.
-MM_POR_SEG_A_PWM100 = 900.0
+# Avance del robot a PWM 100%, en mm/s. MEDIDO en pista por odometria
+# LiDAR sobre la lona, bateria llena:
+#
+#   PWM 40 -> 158 mm/s     PWM 70 -> 285 mm/s     PWM 90 -> 358 mm/s
+#
+# El ajuste da v = 4.02*pwm - 1.0, o sea practicamente proporcional, y un
+# modelo proporcional con 400 clava los tres puntos dentro del 2%. La
+# validacion cruzada tambien sale: predice 220 mm/s a PWM 55 y en carrera
+# se midieron 215 sobre el CSV de metricas.
+#
+# El valor anterior era 900.0, una suposicion nunca medida que sobreestima
+# 2.3 veces. No era inocuo. La prediccion acumulaba ~20mm de error por
+# ciclo a velocidad de evasion, asi que en poco mas de un segundo se salia
+# de UMBRAL_ASOCIACION y el cluster dejaba de asociarse (los "timeout de
+# prediccion" del log); y con el poste retrocediendo demasiado rapido en
+# el marco del robot, superado() daba el poste por rebasado antes de
+# tiempo, que es una de las condiciones que sacan de APROXIMACION.
+#
+# Si se cambia la traccion, las ruedas o el voltaje del riel, hay que
+# volver a medir: es una constante fisica, no un parametro de ajuste.
+MM_POR_SEG_A_PWM100 = 400.0
 
 UMBRAL_ASOCIACION  = 250.0   # mm entre cluster y prediccion para asociar
 TIMEOUT_TRACKER    = 4.0     # s maximos prediciendo sin re-deteccion

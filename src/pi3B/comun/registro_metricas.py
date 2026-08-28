@@ -8,15 +8,36 @@
 # Uso: registro = RegistroMetricas("ronda_abierta"); ... ;
 # registro.registrar(fase=fase_actual, heading=h, error_lateral=e, angulo=a,
 # velocidad=v); ... ; registro.cerrar()
-#
-# analizar_log.py (en calibracion/) resume estos CSV en metricas agregadas.
 import csv
 import os
 import time
 
 CARPETA_LOGS = "logs"
 
-CAMPOS = ["t", "fase", "estado", "heading", "error_lateral", "angulo", "velocidad"]
+CAMPOS = ["t", "fase", "estado", "heading", "error_lateral", "angulo", "velocidad",
+          # Percepcion cruda. Sin esto, error_lateral no se puede diagnosticar:
+          # un mismo valor sale de "estoy descentrado" o de "perdi una pared y
+          # se esta usando el ultimo valor sostenido", que piden arreglos
+          # opuestos. Las tres distancias en mm; color_cam es lo que ve la
+          # camara; trk_* es el poste que el tracker esta siguiendo.
+          # "trasera" hace falta para auditar el RETROCESO: es una de sus
+          # condiciones de salida y sin ella no se puede saber si el
+          # retroceso paro por obstaculo detras o por otra cosa.
+          "frontal", "izquierda", "derecha", "trasera",
+          # frontal_muro es el mismo sector frontal con los postes
+          # descontados, y es el que gobierna el escape frontal. Se
+          # registra junto a "frontal" a proposito: la diferencia entre
+          # los dos es justo la señal que se estaba colando en el
+          # control (un poste entrando y saliendo del sector hacia
+          # saltar "frontal" entre ~200 y ~3000mm), y sin las dos
+          # columnas no se puede comprobar que la separacion funciona.
+          "frontal_muro",
+          "color_cam", "trk_activo", "trk_color", "trk_x", "trk_y",
+          # angulo_muro (triangulacion perp+diag de lidar_geometria.py) ahora
+          # entra en _centrado_paredes como asistencia de esquina. Sin
+          # registrarlo no se puede auditar si de verdad esta anticipando la
+          # esquina en la proxima corrida, o si el KP quedo mal calibrado.
+          "angulo_muro"]
 
 
 class RegistroMetricas:

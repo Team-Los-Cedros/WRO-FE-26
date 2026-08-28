@@ -12,12 +12,9 @@ Para garantizar que el vehículo sea 100% autónomo desde el momento en que se c
 
 1. **`controlador_inicio.py`**: Script demonio en Python que corre en un bucle infinito de alta frecuencia monitoreando los pines de entrada.
 2. **`wro_start.service`**: Unidad de servicio nativa de Linux (`systemd`) que fuerza el auto-arranque del script maestro inmediatamente después de inicializar el kernel.
-3. **Scripts de Carrera**: `ronda_abierta/ronda_abierta.py` (Ronda Abierta, centrado proporcional guiado por RPLiDAR C1) y `ronda_cerrada/ronda_cerrada.py` (Ronda Cerrada, fusión de visión OpenCV + LiDAR para evasión de pilares — ver estructura modular abajo). Ambas rondas comparten los drivers de `comun/`.
-4. **`calibracion/calibrar_hsv.py`**: Herramienta de calibración interactiva (no se ejecuta en carrera). Levanta un servidor TCP en el puerto `5000` que recibe el streaming JPEG de la Pi Camera y expone sliders de OpenCV (`H/S/V Min/Max` por color) en la laptop del equipo para ajustar en vivo los umbrales de segmentación de los bloques verde y rojo antes de cada ronda.
-5. **`calibracion/capturar_hsv.py`**: Herramienta de diagnóstico HSV sin GUI — corre 100% en la Pi y guarda a disco el frame crudo y las máscaras rojo/verde, para revisar la calibración sin necesitar una laptop con pantalla conectada al streaming.
-6. **`calibracion/analizar_log.py`**: Herramienta offline que resume en métricas agregadas (error lateral promedio/máximo, % de ciclos con el servo saturado, eventos de emergencia) los CSV que genera `comun/registro_metricas.py` durante la carrera — ver sección 5.4 del README principal.
-7. **`requirements.txt`**: Dependencias Python del entorno de la Raspberry Pi 3B (OpenCV, pyserial, RPi.GPIO, numpy) — instalar con `pip install -r requirements.txt` para garantizar reproducibilidad del entorno de ejecución. `picamera2` se instala aparte por `apt` (ver [`INSTALACION.md`](../../INSTALACION.md)).
-8. **`wro_start.service`**: Copia real del archivo de unidad `systemd`. Para reproducir el arranque autónomo en una Pi nueva: `sudo cp wro_start.service /etc/systemd/system/ && sudo systemctl enable wro_start.service`.
+3. **Scripts de Carrera**: `ronda_abierta/ronda_abierta.py` (Ronda Abierta, centrado proporcional guiado por RPLiDAR C1, autocontenido) y `ronda_cerrada/ronda_cerrada.py` (Ronda Cerrada, fusión de visión OpenCV + LiDAR para evasión de pilares, usa los drivers de `comun/` — ver estructura modular abajo).
+4. **`requirements.txt`**: Dependencias Python del entorno de la Raspberry Pi 3B (OpenCV, pyserial, RPi.GPIO, numpy) — instalar con `pip install -r requirements.txt` para garantizar reproducibilidad del entorno de ejecución. `picamera2` se instala aparte por `apt` (ver [`INSTALACION.md`](../../INSTALACION.md)).
+5. **`wro_start.service`**: Copia real del archivo de unidad `systemd`. Para reproducir el arranque autónomo en una Pi nueva: `sudo cp wro_start.service /etc/systemd/system/ && sudo systemctl enable wro_start.service`.
 
 ### Organización de `src/pi3B/`
 
@@ -31,6 +28,7 @@ src/pi3B/
 │   ├── lidar_driver.py      # Driver: protocolo binario RPLIDAR C1
 │   ├── lidar_geometria.py   # Procesador: paredes + clustering ABD
 │   ├── enlace_pico.py       # Driver: canal serial con la Pico 2
+│   ├── geometria_robot.py   # Constantes fisicas y transformadas entre marcos
 │   └── registro_metricas.py # Driver: logger CSV de telemetria por ciclo
 ├── ronda_cerrada/           # Exclusivo de la Ronda Cerrada
 │   ├── ronda_cerrada.py     # Punto de entrada
@@ -40,11 +38,7 @@ src/pi3B/
 │   ├── tracker.py           # Procesador: persistencia del poste activo
 │   └── legacy/              # Versiones superadas, NO desplegar
 ├── ronda_abierta/
-│   └── ronda_abierta.py     # Punto de entrada: reutiliza comun/, sin camara ni evasion
-├── calibracion/              # Herramientas offline, no corren en carrera
-│   ├── calibrar_hsv.py
-│   ├── capturar_hsv.py
-│   └── analizar_log.py       # Resume en metricas agregadas los CSV de registro_metricas.py
+│   └── ronda_abierta.py     # Punto de entrada, autocontenido: sin camara ni evasion
 ├── controlador_inicio.py     # Orquestador: decide qué ronda lanzar según el botón
 ├── deploy.sh                 # Copia los .py de carrera planos a /home/pi/ (ver INSTALACION.md)
 ├── wro_start.service
@@ -58,7 +52,7 @@ src/pi3B/
 | `lidar_driver.py` | Driver | Protocolo binario del RPLIDAR C1 y detección de barrido completo (clase `LidarDriver`). Entrega el barrido crudo (lista de ángulo/distancia), sin interpretar nada. |
 | `lidar_geometria.py` | Procesador | Interpreta el barrido crudo: construye un perfil de distancia mínima en los 360° completos (1 grado/bin) y deriva de ahí los sectores de pared (con modo "Inercial"), las diagonales traseras y el sector frontal reconfigurable en caliente, más clustering ABD para separar postes de paredes (clase `ProcesadorLidar`). Entrega un objeto `Medicion` por barrido, con el perfil completo disponible para consultas arbitrarias. |
 | `enlace_pico.py` | Driver | Canal serial con la Pico 2 (clase `EnlacePico`): envío de consignas, lectura de telemetría IMU en hilo propio, cero de carrera ajustable y detección de telemetría caída. |
-| `registro_metricas.py` | Driver | Logger de telemetría por ciclo (clase `RegistroMetricas`): escribe un CSV por corrida en `logs/` (fase, estado, heading, error lateral, ángulo, velocidad). Usado por `ronda_abierta.py` y `ronda_cerrada.py`; `calibracion/analizar_log.py` lo resume en métricas agregadas. |
+| `registro_metricas.py` | Driver | Logger de telemetría por ciclo (clase `RegistroMetricas`): escribe un CSV por corrida en `logs/` (fase, estado, heading, error lateral, ángulo, velocidad). Usado por `ronda_abierta.py` y `ronda_cerrada.py`. |
 
 #### Módulos de `ronda_cerrada/`
 
@@ -72,7 +66,7 @@ src/pi3B/
 
 > **`ronda_cerrada/legacy/`** conserva `Close_round.py` y `Close2_round_Prueba1.py`, versiones superadas de la Ronda Cerrada que **no** deben desplegarse (ver el `README.md` de esa carpeta para el detalle de por qué se archivaron).
 
-> **`ronda_abierta/ronda_abierta.py`** reutiliza `comun/lidar_driver.py`, `comun/lidar_geometria.py` y `comun/enlace_pico.py` — solo implementa el centrado proporcional y la detección de parqueo, que son específicos de esta ronda (sin cámara ni máquina de estados de evasión).
+> **`ronda_abierta/ronda_abierta.py`** es autocontenido — reimplementa su propio parseo de LiDAR y protocolo serial en vez de reutilizar `comun/lidar_driver.py`/`comun/enlace_pico.py`. Es deuda técnica conocida (duplica lo que ya resuelven esos módulos), aceptada a propósito porque esta versión está validada en pista con estacionamiento incluido.
 
 ---
 
