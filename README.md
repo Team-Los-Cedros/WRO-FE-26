@@ -209,11 +209,13 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **Reguladores XL1509 / XL4016** | <img src="v-photos/Componentes/Xl1509.png" width="90"/> <img src="v-photos/Componentes/Xl4016.png" width="90"/> | Ver arquitectura de desacoplamiento por etapas en la sección 4.1 y análisis de margen de seguridad en la sección 4.3. |
 | **Baterías 21700 (2S)** | <img src="v-photos/Componentes/baterias.jpg" width="90"/> | Ver justificación de densidad de corriente en la sección 3.4. |
 | **Botón físico (x2)** | <img src="v-photos/Componentes/Boton.png" width="90"/> | Selección de ronda (Abierta/Cerrada) por hardware puro (GPIO con pull-up) en vez de un menú por software, para minimizar el tiempo entre el arranque de la batería y el inicio de la marcha, tal como exige el reglamento. |
+| **Sensor de Color TCS3472** | — | Montado bajo el chasis, mirando el piso, en un bus $\text{I}^2\text{C}$ independiente de la IMU (sección 4.3) para no competir por el bus con el MPU6050. Lee la línea de color del punto de arranque para fijar el sentido de carrera (AZUL/NARANJA) por HSV con umbral de saturación calibrado en vivo — ver método abajo y la nota de estado en la sección 5.3-C. |
 
 #### Método de Calibración de Sensores
 
 * **IMU (MPU6050):** Al energizar la Pico 2, `src/pico/main.py` promedia 100 lecturas del giroscopio en el eje Z (~1 segundo, con una espera de 10 ms entre muestras) para calcular `giro_z_offset` antes de entrar al bucle de control. Esto elimina el *bias* estático de fabricación del MEMS sin necesidad de recalibración manual entre carreras.
 * **Cámara (Segmentación HSV):** `calibrar_hsv.py` transmite el feed de la Pi Camera por socket TCP a la laptop del equipo y expone sliders interactivos de OpenCV para ajustar en vivo los rangos `H/S/V` de verde y rojo (el rojo requiere dos rangos por el *wraparound* del matiz en 0°/180°). Los umbrales resultantes se copian manualmente a `src/pi3B/ronda_cerrada/vision.py` antes de cada jornada de pruebas, ya que la iluminación de los boxes varía respecto a la de la pista oficial.
+* **Sensor de Color de Piso (TCS3472):** al arrancar, `src/pico/main.py` promedia 25 lecturas de saturación del piso blanco bajo la iluminación real (`calibrar_suelo_inicial()`) y fija `saturacion_base_pista` como ese promedio más un margen de 0.12 — un umbral dinámico en vez de un valor fijo que se desajusta con cada cambio de luz entre el box y la pista oficial. Cada lectura pasa además por un promedio móvil de 4 muestras en tono (H) y saturación (S) antes de clasificarse, para filtrar destellos puntuales del sensor.
 * **Puntos de fallo considerados:** si la IMU se satura o pierde el bus I2C, `main.py` captura la excepción y fuerza `velocidad_z = 0.0` (el coche sigue guiándose solo por LiDAR en vez de trabar el bucle de control); si el LiDAR pierde la lectura de una pared, la Pi 3B congela el último ángulo válido (modo "Inercial", sección 5.3) en lugar de enviar un comando basado en datos corruptos.
 
 ### 4.3 Mapa de Conexiones Calibrado (Pinout)
@@ -229,6 +231,8 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **TB6612FNG (PWMB)** | Pin 29 | `GP22` | Salida PWM | Modulación de velocidad por ancho de pulso ($2\,\text{kHz}$). |
 | **MPU6050 (SDA)** | Pin 21 | `GP16` | $\text{I}^2\text{C0}$ SDA | Línea de datos del bus inercial. |
 | **MPU6050 (SCL)** | Pin 22 | `GP17` | $\text{I}^2\text{C0}$ SCL | Línea de reloj síncrono del bus inercial ($400\,\text{kHz}$). |
+| **TCS3472 (SDA)** | Pin 24 | `GP18` | $\text{I}^2\text{C1}$ SDA | Línea de datos del sensor de color de piso, en bus separado del inercial. |
+| **TCS3472 (SCL)** | Pin 25 | `GP19` | $\text{I}^2\text{C1}$ SCL | Línea de reloj del bus de color ($100\,\text{kHz}$, más lento que el de la IMU porque el TCS3472 no soporta $400\,\text{kHz}$ de forma confiable). |
 
 #### Conexiones Maestras de la Raspberry Pi 3B
 
@@ -420,44 +424,78 @@ stateDiagram-v2
     [*] --> CRUCERO
 
     CRUCERO --> APROXIMACION: tracker confirmado (2+ barridos) con poste a menos de 900mm, O frontal bajo 700mm con color de camara
-    APROXIMACION --> SOBREPASO: poste a la altura del morro (y bajo 180mm) O al costado O superado, O timeout 1.5s
-    SOBREPASO --> REINCORPORACION: odometria confirma poste detras de la cola (y bajo -280mm), O timeout 1.2s
-    REINCORPORACION --> CRUCERO: error de rumbo IMU menor a 5 grados, O timeout 2.5s
+    APROXIMACION --> SOBREPASO: poste a la altura del morro (y bajo 180mm) O al costado O superado, O timeout 5.9s
+    SOBREPASO --> REINCORPORACION: odometria confirma poste detras de la cola (y bajo -280mm), O timeout 1.6s
+    REINCORPORACION --> CRUCERO: error de centrado (izq-der) menor a 120mm, O timeout 2.5s
 
     CRUCERO --> RETROCESO: EMERGENCIA -- frontal bajo 120mm O lateral bajo 80mm (chequeo global, cualquier estado)
     APROXIMACION --> RETROCESO: EMERGENCIA
     SOBREPASO --> RETROCESO: EMERGENCIA
     REINCORPORACION --> RETROCESO: EMERGENCIA
-    RETROCESO --> CRUCERO: choque trasero bajo 250mm, O tiempo mayor a 3.5s
+    RETROCESO --> CRUCERO: choque trasero bajo 250mm, O despejado (frontal>300 e izq/der>160) tras 0.6s minimo, O timeout 3.5s
 
     note right of APROXIMACION
         Pure pursuit hacia el punto de paso, unos 260mm
         al lado del poste, segun regla WRO (ROJO derecha,
         VERDE izquierda). Angulo proporcional al bearing
-        hacia ese punto, con tope fisico del servo. Se
+        hacia ese punto, recortado al recorrido real y
+        asimetrico del servo (+25 izq / -20 der). Se
         mezcla con el centrado de pared si la pared del
         lado del giro se acerca (misma logica en SOBREPASO
         y REINCORPORACION, corrigio un bug real donde la
         evasion no veia las paredes y se les clavaba).
+        El timeout se deriva de la velocidad medida en
+        pista, no es un numero suelto: si se cambia la
+        traccion hay que remedir (ver 8.3).
     end note
 
     note right of SOBREPASO
-        Rumbo paralelo al pasillo (P sobre heading base)
-        mientras la odometria del tracker empuja el
-        poste hacia atras en el marco del robot
+        Mantiene el RUMBO DE ENTRADA a este estado (P
+        sobre ese heading), no el rumbo previo a la
+        evasion -- ese era un bug real que deshacia la
+        esquiva justo al lado del poste (ver 8.3). El
+        timeout tambien esta acotado por la pared, no
+        solo por el poste: mas tiempo aqui es excursion
+        lateral acumulada con el servo casi recto.
+    end note
+
+    note right of REINCORPORACION
+        Vuelve al centro por POSICION (mismo control que
+        CRUCERO), no por rumbo: un lazo de rumbo puede
+        cumplir el objetivo entero y dejar el robot
+        pegado a un muro porque enderezar estando
+        desplazado no corrige el desplazamiento (ver 8.3).
     end note
 
     note right of RETROCESO
         Control P en vivo sobre el perfil LiDAR de 360
         grados. Gira hacia la diagonal trasera con mas
-        espacio en cada ciclo, no un signo fijo. Corrige
-        un bug real de pista, en reversa el mismo angulo
-        de rueda gira el chasis al sentido contrario
-        respecto a marcha adelante, geometria Ackermann.
+        espacio en cada ciclo, no un signo fijo. Sale en
+        cuanto el peligro se despeja en vez de agotar
+        siempre el timeout -- version anterior reorientaba
+        el robot 50-60 grados de mas por episodio (ver 8.3).
     end note
 ```
 
 > El bloque `RETROCESO` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en él), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/ronda_cerrada/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `ronda_cerrada.py` quedó como orquestador delgado con *watchdog* de percepción. El LiDAR (`src/pi3B/comun/lidar_geometria.py`) construye un perfil de distancia mínima en los 360° completos (1 grado por bin) en cada barrido; los sectores fijos (pared, frontal, diagonales traseras) son consultas sobre ese perfil, no cálculos independientes.
+>
+> Los timeouts de `APROXIMACION` y `SOBREPASO` no son constantes sueltas: `navegacion.py` los calcula a partir de `tracker.MM_POR_SEG_A_PWM100` (400mm/s, medido en pista — sección 8.3) y la velocidad de PWM de cada fase, con un margen de 1.3× sobre el tiempo teórico. Son **red de seguridad**, no la vía normal — la transición esperada es geométrica (por posición del tracker), y si el timeout es más corto que la física, se convierte en la ruta principal sin que nadie lo note (exactamente lo que pasaba antes de medir la velocidad real).
+
+#### C. Sentido de Carrera y Sensor de Color de Piso — Estado Actual
+
+El reglamento fija que la dirección de circulación (horario o antihorario) se define de forma aleatoria antes de cada ronda, así que el robot no puede asumirla. El hardware para resolver esto ya está instalado: un **TCS3472** bajo el chasis (sección 4.2/4.3) lee la línea de color del punto de arranque y la Pico 2 la clasifica como `AZUL` (antihorario) o `NARANJA` (horario), transmitiéndola en cada trama de telemetría junto al *yaw* acumulado (`IMU:<grados>,COLOR:<nombre>`).
+
+**Estado real, para que no quede como intención confundida con hecho:**
+
+* El firmware (`src/pico/main.py`) sí lee, calibra y transmite el color — validado en pista en la sesión de depuración de la sección 8.3.
+* `comun/enlace_pico.py` sí parsea esa trama correctamente (era justo el bug de la sección 8.3 #1).
+* **`navegacion.py`, el módulo que decide velocidad y ángulo en la Ronda Cerrada, no consume ese campo.** No hay ningún `signo_giro` ni `esquinas_lado` en la pila modular actual.
+
+Esto no es un olvido que haya que tapar corriendo: el diseño de `navegacion.py` es **agnóstico al sentido de giro por construcción**, y eso es deliberado, no un accidente feliz. El centrado de pared (`_centrado_paredes`, control P sobre `izquierda - derecha`) es simétrico — no le importa si el pasillo gira a la izquierda o a la derecha, solo mantiene el robot equidistante de ambas paredes. El conteo de vueltas para disparar el parqueo compara `abs(heading) >= UMBRAL_VUELTAS` (línea 267), con valor absoluto a propósito: si el robot circula en horario el *yaw* acumulado es negativo, si es antihorario es positivo, y el umbral se cumple igual en ambos casos. El retroceso de emergencia (`RETROCESO`) mide en vivo qué diagonal trasera tiene más espacio libre en cada ciclo en vez de usar un signo fijo, por la misma razón.
+
+En otras palabras: **la Ronda Cerrada actual no necesita saber el sentido para conducir bien**, y eso simplificó la máquina de estados en el refactor modular (sección 8.1) frente al monolito anterior, que sí lo usaba y por tanto dependía de que ese dato llegara correcto. El único lugar donde el sentido sí importaría es para escoger el **lado del carril hacia el que gira cada esquina** si en algún momento se necesitara una estrategia no simétrica — no es el caso hoy.
+
+Queda pendiente evaluar si conectar el sensor de color aporta algo que el diseño simétrico actual no dé ya (por ejemplo, como confirmación redundante del sentido para telemetría o depuración) antes de invertir tiempo en integrarlo a la FSM sin necesidad real.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 
@@ -782,6 +820,43 @@ Durante el desarrollo activo de la Ronda Cerrada, el equipo reportó que el robo
 **Validación en pista con paredes reales:** tras aplicar los fixes, se corrió el mismo protocolo (video + `python3 -u Close2_round.py 2>&1 | tee run_log.txt`) en un circuito con bordes físicos. El log mostró 3 evasiones completas de postes rojos, todas con el lado de evasión correcto (`Evadir x DERECHA`) y la transición `DETECTADO -> ESQUIVANDO` siempre por distancia real confirmada por el LiDAR (nunca por el timeout de seguridad). El punto crítico —`RECENTRANDO`— convergió dentro del margen las 3 veces (`Error heading` de 3.9°, 3.9° y 3.2°, todos bajo el umbral de 4°), frente al fallo de 68.1° registrado antes del fix. Las dos emergencias de colisión que sí aparecieron se resolvieron limpio vía `RETROCEDIENDO -> FORZANDO_GIRO` sin entrar en el ciclo repetitivo observado en la corrida anterior.
 
 **Refactor de modularidad:** posteriormente, `Close2_round.py` (que concentraba cámara + LiDAR + tracker + FSM en ~1100 líneas) se dividió en `vision.py`, `lidar.py` y `tracker.py` por responsabilidad (ver sección 8.1). Durante esa limpieza se detectaron y archivaron en `src/pi3B/ronda_cerrada/legacy/` dos copias obsoletas de la Ronda Cerrada (`Close_round.py` y una iteración experimental) que **todavía tenían la regla de color invertida** — y se descubrió que `controlador_inicio.py` apuntaba por error a esa copia rota en vez de a `Close2_round.py`, ya corregido.
+
+### 8.3 Caso de Estudio: Reactivación de la Ronda Cerrada Modular con Evidencia Cuantitativa (2026-08-27)
+
+Tras el refactor de modularidad de la sección 8.1, `src/pi3B/ronda_cerrada/` (clustering LiDAR por ABD, fusión con centroide, FSM sin I/O) nunca se desplegó en pista: la Raspberry seguía corriendo un monolito de reemplazo (`prueba/reto_obstaculos_v2.py`, ~1000 líneas) que había perdido el clustering, la fusión por posición y el parqueo. El equipo reportó "un completo fracaso" con ese monolito. En vez de seguir depurándolo, esta sesión partió de una pregunta distinta: **¿por qué se abandonó la pila modular, si ya estaba probada?**
+
+La metodología fue la misma que en la sección 8.2 —evidencia real contra hipótesis, no ajuste a ciegas— pero instrumentada con más rigor: cada corrida se grabó con una cámara cenital externa a la pista (no la de a bordo) para correlacionar la telemetría con lo que el robot hacía físicamente, y `registro_metricas.py` se extendió para guardar percepción cruda por ciclo (`frontal`, `izquierda`, `derecha`, `trasera`, `color_cam`, estado del tracker) además del error ya derivado, porque un mismo `error_lateral` puede salir de causas que piden arreglos opuestos y sin los datos crudos no hay forma de distinguirlas.
+
+| # | Síntoma / Hallazgo | Evidencia | Causa Raíz | Corrección |
+| :---: | :--- | :--- | :--- | :--- |
+| 1 | La IMU de la pila modular estaba muerta — `heading()` devolvía siempre `0.0` | `EnlacePico._hilo_lectura` hacía `linea.split(":")[1]` sobre `"IMU:-8593.44,COLOR:PISTA"`, que da `"-8593.44,COLOR"` y hace fallar `float()` dentro de un `except` mudo | Al flashear el firmware con sensor de color, la trama pasó de `"IMU:<grados>"` a `"IMU:<grados>,COLOR:<nombre>"` y el parser no se actualizó | Recortar por la coma antes de partir por `":"` (`c84f387`) |
+| 2 | La cámara veía la pista de cabeza | Captura de un frame crudo sin rotar: los pilares aparecían colgando del techo, con el piso arriba | El módulo de cámara está montado invertido en el chasis; `camara_driver.py` entregaba el frame tal cual salía de `picamera2` | Rotar 180° en la capa de adquisición (`268c633`) — de paso corrige que el filtro `cy < 180` de `vision.py` se invertía: con el piso arriba, el centroide del poste bajaba al acercarse, perdiendo la detección en el momento crítico |
+| 3 | El comando de dirección llegó a pedir **+107°/-78°** con el servo real en -20/+25 | CSV de la corrida 2: `err=-1456mm → ang=-30.6°`, luego `err=-1012mm → ang=-42.6°` (el error cae 31% y el comando sube) | `_centrado_paredes` devolvía `(izq-der)*KP_LATERAL` sin acotar — único cálculo de ángulo del módulo sin recorte. En las esquinas el pasillo se abre a >1400mm, pidiendo ~200° de servo; el *rate limiter* de 6°/ciclo rampaba hacia ese objetivo imposible (*windup*) | Recortar al recorrido real y asimétrico del servo en `_centrado_paredes` y en la salida común tras el *rate limiter* (`ad74c17`) — verificado reprocesando el CSV: comandos fuera de rango 97→0, servo apuntando al lado contrario 2.79s→1.28s |
+| 4 | Las transiciones de evasión saltaban casi siempre por `timeout`, nunca por geometría | 4 de 5 transiciones de la corrida 3 fueron `\| timeout` | `TIMEOUT_APROXIMACION=1.5s` y `TIMEOUT_SOBREPASO=1.2s` estaban calibrados para una velocidad que el robot no tenía — documentados como red de seguridad, funcionaban como ruta principal | Derivar los timeouts de la velocidad real medida en cada fase en vez de un número suelto (`e78884f`, refinado en `12ca0f1` tras medir la curva PWM→velocidad) |
+| 5 | Alimentación: la Raspberry estaba limitada **en reposo** | `vcgencmd get_throttled` → `0x50005` (bits de bajo voltaje activo) | El regulador XL4015/4016 entregaba 4.9V en bornes; bajo la caída de carga la Pi veía menos de los ~4.65V del umbral de detección | Reajuste del trimpot a 5.132V (hardware, sin commit de código) — verificado con reinicio limpio: `0x50000`, tasa del lazo de control 8.6→10.1Hz |
+| 6 | Tras la esquiva, el robot se metía de vuelta contra el mismo poste | Corrida 3, ciclo a ciclo: `t=1.54 ang=-5.4 trk_x=-215` (progresando) → `t=2.04 ang=+21.3 trk_x=-272` (servo al tope contrario) → `t=2.44 trk_x=-195` (el poste vuelve al centro) | `SOBREPASO` enderezaba hacia `_heading_base`, el rumbo **anterior** a la evasión — deshacía el giro de esquiva justo a la altura del poste | `SOBREPASO` mantiene el rumbo con el que entró a ese estado, no el previo a la evasión (`cb4f710`) |
+| 7 | Tras rebasar el poste, el robot terminaba pegado a un muro sin haber chocado de frente | Corrida 4: mediana de `izquierda` cae de 561mm en `APROXIMACION` a 310mm en `SOBREPASO` (mínimo 80mm); `derecha` nunca bajó de 257mm — siempre el mismo lado. 3 de 6 emergencias fueron laterales con el frente despejado (una a 1032mm) | `REINCORPORACION` anulaba el error de **rumbo**, que no dice nada de la posición del robot en el pasillo: se puede cumplir el objetivo entero y acabar contra un muro, porque enderezar estando desplazado no corrige el desplazamiento | `REINCORPORACION` vuelve al centro con el mismo control de posición que `CRUCERO` (`izquierda-derecha`), que se anula solo al llegar al eje y no puede sobrepasar (`cb4f710`) |
+| 8 | El retroceso de emergencia reorientaba el robot 50-60° por episodio | Corrida 4, 6 episodios de `RETROCESO`: todos de 3.49s exactos (el timeout completo), todos saliendo por `"tiempo maximo"`; el frente ya estaba despejado 1.5-2.4s antes de que el estado terminara | `_est_retroceso` solo salía por obstáculo trasero o timeout, sin comprobar si el peligro ya se había resuelto — 3.5s de servo puesto es mucha rotación de sobra | Salir en cuanto frontal y laterales superan un margen más holgado que el de entrada, con un mínimo de 0.6s (`9e857da`) — rotación acumulada 324°→162°, tiempo en retroceso 41%→4% en la corrida siguiente |
+| 9 | El modelo de velocidad del tracker sobreestimaba y rompía la asociación con el LiDAR | `tracker.MM_POR_SEG_A_PWM100 = 900.0`, con el propio comentario admitiendo que era una suposición sin medir | Medido en pista con `calibracion/medir_velocidad.py` (PWM 40→158mm/s, 70→285mm/s, 90→358mm/s; ajuste `v=4.02·pwm-1.0`, validado cruzado con la velocidad de crucero real de la corrida 3, 220 vs 215mm/s): el valor real es ~400, no 900 | `MM_POR_SEG_A_PWM100 = 400.0` (`12ca0f1`) — con 900 el error de predicción acumulaba ~20mm/ciclo, saliendo de `UMBRAL_ASOCIACION` (250mm) en poco más de un segundo (los `"timeout de prediccion"` del log) |
+| 10 | Al alargar `SOBREPASO` para que coincidiera con la velocidad real, el robot volvió a acercarse a la pared (84mm, a 4mm del umbral de emergencia) | Corrida 7, con el servo casi recto todo el tramo: `der` cae monótono de 366mm a 84mm durante los 2.9s de `SOBREPASO` (81mm/s de cierre lateral sostenido) | El timeout de `SOBREPASO` se recalculó correctamente respecto al poste, pero en este estado el rumbo mantenido apunta ligeramente hacia la pared — el límite real no es el poste, es la pared | `DIST_SOBREPASO_MM` de 350mm a 200mm (`e5999af`) — predicción con el modelo de cierre lateral: salida a 236mm, medido 232mm (2% de error) |
+
+> **Nota metodológica:** todos los hallazgos de esta tabla se identificaron leyendo `registro_metricas.py` de cada corrida (nunca por observación cualitativa de "se ve raro"), y cada corrección se validó reprocesando el CSV de la corrida anterior con la lógica nueva antes de volver a probar en pista — el hallazgo #10 incluso se predijo numéricamente (236mm) y se confirmó dentro del 2% en la corrida siguiente. El hallazgo #5 (alimentación) es la excepción: no es un bug de software, y sin él ninguno de los arreglos de código se habría podido medir con datos limpios (la tasa del lazo de control estaba degradada por el mismo *brownout*).
+
+**Progresión medida, corrida a corrida** (mismo montaje: un pilar rojo, robot en posición de arranque):
+
+| Corrida | Cambio aplicado | Emergencias | % tiempo en `RETROCESO` | % tiempo en `CRUCERO` | Pared mínima |
+| :---: | :--- | :---: | :---: | :---: | :---: |
+| 2 | (instrumentación) | 1 | 10% | 77% | 106mm |
+| 3 | Windup + alimentación | 2 | 15% | 66% | 112mm |
+| 4 | Timeouts por física | 6 | 42% | 13% | 69mm |
+| 5 | Salida del retroceso | 1 | 4% | 66% | 100mm |
+| 6 | Trayectoria por posición | **0** | **0%** | 76% | 232mm |
+| 7 | Velocidad medida (tracker) | 0 | 0% | 70% | 84mm |
+| 8 | `SOBREPASO` acortado | **0** | **0%** | **79%** | 150mm |
+
+La corrida 4 es peor que la 3 en casi todas las columnas, y eso es información, no ruido: al alargar los timeouts, la evasión por fin llegaba a completarse y quedó al descubierto el fallo de trayectoria (#7) que hasta entonces estaba tapado por transiciones que nunca llegaban a ese punto. Lo mismo entre 6 y 7: corregir la velocidad del tracker alargó `SOBREPASO` de 2.1 a 2.8s y destapó el hallazgo #10. Cada arreglo hizo visible el siguiente — es el patrón esperable al depurar una cadena de estados acoplados, no una regresión.
+
+**Estado al cierre de la sesión:** las tres últimas corridas terminaron sin una sola emergencia, con el robot detectando el pilar rojo, esquivando por la derecha (regla WRO), rebasándolo y reincorporándose al carril de forma repetible. Quedan pendientes, en orden de prioridad: la maniobra de estacionamiento en paralelo (sección 13 del reglamento — nunca ejercitada, ver limitación en la sección 5.3-C sobre por qué el sentido de carrera no la bloquea), validar la evasión por la izquierda con el pilar verde (toda la sesión se corrió con rojo para aislar variables), y el apareo color↔cluster cuando hay dos postes casi equidistantes en el mismo frame (`_intentar_capturar_poste` empareja por "cluster más cercano" y "blob de mayor área" con criterios independientes, riesgo de asignar el color equivocado a la posición equivocada).
 
 ---
 
