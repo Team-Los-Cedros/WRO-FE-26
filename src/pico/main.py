@@ -209,10 +209,11 @@ KD_ESTABILIDAD = 0.12
 
 # Interruptor de la amortiguacion, controlado por un tercer campo opcional
 # en la consigna ("velocidad,angulo" sigue funcionando igual y deja esto en
-# 1.0). Solo lo usa calibracion/medir_direccion.py: en un giro sostenido la
-# velocidad angular es constante y no nula, asi que el termino KD desvia el
-# servo varios grados del angulo comandado -- con la amortiguacion activa el
-# radio de giro que se mida NO corresponde al comando que se mando.
+# 1.0). Actualmente ningun script de carrera lo usa: solo tiene sentido al
+# medir el radio de giro real -- en un giro sostenido la velocidad angular
+# es constante y no nula, asi que el termino KD desvia el servo varios
+# grados del angulo comandado, y con la amortiguacion activa el radio de
+# giro que se mida NO corresponde al comando que se mando.
 kd_activo = 1.0
 
 ultima_lectura = time.ticks_ms()

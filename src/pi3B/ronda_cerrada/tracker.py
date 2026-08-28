@@ -10,8 +10,8 @@ import math
 import time
 import threading
 
-# Avance del robot a PWM 100%, en mm/s. MEDIDO en pista con
-# calibracion/medir_velocidad.py sobre la lona, bateria llena:
+# Avance del robot a PWM 100%, en mm/s. MEDIDO en pista por odometria
+# LiDAR sobre la lona, bateria llena:
 #
 #   PWM 40 -> 158 mm/s     PWM 70 -> 285 mm/s     PWM 90 -> 358 mm/s
 #

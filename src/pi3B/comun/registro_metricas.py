@@ -8,8 +8,6 @@
 # Uso: registro = RegistroMetricas("ronda_abierta"); ... ;
 # registro.registrar(fase=fase_actual, heading=h, error_lateral=e, angulo=a,
 # velocidad=v); ... ; registro.cerrar()
-#
-# analizar_log.py (en calibracion/) resume estos CSV en metricas agregadas.
 import csv
 import os
 import time

@@ -7,10 +7,11 @@
 #
 # Hay una tercera forma opcional, "velocidad,angulo,kd\n", que ademas
 # fija la ganancia de amortiguacion por giroscopio del firmware para ese
-# instante. Solo la usan las herramientas de calibracion (medir el radio
-# de giro exige kd=0, si no el angulo de rueda real no es el comandado).
-# Cualquier consigna de dos campos restaura el kd por defecto en la
-# Pico, asi que ningun script de carrera puede heredar un kd alterado.
+# instante. Ningun script de carrera la usa actualmente (medir el radio
+# de giro real exige kd=0, si no el angulo de rueda real no es el
+# comandado). Cualquier consigna de dos campos restaura el kd por
+# defecto en la Pico, asi que ningun script de carrera puede heredar un
+# kd alterado.
 import time
 import threading
 
@@ -84,8 +85,8 @@ class EnlacePico:
         # giroscopio de la Pico (1.0 = normal, 0.0 = desactivada). En carrera
         # va siempre en None (dos campos, comportamiento de siempre), y una
         # consigna de dos campos devuelve el factor a 1.0 en el firmware.
-        # Solo lo usa calibracion/medir_direccion.py, donde esa amortiguacion
-        # falsearia el radio de giro medido.
+        # Actualmente ningun script de carrera lo usa: solo tiene sentido al
+        # medir el radio de giro real, donde esa amortiguacion lo falsearia.
         linea = f"{int(velocidad)},{angulo:.2f}"
         if kd is not None:
             linea += f",{kd:.2f}"
