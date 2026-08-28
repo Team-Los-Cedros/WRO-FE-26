@@ -289,11 +289,13 @@ graph TD
     I --> J["Filtro Derivativo IMU MPU6050"]
     J --> K["Saturación Segura y Salida PWM"]
     
-    K --> L{"¿Fallo comunicación?"}
-    L -->|"Sí > 500ms"| M["FAIL-SAFE: Detención Inmediata"]
-    L -->|"No"| I
+    K --> L{"¿Fallo comunicación?\n(NO IMPLEMENTADO)"}
+    L -.->|"Sí > 500ms -- pendiente"| M["Detención por fallo de enlace\n(diseño previsto, sin código aún)"]
+    L --> I
 
 ```
+
+> **Estado real del nodo `L`, verificado contra el código:** no existe. `enlace_pico.py` sí define `TIMEOUT_TELEMETRIA = 0.5` (los mismos 500ms del diagrama) y `heading_valido()` para consultarlo, pero ese método solo lo llama `calibracion/medir_direccion.py` — nunca el bucle de carrera de `ronda_cerrada.py`. Y el firmware de la Pico (`src/pico/main.py`) no tiene ningún *watchdog* propio: si el USB se desconecta o la Pi se cuelga a mitad de carrera, la Pico sigue aplicando la última velocidad y ángulo recibidos indefinidamente, sin detectar el silencio. La flecha punteada marca esto como diseño previsto, no como comportamiento actual — corregir el diagrama para que mienta menos no cierra el riesgo, así que queda listado también como pendiente en la sección 8.3.
 
 ### 5.1 Orquestación del Sistema y Demonio de Arranque Autónomo
 
@@ -782,7 +784,7 @@ flowchart TD
         CAM["hilo_camara()\nOpenCV HSV -> color_crudo, cx_crudo"]
         LID["hilo_lidar()\nParseo RPLIDAR C1 -> scan_buffer"]
         PICO_IN["hilo_comunicacion_pico()\nLee IMU: -> angulo_acumulado_robot"]
-        SCAN["_procesar_scan_interno()\nClustering ABD + clasificación OBSTACULO/MURO"]
+        SCAN["Clustering ABD + clasificación OBSTACULO/MURO\n(inline dentro de procesar_ciclo_completo_lidar())"]
         TRACK["tracker (x, y, color, confirmaciones)\nrotado por IMU cada ciclo"]
         FSM["procesar_ciclo_completo_lidar()\nFSM fase_actual + estado_evasion"]
     end
@@ -858,7 +860,12 @@ La corrida 4 es peor que la 3 en casi todas las columnas, y eso es información,
 
 **Video de las corridas 6-8** (cámara cenital, recortado a la ventana de acción): [`video/video-drafts/2026-08-27_S3_corrida6.mp4`](video/video-drafts/2026-08-27_S3_corrida6.mp4), [`_corrida7.mp4`](video/video-drafts/2026-08-27_S3_corrida7.mp4), [`_corrida8.mp4`](video/video-drafts/2026-08-27_S3_corrida8.mp4) — índice completo en [`video/video.md`](video/video.md).
 
-**Estado al cierre de la sesión:** las tres últimas corridas terminaron sin una sola emergencia, con el robot detectando el pilar rojo, esquivando por la derecha (regla WRO), rebasándolo y reincorporándose al carril de forma repetible. Quedan pendientes, en orden de prioridad: la maniobra de estacionamiento en paralelo (sección 13 del reglamento — nunca ejercitada, ver limitación en la sección 5.3-C sobre por qué el sentido de carrera no la bloquea), validar la evasión por la izquierda con el pilar verde (toda la sesión se corrió con rojo para aislar variables), y el apareo color↔cluster cuando hay dos postes casi equidistantes en el mismo frame (`_intentar_capturar_poste` empareja por "cluster más cercano" y "blob de mayor área" con criterios independientes, riesgo de asignar el color equivocado a la posición equivocada).
+**Estado al cierre de la sesión:** las tres últimas corridas terminaron sin una sola emergencia, con el robot detectando el pilar rojo, esquivando por la derecha (regla WRO), rebasándolo y reincorporándose al carril de forma repetible. Quedan pendientes, en orden de prioridad:
+
+* **Fail-safe de pérdida de comunicación Pi↔Pico (sección 5, diagrama de arquitectura).** Auditando ese diagrama contra el código se confirmó que el nodo de detención por fallo de enlace nunca se implementó: `TIMEOUT_TELEMETRIA`/`heading_valido()` existen en `enlace_pico.py` pero solo los usa una herramienta de calibración, y el firmware de la Pico no tiene ningún *watchdog* — si el enlace se corta a mitad de carrera, la Pico sigue aplicando la última consigna recibida sin límite de tiempo. Es un riesgo de seguridad real, no solo un defecto de documentación; se deja fuera del alcance de esta sesión a propósito porque tocar el firmware de bajo nivel sin poder probarlo con un desconexión real de USB en pista sería más arriesgado que dejarlo pendiente y documentado.
+* La maniobra de estacionamiento en paralelo (sección 13 del reglamento — nunca ejercitada, ver limitación en la sección 5.3-C sobre por qué el sentido de carrera no la bloquea).
+* Validar la evasión por la izquierda con el pilar verde (toda la sesión se corrió con rojo para aislar variables).
+* El apareo color↔cluster cuando hay dos postes casi equidistantes en el mismo frame (`_intentar_capturar_poste` empareja por "cluster más cercano" y "blob de mayor área" con criterios independientes, riesgo de asignar el color equivocado a la posición equivocada).
 
 ---
 
