@@ -86,6 +86,7 @@ def al_barrido(scan):
                             heading=f"{heading:.2f}", error_lateral=f"{error_lateral:.1f}",
                             angulo=f"{angulo:.2f}", velocidad=velocidad,
                             frontal=f"{medicion.frontal:.0f}",
+                            frontal_muro=f"{medicion.frontal_muro:.0f}",
                             izquierda=f"{medicion.izquierda:.0f}",
                             derecha=f"{medicion.derecha:.0f}",
                             trasera=f"{medicion.trasera:.0f}",

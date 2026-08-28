@@ -24,6 +24,14 @@ CAMPOS = ["t", "fase", "estado", "heading", "error_lateral", "angulo", "velocida
           # condiciones de salida y sin ella no se puede saber si el
           # retroceso paro por obstaculo detras o por otra cosa.
           "frontal", "izquierda", "derecha", "trasera",
+          # frontal_muro es el mismo sector frontal con los postes
+          # descontados, y es el que gobierna el escape frontal. Se
+          # registra junto a "frontal" a proposito: la diferencia entre
+          # los dos es justo la señal que se estaba colando en el
+          # control (un poste entrando y saliendo del sector hacia
+          # saltar "frontal" entre ~200 y ~3000mm), y sin las dos
+          # columnas no se puede comprobar que la separacion funciona.
+          "frontal_muro",
           "color_cam", "trk_activo", "trk_color", "trk_x", "trk_y",
           # angulo_muro (triangulacion perp+diag de lidar_geometria.py) ahora
           # entra en _centrado_paredes como asistencia de esquina. Sin
