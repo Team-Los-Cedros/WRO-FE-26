@@ -85,9 +85,15 @@ def _drivers_comunes():
 class AplicacionRondaNueva:
     """Conecta adquisicion, percepcion y control sin poner I/O en la logica."""
 
-    def __init__(self, config: Dict[str, Any], permitir_parqueo: bool = True):
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        permitir_parqueo: bool = True,
+        esperar_boton: bool = True,
+    ):
         self.config = config
         self.permitir_parqueo = bool(permitir_parqueo)
+        self.esperar_boton = bool(esperar_boton)
         self._seguir = threading.Event()
         self._seguir.set()
         self._armado = threading.Event()
@@ -303,6 +309,21 @@ class AplicacionRondaNueva:
 
     def _esperar_boton(self, GPIO) -> bool:
         pin = int(self.config["hardware"]["start_button_bcm"])
+        if not self.esperar_boton:
+            # Banco de pruebas remoto (SSH): no hay quien presione GP21.
+            # El bucle del boton es tambien la fuente del heartbeat 0,0 que
+            # saca a la Pico de WD:STOP, asi que se envia un segundo de
+            # heartbeats antes de continuar o el armado se negaria.
+            print(
+                "[LISTO] Arranque inmediato solicitado; "
+                "no se espera GP{}.".format(pin)
+            )
+            limite = time.monotonic() + 1.0
+            while self.corriendo and time.monotonic() < limite:
+                assert self.enlace is not None
+                self.enlace.enviar(0, 0.0)
+                time.sleep(0.05)
+            return self.corriendo
         print("[LISTO] Robot detenido; presiona GP{} para iniciar.".format(pin))
         while self.corriendo and GPIO.input(pin) == GPIO.HIGH:
             assert self.enlace is not None
@@ -515,6 +536,14 @@ def _argumentos(argv=None):
         action="store_true",
         help="prueba de recorrido: no entra a parqueo ni exige su calibracion",
     )
+    parser.add_argument(
+        "--arranque-inmediato",
+        action="store_true",
+        help=(
+            "banco de pruebas remoto: no espera el boton GP21; "
+            "la ronda oficial no usa esta opcion"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -542,7 +571,9 @@ def main(argv=None) -> int:
             config = copy.deepcopy(config)
             config["control"]["corners_before_parking"] = 1_000_000
         aplicacion = AplicacionRondaNueva(
-            config, permitir_parqueo=not args.sin_parqueo
+            config,
+            permitir_parqueo=not args.sin_parqueo,
+            esperar_boton=not args.arranque_inmediato,
         )
 
         def solicitar_cierre(_sig, _frame):
