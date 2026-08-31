@@ -291,6 +291,39 @@ La repetición de una configuración dio 2 y 0 esquinas por 41 mm de
 colocación inicial (más abajo). Antes de dar por buena cualquier cifra
 hacen falta tres corridas.
 
+## Por qué la visión sale a 640×360 y no al tamaño del sensor
+
+Pregunta recurrente, medida el 2026-08-31 en la propia Pi 3B con un frame
+real de a bordo y el pipeline completo (`VisionLigera.procesar`):
+
+| Modo | ms/frame | fps máximo | coste | pilares detectados |
+| --- | --- | --- | --- | --- |
+| **640×360** | **34,0** | 29,4 | 1,0× | 2 |
+| 1280×720 | 129,5 | 7,7 | 3,8× | 2 |
+| 2304×1296 | 405,1 | 2,5 | 11,9× | 2 |
+
+El presupuesto a 15 fps es de 66,7 ms por frame, y ese presupuesto se
+comparte con el LiDAR, la fusión y el control. A 640×360 el pipeline usa
+la mitad y sobra margen; a 2304×1296 tarda **seis veces** más de lo que
+hay, y el ritmo real caería a 2,5 fps. La edad de visión pasaría de los
+~70 ms medidos a más de 400: a 150 mm/s eso son 60 mm de desplazamiento
+entre frames en vez de 10, con el control ciego entre medias.
+
+Y no se gana nada a cambio: **detecta los mismos dos pilares en las tres
+resoluciones**.
+
+Conviene entender por qué no se está perdiendo campo de visión. El sensor
+**ya lee a 2304×1296** (`raw_sensor_size`), que es el fotograma completo;
+ese modo se eligió el 28-08 justamente para no recortar. El reescalado a
+640×360 lo hace el ISP del chip por hardware, sin coste de CPU, y además
+promedia píxeles, lo que reduce ruido. Lo único que cambiaría subiendo la
+salida es cuántos píxeles recorre OpenCV en la CPU.
+
+Dicho de otro modo: el campo de visión ya es el máximo, y el punto ciego
+cercano de la sección siguiente es **geométrico**, no de resolución — con
+cuatro veces más píxeles la base del pilar seguiría cayendo exactamente
+igual fuera del encuadre.
+
 ## Punto ciego a corta distancia: el LiDAR ve y la cámara no
 
 El atasco de la cuarta esquina (corrida `154741`, segundo 67) es un bucle
