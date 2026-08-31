@@ -209,6 +209,24 @@ class ControlRutaTests(unittest.TestCase):
         orden = control.procesar(borrosa, (), 120.0, "PISTA", ahora=2.1)
         self.assertLess(orden.angulo, 0.0)
 
+    def test_el_sobrepaso_arranca_antes_del_punto_ciego(self):
+        """La camara pierde el pilar antes que el LiDAR.
+
+        Medido sobre un frame de a bordo con la optica calibrada: la base
+        del pilar sale del recorte inferior de la ROI a unos 251 mm del
+        LiDAR, y sin suelo debajo `min_ground_support` lo rechaza. Con
+        `obstacle_pass_y_mm` en 160 el robot creia estar rebasando el pilar
+        cuando llevaba 9 cm sin poder verlo, y la maniobra dependia de un
+        color que ya no se medía. El umbral debe quedar por encima del
+        punto ciego, con margen para varios ciclos de vision."""
+
+        control = self.config["control"]
+        ciego = float(control["near_blind_spot_mm"])
+        paso = float(control["obstacle_pass_y_mm"])
+        self.assertGreater(paso, ciego)
+        # A 150 mm/s y ~70 ms de edad de vision, cada ciclo son ~10 mm.
+        self.assertGreaterEqual(paso - ciego, 20.0)
+
     def test_el_punto_de_paso_cabe_en_el_hueco_mas_estrecho(self):
         """El paso junto al pilar verde del tramo inferior mide 333 mm de la
         pared al centro del pilar (medido por el LiDAR en las corridas
