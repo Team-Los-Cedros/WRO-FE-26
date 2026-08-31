@@ -268,6 +268,47 @@ tiempos (avanzar girando, retroceder al contrario, avanzar), que el
 reglamento no prohíbe pero cuesta segundos de ronda. Conviene medir el
 ángulo de rueda con un transportador antes de decidir.
 
+## El lado de paso lo decide el color, no la pared
+
+Diagnóstico del equipo durante la sesión, confirmado después con los CSV:
+el lado por el que se rebasa un pilar lo acababa decidiendo el LiDAR.
+
+`_con_guardia_pared` mezcla el ángulo de la evasión con un «protector» de
+pared cuyo peso crece al acercarse. En la corrida `145857` ese peso llegó
+a **0,94**: el robot iba a −18°, girando *hacia* el pilar que estaba
+esquivando, mientras la pared izquierda se le acercaba a 131 mm.
+
+No era un caso extremo sino la regla. La geometría lo obliga:
+
+| | |
+| --- | --- |
+| Carril | 1000 mm |
+| Pilar | 50 mm |
+| Robot | 125 mm |
+| **Margen a la pared al rebasar** | **≈175 mm** |
+| `wall_guard_start_mm` | 230 mm |
+
+Rebasar un pilar deja siempre menos margen del que dispara la guardia, así
+que ésta intervenía en **toda** evasión normal, no como excepción.
+
+La causa concreta es el término lateral del protector, que devuelve el
+robot al centro del carril; durante una evasión ese centro está al otro
+lado del pilar. Ahora, mientras hay un pilar activo y la holgura no es
+crítica, el protector conserva **solo el término de rumbo**: la pared
+corrige la orientación para no chocar, pero no reabre una decisión que es
+del color. Por debajo de `wall_guard_full_mm` recupera toda su autoridad,
+porque ahí manda no chocar.
+
+Bajar el umbral de la guardia (230 → 165) se probó primero y **no es la
+solución**: cierra las esquinas pero el robot pasa a rozar la pared a
+111 mm, a 21 mm de la emergencia lateral.
+
+**Estado:** el cambio de la guardia está probado offline pero **pendiente
+de validar en pista**. La corrida `151437` no sirve para juzgarlo porque
+arrancó pegada al bloque central (`der=206 mm`), donde quedó la corrida
+anterior, en vez de en la línea de salida. Hay que repetirla colocando el
+robot en la salida.
+
 ## Maniobra de esquina en tres tiempos
 
 Puente por software mientras el chasis no gane ángulo de rueda. Vive
