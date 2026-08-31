@@ -268,6 +268,29 @@ tiempos (avanzar girando, retroceder al contrario, avanzar), que el
 reglamento no prohíbe pero cuesta segundos de ronda. Conviene medir el
 ángulo de rueda con un transportador antes de decidir.
 
+## Estado al cierre de la sesión del 2026-08-31
+
+Mejor corrida: **6 esquinas, 6 pilares rebasados, cero emergencias**, 86,7 s
+hasta que la cortó el timeout externo de la prueba (`161726`). Es media
+ronda —12 esquinas son las tres vueltas— con las cuatro reincorporaciones
+verificadas y ningún `RECOVERY`.
+
+| | inicio de sesión | cierre |
+| --- | --- | --- |
+| Esquinas | 0 | **6** |
+| Emergencias | 8–196 | **0** |
+| Duración antes de fallar | 14 s | 86,7 s (sin fallar) |
+
+Ritmo medido: 13,8 s por esquina, que extrapolado a las doce da **164 s**
+contra el límite de 180. Cabe, pero con poco margen: cualquier maniobra de
+tres tiempos o recuperación extra se lo come. Ese margen es lo que
+compraría bajar el radio de giro.
+
+Aviso de método, que esta misma sesión demostró: **es una sola corrida**.
+La repetición de una configuración dio 2 y 0 esquinas por 41 mm de
+colocación inicial (más abajo). Antes de dar por buena cualquier cifra
+hacen falta tres corridas.
+
 ## Punto ciego a corta distancia: el LiDAR ve y la cámara no
 
 El atasco de la cuarta esquina (corrida `154741`, segundo 67) es un bucle
