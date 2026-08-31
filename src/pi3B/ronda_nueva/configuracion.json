@@ -119,7 +119,7 @@
     "heading_fallback_kp": 0.5,
     "corner_front_trigger_mm": 900.0,
     "corner_front_exit_mm": 780.0,
-    "recenter_corner_handoff_mm": 900.0,
+    "recenter_corner_handoff_mm": 700.0,
     "corner_min_heading_deg": 55.0,
     "corner_timeout_s": 14.0,
     "corner_kturn_enabled": true,

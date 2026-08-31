@@ -302,8 +302,15 @@ class ControlRuta:
         kp = float(self._control.get("heading_fallback_kp", 0.5))
         return self._acotar_angulo(error * kp)
 
-    def _angulo_pared(self, corredor: Corredor) -> float:
-        """P filtrado por pared; sin pared confiable, endereza por rumbo."""
+    def _angulo_pared(
+        self, corredor: Corredor, solo_rumbo: bool = False
+    ) -> float:
+        """P filtrado por pared; sin pared confiable, endereza por rumbo.
+
+        Con `solo_rumbo` se descarta el termino lateral y queda solo el que
+        pone el robot paralelo a la pared. Sirve para que la pared corrija
+        la orientacion sin decidir por que lado se pasa un pilar.
+        """
 
         calidad_minima = float(self._control.get("wall_min_quality", 0.30))
         if (
@@ -333,10 +340,13 @@ class ControlRuta:
                 - self._error_rumbo_filtrado
             )
 
-        angulo = (
-            self._error_lateral_filtrado * float(self._control["wall_kp"])
-            - self._error_rumbo_filtrado
-            * float(self._control["wall_heading_kp"])
+        lateral = (
+            0.0
+            if solo_rumbo
+            else self._error_lateral_filtrado * float(self._control["wall_kp"])
+        )
+        angulo = lateral - self._error_rumbo_filtrado * float(
+            self._control["wall_heading_kp"]
         )
         return self._acotar_angulo(angulo)
 
@@ -355,10 +365,19 @@ class ControlRuta:
             return self._acotar_angulo(deseado)
         peso = _limitar((inicio - cercana) / max(inicio - completa, 1.0), 0.0, 1.0)
 
+        # Rebasar un pilar centrado deja unos 175 mm a la pared en un carril
+        # de 1000, asi que la guardia se activa en toda evasion normal, no
+        # como excepcion. Con el termino lateral dentro, empujaba al robot
+        # hacia el propio pilar que estaba esquivando: el lado de paso lo
+        # acababa decidiendo la pared en vez del color (medido en la corrida
+        # 145857, con la pared tomando el 94 % del mando). Mientras hay un
+        # pilar activo la pared solo endereza; por debajo de la holgura
+        # completa recupera toda su autoridad porque ahi manda no chocar.
+        solo_rumbo = self._track_id is not None and cercana > completa
         if corredor.calidad_pared >= float(
             self._control.get("wall_min_quality", 0.30)
         ):
-            protector = self._angulo_pared(corredor)
+            protector = self._angulo_pared(corredor, solo_rumbo=solo_rumbo)
         elif izquierda < derecha:
             protector = self._angulo_derecha
         elif derecha < izquierda:

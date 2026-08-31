@@ -209,6 +209,51 @@ class ControlRutaTests(unittest.TestCase):
         orden = control.procesar(borrosa, (), 120.0, "PISTA", ahora=2.1)
         self.assertLess(orden.angulo, 0.0)
 
+    def test_la_pared_endereza_pero_no_decide_el_lado_de_paso(self):
+        """El lado de paso lo fija el color, no la geometria del LiDAR.
+
+        Rebasar un pilar centrado deja unos 175 mm a la pared en un carril
+        de 1000, asi que la guardia se activa en toda evasion. Con el
+        termino lateral dentro empujaba al robot hacia el pilar que estaba
+        esquivando (corrida 145857: la pared llego a pesar 0,94)."""
+
+        self._sin_slew()
+        control = ControlRuta(self.config)
+        control.procesar(corredor(), (), 0.0, "AZUL", ahora=0.0)
+
+        # Verde: el robot pasa por la izquierda y queda pegado a esa pared,
+        # descentrado a proposito pero paralelo (error de rumbo nulo).
+        pegado = corredor(
+            izquierda=150.0, derecha=850.0, error_rumbo=0.0, calidad=0.9
+        )
+        verde = control.procesar(
+            pegado, (track(3, "VERDE", x=260.0, y=300.0),),
+            0.0, "PISTA", ahora=0.1,
+        )
+        self.assertEqual(control.track_activo_color, "VERDE")
+        # Estando paralelo no hay nada que enderezar: lo poco que queda es
+        # el pure-pursuit, no la pared. Con el termino lateral dentro, el
+        # protector saturaba en el tope derecho y arrastraba el mando.
+        self.assertLess(abs(verde.angulo), 2.0)
+
+        # Contraste: el mismo corredor sin pilar activo si debe recentrar
+        # con fuerza, porque ahi no hay ninguna intencion que respetar.
+        libre = ControlRuta(self.config)
+        libre.procesar(corredor(), (), 0.0, "AZUL", ahora=0.0)
+        crucero = libre.procesar(pegado, (), 0.0, "PISTA", ahora=0.1)
+        self.assertLess(crucero.angulo, -10.0)
+
+        # Por debajo de la holgura completa manda no chocar, y ahi la pared
+        # recupera toda su autoridad aunque el pilar siga activo.
+        critico = corredor(
+            izquierda=100.0, derecha=900.0, error_rumbo=0.0, calidad=0.9
+        )
+        orden = control.procesar(
+            critico, (track(3, "VERDE", x=260.0, y=280.0),),
+            0.0, "PISTA", ahora=0.2,
+        )
+        self.assertLess(orden.angulo, 0.0)
+
     def _entrar_en_giro(self, control, sentido_color="AZUL"):
         """Deja la FSM en TURN, que es donde vive la maniobra de esquina."""
 
@@ -611,9 +656,13 @@ class ControlRutaTests(unittest.TestCase):
         )
         self.assertEqual(control.estado, "RECENTER")
 
+        # Las distancias frontales van por debajo de
+        # recenter_corner_handoff_mm: desde que bajo a 700 mm, entre ese
+        # valor y corner_front_trigger_mm el recentrado conserva el mando en
+        # vez de entregar la esquina en diagonal.
         primera = control.procesar(
             corredor(
-                frontal=810.5, frontal_muro=810.5,
+                frontal=690.5, frontal_muro=690.5,
                 izquierda=732.2, derecha=447.0, calidad=0.816,
             ),
             (), 20.63, "PISTA", ahora=5.69,
@@ -623,7 +672,7 @@ class ControlRutaTests(unittest.TestCase):
 
         segunda = control.procesar(
             corredor(
-                frontal=804.5, frontal_muro=804.5,
+                frontal=684.5, frontal_muro=684.5,
                 izquierda=729.3, derecha=443.5, calidad=0.634,
             ),
             (), 21.18, "PISTA", ahora=5.79,
