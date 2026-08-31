@@ -116,6 +116,8 @@ class ControlRuta:
         self._confirmaciones_salida_esquina = 0
         self._t_ultima_esquina = -math.inf
         self._heading_inicio_giro = 0.0
+        self._kturn_fase = "AVANCE"
+        self._kturn_tramos = 0
 
         self._track_id: Optional[int] = None
         self._track_color: Optional[str] = None
@@ -766,6 +768,8 @@ class ControlRuta:
             self._confirmaciones_recentrado = 0
             self._heading_inicio_giro = self._heading_actual
             self._confirmaciones_salida_esquina = 0
+            self._kturn_fase = "AVANCE"
+            self._kturn_tramos = 0
             self._entrar("TURN", ahora)
             return self._procesar_giro(corredor, ahora)
 
@@ -866,21 +870,103 @@ class ControlRuta:
                 "esquina {} verificada".format(self._esquinas),
             )
 
-        angulo = (
+        if not bool(self._control.get("corner_kturn_enabled", False)):
+            return self._giro_avanzando(corredor)
+        if self._kturn_fase == "REVERSA":
+            return self._giro_retrocediendo(corredor, ahora)
+        return self._giro_avanzando_con_kturn(corredor, ahora)
+
+    def _slew_esquina(self) -> float:
+        return float(
+            self._control.get(
+                "corner_steering_slew_deg_per_scan",
+                self._control["steering_slew_deg_per_scan"],
+            )
+        )
+
+    def _angulo_giro_avance(self) -> float:
+        # Avanzando, la rueda apunta hacia el lado al que se quiere rotar.
+        return (
             self._angulo_izquierda if self._sentido > 0 else self._angulo_derecha
         )
+
+    def _angulo_giro_reversa(self) -> float:
+        # Retrocediendo, el signo se invierte: con Ackermann la rotacion es
+        # omega = v*tan(delta)/L, asi que con v negativa hace falta delta del
+        # signo contrario para que el morro siga rotando hacia el mismo lado.
+        return (
+            self._angulo_derecha if self._sentido > 0 else self._angulo_izquierda
+        )
+
+    def _giro_avanzando(self, corredor: Corredor) -> Consigna:
         return self._emitir(
             self._con_frenado(
                 int(self._control["speed_turn_pwm"]), corredor.frontal_mm
             ),
-            angulo,
+            self._angulo_giro_avance(),
             "giro de esquina por IMU y reapertura frontal",
-            slew_angulo_deg=float(
-                self._control.get(
-                    "corner_steering_slew_deg_per_scan",
-                    self._control["steering_slew_deg_per_scan"],
-                )
+            slew_angulo_deg=self._slew_esquina(),
+        )
+
+    def _reversa_de_esquina_segura(self, corredor: Corredor) -> bool:
+        """Misma exigencia que la recuperacion: trasera medida, no inferida."""
+
+        return (
+            bool(corredor.trasera_valida)
+            and _finito_no_negativo(corredor.trasera_mm)
+            and corredor.trasera_mm
+            > float(self._control["corner_kturn_rear_mm"])
+        )
+
+    def _giro_avanzando_con_kturn(
+        self, corredor: Corredor, ahora: float
+    ) -> Consigna:
+        # El radio del chasis (~600 mm medidos) no cierra una esquina de
+        # 1000 mm de carril. Cuando el avance se queda sin frente, la
+        # maniobra en tres tiempos gana angulo retrocediendo en vez de
+        # seguir empujando contra la pared hasta el timeout.
+        sin_frente = (
+            _finito_no_negativo(corredor.frontal_mm)
+            and corredor.frontal_mm
+            <= float(self._control["corner_kturn_front_mm"])
+        )
+        quedan_tramos = self._kturn_tramos < int(
+            self._control["corner_kturn_max_tramos"]
+        )
+        if sin_frente and quedan_tramos:
+            if self._reversa_de_esquina_segura(corredor):
+                self._kturn_fase = "REVERSA"
+                self._kturn_tramos += 1
+                return self._giro_retrocediendo(corredor, ahora)
+            return self._emitir(
+                0,
+                self._angulo_giro_avance(),
+                "esquina sin frente y sin trasera fiable para el tramo {}".format(
+                    self._kturn_tramos + 1
+                ),
+                detener_inmediato=True,
+                slew_angulo_deg=self._slew_esquina(),
+            )
+        return self._giro_avanzando(corredor)
+
+    def _giro_retrocediendo(
+        self, corredor: Corredor, ahora: float
+    ) -> Consigna:
+        frente_recuperado = (
+            _finito_no_negativo(corredor.frontal_mm)
+            and corredor.frontal_mm
+            >= float(self._control["corner_kturn_resume_mm"])
+        )
+        if frente_recuperado or not self._reversa_de_esquina_segura(corredor):
+            self._kturn_fase = "AVANCE"
+            return self._giro_avanzando(corredor)
+        return self._emitir(
+            int(self._control["speed_reverse_pwm"]),
+            self._angulo_giro_reversa(),
+            "tramo {} en reversa para cerrar la esquina".format(
+                self._kturn_tramos
             ),
+            slew_angulo_deg=self._slew_esquina(),
         )
 
     def _procesar_crucero(
@@ -908,6 +994,8 @@ class ControlRuta:
         ):
             self._heading_inicio_giro = self._heading_actual
             self._confirmaciones_salida_esquina = 0
+            self._kturn_fase = "AVANCE"
+            self._kturn_tramos = 0
             self._entrar("TURN", ahora)
             return self._procesar_giro(corredor, ahora)
 

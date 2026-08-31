@@ -209,6 +209,125 @@ class ControlRutaTests(unittest.TestCase):
         orden = control.procesar(borrosa, (), 120.0, "PISTA", ahora=2.1)
         self.assertLess(orden.angulo, 0.0)
 
+    def _entrar_en_giro(self, control, sentido_color="AZUL"):
+        """Deja la FSM en TURN, que es donde vive la maniobra de esquina."""
+
+        abierta = corredor(frontal=1200.0, frontal_muro=1200.0)
+        cerrada = corredor(frontal=1000.0, frontal_muro=500.0)
+        control.procesar(abierta, (), 0.0, sentido_color, ahora=0.0)
+        control.procesar(cerrada, (), 0.0, "PISTA", ahora=0.1)
+        control.procesar(cerrada, (), 0.0, "PISTA", ahora=0.2)
+        self.assertEqual(control.estado, "TURN")
+
+    def test_kturn_invierte_el_volante_al_retroceder(self):
+        """El radio de ~600 mm medido en pista no cierra la esquina sola.
+
+        Con Ackermann la rotacion es omega = v*tan(delta)/L: al retroceder
+        hace falta el volante al lado contrario para que el morro siga
+        rotando hacia el mismo lado."""
+
+        self._sin_slew()
+        for direccion, signo in (("LEFT", +1), ("RIGHT", -1)):
+            with self.subTest(direccion=direccion):
+                self.config["control"]["turn_direction"] = direccion
+                control = ControlRuta(self.config)
+                self._entrar_en_giro(control)
+
+                avance = control.procesar(
+                    corredor(frontal=1000.0, frontal_muro=500.0),
+                    (), 5.0 * signo, "PISTA", ahora=0.3,
+                )
+                self.assertGreater(avance.velocidad, 0)
+                self.assertEqual(avance.angulo > 0, signo > 0)
+
+                # Sin frente y con trasera medida: entra en reversa. El
+                # primer ciclo sale a cero porque _emitir nunca invierte el
+                # signo de la velocidad de golpe.
+                atascado = corredor(
+                    frontal=200.0, frontal_muro=200.0, trasera=800.0
+                )
+                reversa = control.procesar(
+                    atascado, (), 10.0 * signo, "PISTA", ahora=0.4
+                )
+                self.assertIn("reversa", reversa.razon)
+                self.assertEqual(reversa.velocidad, 0)
+                # El volante va al lado contrario del sentido de giro.
+                self.assertEqual(reversa.angulo > 0, signo < 0)
+
+                reversa = control.procesar(
+                    atascado, (), 12.0 * signo, "PISTA", ahora=0.5
+                )
+                self.assertLess(reversa.velocidad, 0)
+                self.assertEqual(reversa.angulo > 0, signo < 0)
+
+    def test_kturn_no_retrocede_sin_trasera_fiable(self):
+        """Un SIN_DATO trasero detiene la maniobra; no la ejecuta a ciegas."""
+
+        self._sin_slew()
+        control = ControlRuta(self.config)
+        self._entrar_en_giro(control)
+
+        ciego = corredor(
+            frontal=200.0,
+            frontal_muro=200.0,
+            trasera=800.0,
+            trasera_valida=False,
+        )
+        orden = control.procesar(ciego, (), 5.0, "PISTA", ahora=0.3)
+        self.assertEqual(orden.velocidad, 0)
+        self.assertIn("sin trasera fiable", orden.razon)
+
+        pegado = corredor(frontal=200.0, frontal_muro=200.0, trasera=120.0)
+        orden = control.procesar(pegado, (), 5.0, "PISTA", ahora=0.4)
+        self.assertEqual(orden.velocidad, 0)
+
+    def test_kturn_alterna_tramos_y_respeta_el_maximo(self):
+        self._sin_slew()
+        self.config["control"]["corner_kturn_max_tramos"] = 2
+        control = ControlRuta(self.config)
+        self._entrar_en_giro(control)
+
+        sin_frente = corredor(
+            frontal=200.0, frontal_muro=200.0, trasera=900.0
+        )
+        con_frente = corredor(
+            frontal=600.0, frontal_muro=600.0, trasera=500.0
+        )
+        t = 0.3
+        for tramo in range(2):
+            # Un ciclo a cero al invertir el signo, y ya retrocede.
+            orden = control.procesar(sin_frente, (), 5.0, "PISTA", ahora=t)
+            self.assertIn("reversa", orden.razon)
+            t += 0.1
+            orden = control.procesar(sin_frente, (), 5.0, "PISTA", ahora=t)
+            self.assertLess(orden.velocidad, 0)
+            t += 0.1
+            # Recuperado el frente, vuelve a avanzar sin esperar timeout.
+            orden = control.procesar(con_frente, (), 5.0, "PISTA", ahora=t)
+            self.assertNotIn("reversa", orden.razon)
+            t += 0.1
+            orden = control.procesar(con_frente, (), 5.0, "PISTA", ahora=t)
+            self.assertGreater(orden.velocidad, 0)
+            t += 0.1
+
+        # Agotados los tramos, insiste avanzando en vez de seguir oscilando.
+        orden = control.procesar(sin_frente, (), 5.0, "PISTA", ahora=t)
+        self.assertNotIn("reversa", orden.razon)
+        self.assertGreaterEqual(orden.velocidad, 0)
+
+    def test_kturn_desactivado_conserva_el_giro_de_una_sola_pasada(self):
+        self._sin_slew()
+        self.config["control"]["corner_kturn_enabled"] = False
+        control = ControlRuta(self.config)
+        self._entrar_en_giro(control)
+
+        orden = control.procesar(
+            corredor(frontal=200.0, frontal_muro=200.0, trasera=900.0),
+            (), 5.0, "PISTA", ahora=0.3,
+        )
+        self.assertGreaterEqual(orden.velocidad, 0)
+        self.assertNotIn("reversa", orden.razon)
+
     def test_esquina_usa_delta_firmado_reapertura_confirmacion_y_conteo(self):
         self._sin_slew()
         self.config["control"]["corners_before_parking"] = 1
