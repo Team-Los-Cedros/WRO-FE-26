@@ -325,17 +325,48 @@ poder confirmarlo nunca. Estar centrado es una afirmación sobre
 distancias medidas, no sobre lo bien que se ajustó una recta; la calidad
 sigue gobernando el mando en `_angulo_pared`, que es donde importa.
 
-| Configuración (desde la misma salida) | Esquinas | Margen | Emergencias |
+| Configuración (desde la misma salida) | Esquinas | Margen | Emerg. |
 | --- | --- | --- | --- |
 | handoff 900, guardia 230/125 | 1 | 131 mm | 0 |
 | handoff 700, guardia 165/110 | 2 | 111 mm | 8 |
 | handoff 700, guardia solo-rumbo | 0 | 127 mm | 0 |
 | handoff 700, guardia 230/125 | 0 | 138 mm | 0 |
-| **handoff 700, guardia 230/125 + centrado por laterales** | **2** | **214 mm** | **0** |
+| handoff 700, 230/125 + centrado por laterales | 2 | 130 mm | 0 |
+| **la misma, repetida sin tocar nada** | **0** | **103 mm** | **90** |
 
-La última es la configuración actual: mismas dos esquinas que la mejor
-anterior, pero con casi el doble de margen a la pared y sin una sola
-emergencia.
+## El resultado no es repetible, y eso manda sobre la tabla
+
+La última fila es la medición más importante de la sesión. Es la **misma
+configuración, desde la misma salida, sin cambiar una sola línea**, y da
+el resultado opuesto: cero esquinas y noventa ciclos de emergencia frente
+a dos esquinas y ninguna.
+
+Lo único que difiere es la colocación manual de partida:
+
+| | corrida A | corrida B |
+| --- | --- | --- |
+| izquierda | 449,7 mm | 408,1 mm |
+| derecha | 530,9 mm | 570,7 mm |
+| Resultado | 2 esquinas | 0 esquinas |
+
+**41 mm de desplazamiento lateral inicial** —un 4 % del carril— deciden si
+la vuelta progresa o se atasca. Y el margen a la pared tampoco explica
+nada: la corrida con **menos** margen (111 mm) cerró dos esquinas y una
+con **más** (138 mm) no cerró ninguna.
+
+La conclusión es incómoda pero clara: con un radio de giro de 600 mm en
+un carril de 1000, el sistema corre pegado al límite de su envolvente
+física, y ahí la varianza domina sobre cualquier ajuste de parámetros.
+Seguir afinando umbrales es perseguir ruido. **La siguiente mejora real
+es mecánica** —subir el ángulo de rueda de 12,7° a ~18°— y hasta que
+llegue, cualquier tabla comparativa de configuraciones que se mida con
+una sola corrida por fila estará midiendo azar.
+
+Nota de método: en una versión anterior de esta tabla el margen de la
+quinta fila se anotó como 214 mm. Era un error de lectura —ese valor era
+la distancia lateral en un instante concreto, no el mínimo del tramo—; el
+mínimo real es 130 mm y todas las filas se recalcularon con el mismo
+criterio.
 
 ## Maniobra de esquina en tres tiempos
 
