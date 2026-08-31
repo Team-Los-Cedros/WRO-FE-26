@@ -1,0 +1,227 @@
+# ronda_nueva
+
+Reescritura independiente de la ronda con obstáculos para la Raspberry Pi 3B.
+No modifica `ronda_cerrada/` ni `ronda_camara/`: esta última queda como la
+referencia funcional del montaje de cámara en mástil.
+
+## Estado honesto
+
+La arquitectura, percepción, fusión, recorrido, estacionamiento y pruebas
+offline están implementados, pero **el robot no debe moverse todavía con esta
+carpeta**. El JSON entregado conserva `runtime.motion_enabled=false` y tres
+calibraciones dinámicas pendientes:
+
+- `vision_ground_support_ready`: falta un frame/video de la cámara de a bordo
+  ya instalada para validar ROI, horizonte y soporte de suelo;
+- `camera_lidar_timing_ready`: la óptica se midió con el robot quieto; falta
+  medir el desfase cámara–LiDAR en movimiento;
+- `parking_ready`: faltan radio de giro, signo y posición final medidos en el
+  chasis real.
+
+El punto de entrada llama la barrera de configuración antes de importar GPIO o
+abrir un puerto. No basta con cambiar `motion_enabled`: todas las calibraciones
+del modo solicitado deben estar aprobadas también.
+
+## Qué cambió respecto a `ronda_camara`
+
+| Tema | `ronda_camara` funcional | `ronda_nueva` |
+| --- | --- | --- |
+| Cámara | un blob HSV, 640×360, sensor completo | varios blobs, 640×360 a 15 FPS, geometría y suelo debajo |
+| Óptica | modelo medido en `optica.py` | mismo modo 16:9: HFOV 68,17°, `c0=352,1` y extrínseca en JSON |
+| Color | Picamera `RGB888`, array BGR | formato de captura y orden del array son parámetros separados |
+| LiDAR trasero | muta `Medicion` con una máscara | resultado explícito con validez y cobertura; `SIN_DATO` no es libre |
+| Pilar | tracker único | asociación cámara–LiDAR uno-a-uno y hasta 8 tracks |
+| Esquinas | control reactivo + recuperación | giro determinista por sentido, IMU, reapertura y conteo por eventos |
+| Final | `abs(yaw)>=1010` | 12 esquinas confirmadas, sin depender de deriva neta de IMU |
+| Parqueo | se detiene al reconocer la firma inicial | detecta dos separadores, alinea, hace dos arcos y verifica geometría |
+| Watchdogs | LiDAR | LiDAR, cámara, IMU y watchdog autónomo de consignas en la Pico |
+
+Flujo de un ciclo:
+
+```text
+Picamera2 -> VisionLigera --timestamp--+
+                                        +-> FusionLigera -> tracks --+
+RPLIDAR -> ProcesadorLidar ->            |                          |
+           PercepcionLidar --------------+--------------------------+-> ControlRuta -> Pico 2
+                 |                                                     |
+                 +-> paredes / hueco / trasera válida ----------------+
+MPU6050 + TCS3472 (Pico) -> heading / color de sentido ----------------+
+```
+
+La escritura CSV ocurre en otro hilo y los buffers conservan resultados de
+2–4 frames, nunca una cola de imágenes. Las operaciones por barrido son
+lineales o sobre un máximo pequeño de tracks; no hay red neuronal, SLAM ni
+asignador cúbico.
+
+## Datos ya medidos del chasis nuevo
+
+La carpeta `ronda_camara` midió el montaje el 2026-08-28:
+
+- cámara derecha, sin rotación de 180°;
+- Picamera2 solicita `RGB888`, pero el array usado por OpenCV está en BGR;
+- modo raw 2304×1296 y salida 640×360 para conservar el sensor completo;
+- focal medida 472,9 px, HFOV efectivo 68,17° y centro óptico `cx=352,1`;
+- cámara aproximadamente 99,8 mm detrás y 7,0 mm a la derecha del LiDAR;
+- el mástil produce eco propio en 165–190°; la máscara usa 163–191°;
+- la distancia posterior se recupera con hombros 145–162° y 198–215°.
+
+Las cinco fotos de `ronda_camara/webcam/imagenes` confirman físicamente que el
+mástil, soporte y cable plano cruzan el plano trasero del C1. El video externo
+`WIN_20260828_21_38_27_Pro.mp4` muestra unas tres vueltas y correcciones en S,
+con pasos de poco margen alrededor de 17–19, 37–39, 57–59, 93–95, 107–109 y
+163–165 s. Esa grabación es cenital y **no** contiene el feed de la cámara de
+a bordo, por lo que no calibra HSV, ROI ni latencia.
+
+## Recorrido y pilares
+
+`ControlRuta` mantiene un único estado activo y da prioridad a la seguridad:
+
+1. fija el sentido por TCS3472 (`AZUL` = izquierda/antihorario, `NARANJA` =
+   derecha/horario), o por configuración explícita;
+2. centra por rectas laterales robustas y usa el rumbo de pared solo si tiene
+   calidad suficiente;
+3. entra a una esquina por `frontal_muro`, no por un pilar que tape el frente;
+4. cuenta la esquina únicamente tras cambio de heading y reapertura frontal;
+5. asocia cada color con un cluster corrigiendo el paralaje de la cámara;
+6. para verde pasa por la izquierda y para rojo por la derecha, conserva el
+   rumbo durante el sobrepaso y vuelve al centro por posición;
+7. una emergencia intenta una reversa corta solo con cobertura trasera real.
+
+El *slew limiter* se aplica a velocidad y dirección, salvo que detenerse sea
+urgente. Los límites físicos siguen siendo asimétricos: +25° izquierda y −20°
+derecha.
+
+## Estacionamiento
+
+El detector LiDAR busca dos segmentos con la geometría esperada de las paredes
+magenta de 200 mm; no intenta inferir su color. Sus centros deben estar a
+aproximadamente 353 mm: 333 mm de hueco útil más 20 mm de espesor. La FSM:
+
+```text
+SEARCH_GAP -> ALIGN -> ARC_IN -> ARC_OUT -> CENTER -> VERIFY -> DONE
+```
+
+Las correcciones geométricas importantes son:
+
+- `ALIGN` coloca el eje trasero, no el LiDAR, respecto al separador;
+- el LiDAR está unos 77 mm por delante del centro geométrico del robot, por lo
+  que el objetivo centrado es `trasera - frontal = 154 mm`, no cero;
+- `frontal + trasera` debe concordar con los 333 mm del hueco;
+- la distancia al muro exterior y el paralelismo también deben aprobarse;
+- `DONE` necesita tres barridos distintos; un timeout nunca cuenta como éxito;
+- un eco de 92 mm o una trasera sin cobertura inhiben toda reversa;
+- `ARC_IN` y `ARC_OUT` exigen una distancia lateral real y las dos diagonales
+  traseras con cobertura suficiente: un `SIN_DATO` detiene el arco hasta el
+  timeout y una holgura crítica termina en `FAILED`, nunca en recuperación.
+
+Los umbrales conservadores están separados en `parking.minimum_*`. Las
+coberturas axial y de cada diagonal se guardan también en la telemetría para
+que la calibración física no tenga que inferir si un valor grande fue un eco
+real o el centinela del C1.
+
+Estos cálculos son verificables offline, pero los arcos aún requieren medir el
+radio efectivo del chasis. Por eso `parking_ready` permanece en `false`.
+
+## Pruebas y replay en laptop
+
+Desde la raíz del repositorio:
+
+```bash
+python -m compileall -q src/pi3B/ronda_nueva
+python -m unittest discover -s src/pi3B/ronda_nueva/tests -v
+python -m src.pi3B.ronda_nueva.ronda_nueva --validar-config
+```
+
+Replay de imágenes o video. OpenCV decodifica archivos como BGR:
+
+```bash
+python -m src.pi3B.ronda_nueva.replay_vision RUTA_A_FRAMES --cada 3
+```
+
+Replay sincronizado del formato `captura_*/`:
+
+```bash
+python -m src.pi3B.ronda_nueva.replay_captura RUTA_CAPTURA --sentido LEFT
+```
+
+Captura estatica en la Raspberry, sin abrir la Pico ni enviar movimiento. La
+ruta debe ser nueva; `--solo-camara` tampoco abre ni gira el LiDAR:
+
+```bash
+python3 -m ronda_nueva.capturar_calibracion \
+  /home/pi/captura_ronda_nueva_YYYYMMDD_HHMMSS --duracion 30
+python3 -m ronda_nueva.capturar_calibracion \
+  /home/pi/captura_solo_camara_YYYYMMDD_HHMMSS --duracion 5 --solo-camara
+```
+
+Para mantener la prueba libre de consignas, `imu.csv` contiene cero sintetico
+y `meta.json` lo declara como `synthetic_zero_no_pico`. Sirve para percepcion
+estatica y replay en sombra, pero no para aprobar la latencia en movimiento.
+
+El replay estructurado usa únicamente archivos: sincroniza cada barrido con la
+última IMU y el último frame que ya existían en ese timestamp, recorre
+percepción, fusión, ruta y parqueo en modo sombra y puede exportar las consignas
+a CSV. No importa GPIO/Picamera2/serial ni envía comandos a ningún dispositivo.
+
+La captura local de 2026-08-04 pertenece al montaje anterior: sirve para medir
+coste y comprobar el reloj relativo, pero debe fallar el diagnóstico del mástil
+nuevo. Eso es evidencia de incompatibilidad, no un motivo para relajar la
+máscara.
+
+## Despliegue separado
+
+En la Pi, desde un clon del repositorio:
+
+```bash
+DESTINO_NUEVO=/home/pi/wro_nueva_20260829
+bash src/pi3B/ronda_nueva/deploy.sh --dry-run "$DESTINO_NUEVO"
+bash src/pi3B/ronda_nueva/deploy.sh "$DESTINO_NUEVO"
+cd "$DESTINO_NUEVO"
+python3 -m ronda_nueva.ronda_nueva --validar-config
+```
+
+`--dry-run` hace un preflight sin crear archivos. El despliegue real copia
+`ronda_nueva/` y `comun/` como paquetes a un staging vecino, comprueba la
+sintaxis y solo entonces lo promueve. Si el destino ya existe —incluso vacío o
+como enlace— se niega a escribir; para otra versión hay que elegir otro nombre.
+No reemplaza el ejecutable funcional ni cambia `controlador_inicio.py`. Cuando
+todas las calibraciones estén aprobadas, una prueba de recorrido sin parqueo se
+lanza con `--sin-parqueo`; el modo oficial no usa esa opción.
+
+Este despliegue solo prepara la aplicación de la Pi. No flashea ni modifica la
+Pico 2; el firmware seguro se instala por separado y debe anunciar `WD:OK` para
+que `ronda_nueva` permita armar la tracción.
+
+## Secuencia de validación física pendiente
+
+No realizarla mientras se modifica el chasis.
+
+1. Flashear juntos `src/pico/main.py` y `src/pico/protocolo_seguro.py`; comprobar
+   con las ruedas levantadas que al retirar USB la Pico frena y centra en 500 ms.
+2. Motores sin armar: capturar 30–60 s de cámara de a bordo y LiDAR, con un
+   pilar rojo y uno verde centrados y descentrados.
+3. Validar orientación, suelo debajo del blob, FOV y que el diagnóstico de
+   163–191° pase varios barridos seguidos.
+4. Medir latencia en movimiento lento y ajustar `camera.latency_s`/gate.
+5. Habilitar solo recorrido, a velocidad reducida, y revisar el CSV por estado.
+6. Medir radio de ambos giros y ejecutar el parqueo con ruedas libres o zona
+   despejada antes de probar dentro de los separadores.
+7. Solo entonces marcar `parking_ready=true` y `motion_enabled=true` en una
+   copia de configuración versionada con la fecha de la medición.
+
+## Watchdog autónomo de la Pico
+
+`src/pico/main.py` usa ahora `src/pico/protocolo_seguro.py`: solo acepta tramas
+acotadas y, si pasan 500 ms sin una consigna válida, frena, centra el servo y
+publica `WD:STOP`. La aplicación exige observar `WD:OK` antes de armar y durante
+la carrera, conservando compatible el parser histórico de IMU/color.
+
+El 2026-08-29 se cargó el firmware en la Pico real y se verificaron los hashes:
+con heartbeat `0,0` anunció `WD:OK` y, al dejar de transmitir sin desconectar el
+cable, volvió a `WD:STOP` en 465 ms. No se envió velocidad distinta de cero.
+Todavía falta la comprobación complementaria desconectando físicamente el USB
+con las ruedas levantadas. Copiar `ronda_nueva` a la Raspberry no actualiza
+automáticamente el firmware que ya esté en la Pico.
+
+Las fuentes internacionales estudiadas y las decisiones de portabilidad están
+en [`REFERENCIAS_2025.md`](REFERENCIAS_2025.md).

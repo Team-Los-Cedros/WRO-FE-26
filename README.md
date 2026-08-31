@@ -40,7 +40,8 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 ├── src/                          # Código fuente de la arquitectura distribuida
 │   ├── pico/                     # Firmware embebido (MicroPython - Raspberry Pi Pico 2)
 │   │   ├── main.py               # Bucle principal de control en tiempo real y actuadores
-│   │   └── Mpu6050.py             # Driver I2C standalone para el sensor inercial MPU6050
+│   │   ├── protocolo_seguro.py   # Valida consignas y modela el watchdog de 500 ms
+│   │   └── Mpu6050.py            # Driver I2C standalone para el sensor inercial MPU6050
 │   └── pi3B/                     # Scripts de alto nivel (Python 3 - Raspberry Pi 3B)
 │       ├── controlador_inicio.py # Orquestador central (Ejecutado como servicio del sistema OS)
 │       ├── deploy.sh             # Copia los .py de carrera planos a /home/pi/
@@ -286,13 +287,20 @@ graph TD
     I --> J["Filtro Derivativo IMU MPU6050"]
     J --> K["Saturación Segura y Salida PWM"]
     
-    K --> L{"¿Fallo comunicación?\n(NO IMPLEMENTADO)"}
-    L -.->|"Sí > 500ms -- pendiente"| M["Detención por fallo de enlace\n(diseño previsto, sin código aún)"]
+    K --> L{"¿Sin consigna válida\npor más de 500 ms?"}
+    L -->|"Sí"| M["Freno + servo centrado\nWD:STOP"]
     L --> I
 
 ```
 
-> **Estado real del nodo `L`, verificado contra el código:** no existe. `enlace_pico.py` sí define `TIMEOUT_TELEMETRIA = 0.5` (los mismos 500ms del diagrama) y `heading_valido()` para consultarlo, pero ningún script lo llama — nunca el bucle de carrera de `ronda_cerrada.py`. Y el firmware de la Pico (`src/pico/main.py`) no tiene ningún *watchdog* propio: si el USB se desconecta o la Pi se cuelga a mitad de carrera, la Pico sigue aplicando la última velocidad y ángulo recibidos indefinidamente, sin detectar el silencio. La flecha punteada marca esto como diseño previsto, no como comportamiento actual — corregir el diagrama para que mienta menos no cierra el riesgo, así que queda listado también como pendiente en la sección 8.3.
+> **Estado actual del nodo `L`:** el riesgo se descubrió originalmente al auditar
+> `ronda_cerrada`; desde `ronda_nueva`, `src/pico/main.py` usa
+> `protocolo_seguro.py` y frena/centra de forma autónoma tras 500 ms sin una
+> consigna válida. El nuevo orquestador exige además `WD:OK` antes de armar. La
+> lógica está probada offline y el 2026-08-29 la Pico real confirmó `WD:OK` con
+> heartbeat `0,0` y `WD:STOP` 465 ms después de cortarlo. Todavía debe validarse
+> la desconexión física del USB con las ruedas levantadas antes de habilitar
+> movimiento.
 
 ### 5.1 Orquestación del Sistema y Demonio de Arranque Autónomo
 
@@ -880,7 +888,7 @@ La corrida 4 es peor que la 3 en casi todas las columnas, y eso es información,
 
 **Estado al cierre de la sesión:** las tres últimas corridas terminaron sin una sola emergencia, con el robot detectando el pilar rojo, esquivando por la derecha (regla WRO), rebasándolo y reincorporándose al carril de forma repetible. Quedan pendientes, en orden de prioridad:
 
-* **Fail-safe de pérdida de comunicación Pi↔Pico (sección 5, diagrama de arquitectura).** Auditando ese diagrama contra el código se confirmó que el nodo de detención por fallo de enlace nunca se implementó: `TIMEOUT_TELEMETRIA`/`heading_valido()` existen en `enlace_pico.py` pero solo los usa una herramienta de calibración, y el firmware de la Pico no tiene ningún *watchdog* — si el enlace se corta a mitad de carrera, la Pico sigue aplicando la última consigna recibida sin límite de tiempo. Es un riesgo de seguridad real, no solo un defecto de documentación; se deja fuera del alcance de esta sesión a propósito porque tocar el firmware de bajo nivel sin poder probarlo con un desconexión real de USB en pista sería más arriesgado que dejarlo pendiente y documentado.
+* **Fail-safe de pérdida de comunicación Pi↔Pico (sección 5, diagrama de arquitectura).** Esta auditoría descubrió que faltaba. El código se cerró después para `ronda_nueva`: watchdog autónomo de 500 ms en la Pico y handshake `WD:OK/STOP` en la Pi. El firmware ya se cargó y respondió en 465 ms al cortar el heartbeat `0,0`; queda pendiente validar una desconexión física con las ruedas levantadas.
 * La maniobra de estacionamiento en paralelo (sección 13 del reglamento — nunca ejercitada, ver limitación en la sección 5.3-C sobre por qué el sentido de carrera no la bloquea).
 * Validar la evasión por la izquierda con el pilar verde (toda la sesión se corrió con rojo para aislar variables).
 * El apareo color↔cluster cuando hay dos postes casi equidistantes en el mismo frame (`_intentar_capturar_poste` empareja por "cluster más cercano" y "blob de mayor área" con criterios independientes, riesgo de asignar el color equivocado a la posición equivocada).
