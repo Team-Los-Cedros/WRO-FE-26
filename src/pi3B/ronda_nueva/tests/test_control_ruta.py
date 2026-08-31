@@ -134,11 +134,12 @@ class ControlRutaTests(unittest.TestCase):
         self.config["control"]["steering_slew_deg_per_scan"] = 100.0
         self.config["control"]["speed_slew_pwm_per_scan"] = 100
 
-    def test_auto_no_mueve_hasta_resolver_sentido_y_timeout_falla(self):
+    def test_auto_no_fija_el_sentido_sin_linea_y_agota_el_timeout(self):
         control = ControlRuta(self.config)
         orden = control.procesar(corredor(), (), 0.0, "PISTA", ahora=10.0)
+        # Sobre pista blanca busca la linea avanzando, pero lo que importa
+        # es que NO se inventa un sentido sin haber cruzado ninguna.
         self.assertEqual(control.estado, "WAIT_DIRECTION")
-        self.assertEqual((orden.velocidad, orden.angulo), (0, 0.0))
         self.assertEqual(control.sentido, 0)
 
         orden = control.procesar(corredor(), (), 0.0, "AZUL", ahora=10.1)
@@ -628,6 +629,52 @@ class ControlRutaTests(unittest.TestCase):
         )
         self.assertGreaterEqual(orden.velocidad, 0)
         self.assertNotIn("reversa", orden.razon)
+
+    def test_auto_avanza_a_buscar_la_linea_de_sentido(self):
+        """El modo AUTO era inservible esperando quieto.
+
+        Las lineas de sentido estan en las esquinas y el robot arranca
+        sobre pista blanca: parado no las alcanza nunca y solo llegaba al
+        timeout. Ahora avanza centrado hasta cruzar la primera."""
+
+        self._sin_slew()
+        self.config["control"]["turn_direction"] = "AUTO"
+        control = ControlRuta(self.config)
+
+        # Sobre blanco: avanza en vez de quedarse quieto.
+        orden = control.procesar(
+            corredor(izquierda=300.0, derecha=700.0, calidad=0.9),
+            (), 0.0, "PISTA", ahora=0.0,
+        )
+        self.assertEqual(control.estado, "WAIT_DIRECTION")
+        self.assertGreater(orden.velocidad, 0)
+        self.assertIn("buscando la linea", orden.razon)
+        # Y se centra mientras busca: descentrado a la izquierda, corrige.
+        self.assertLess(orden.angulo, 0.0)
+        self.assertEqual(control.sentido, 0)
+
+        # Al cruzar la linea queda fijado el sentido y arranca la ronda.
+        orden = control.procesar(corredor(), (), 0.0, "AZUL", ahora=0.5)
+        self.assertEqual(control.estado, "CRUISE")
+        self.assertEqual(control.sentido, 1)
+
+    def test_con_sentido_escrito_no_se_mueve_a_buscar_nada(self):
+        """Con LEFT/RIGHT explicito no hay busqueda: se resuelve al vuelo."""
+
+        self._sin_slew()
+        self.config["control"]["turn_direction"] = "RIGHT"
+        control = ControlRuta(self.config)
+        orden = control.procesar(corredor(), (), 0.0, "PISTA", ahora=0.0)
+        self.assertEqual(control.estado, "CRUISE")
+        self.assertEqual(control.sentido, -1)
+
+        # Y si se desactiva la busqueda, AUTO vuelve a esperar quieto.
+        self.config["control"]["turn_direction"] = "AUTO"
+        self.config["control"]["direction_search_moving"] = False
+        quieto = ControlRuta(self.config)
+        orden = quieto.procesar(corredor(), (), 0.0, "PISTA", ahora=0.0)
+        self.assertEqual(orden.velocidad, 0)
+        self.assertIn("esperando", orden.razon)
 
     def test_esquina_usa_delta_firmado_reapertura_confirmacion_y_conteo(self):
         self._sin_slew()

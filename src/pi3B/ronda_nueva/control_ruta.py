@@ -304,6 +304,16 @@ class ControlRuta:
         kp = float(self._control.get("heading_fallback_kp", 0.5))
         return self._acotar_angulo(error * kp)
 
+    def _buscar_sentido_avanzando(self) -> bool:
+        """Solo en AUTO: con el sentido ya escrito no hay nada que buscar."""
+
+        if not bool(self._control.get("direction_search_moving", True)):
+            return False
+        return str(self._control["turn_direction"]).strip().upper() not in (
+            "LEFT",
+            "RIGHT",
+        )
+
     def _angulo_pared(self, corredor: Corredor) -> float:
         """P filtrado por pared; sin pared confiable, endereza por rumbo."""
 
@@ -1407,6 +1417,24 @@ class ControlRuta:
                 ):
                     return self._fallar(
                         "timeout esperando color de sentido", instante
+                    )
+                # Esperar quieto hacia inservible el modo AUTO: las lineas de
+                # sentido estan en las esquinas y el robot arranca sobre la
+                # pista blanca, asi que parado no las alcanza nunca y solo
+                # llegaba al timeout. Avanza centrado por las paredes hasta
+                # cruzar la primera; el sentido se fija ahi.
+                #
+                # Mientras no lo sepa no cuenta esquinas ni gira: sin sentido
+                # no hay lado al que girar, y en ese estado el mando es el
+                # centrado de pared, que es simetrico.
+                if self._buscar_sentido_avanzando():
+                    return self._emitir(
+                        self._con_frenado(
+                            int(self._control["speed_cruise_pwm"]),
+                            corredor.frontal_mm,
+                        ),
+                        self._angulo_pared(corredor),
+                        "buscando la linea de sentido",
                     )
                 return self._emitir(
                     0,

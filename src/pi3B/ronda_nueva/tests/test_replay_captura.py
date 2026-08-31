@@ -124,8 +124,12 @@ class ReplayCapturaTests(unittest.TestCase):
                 max_barridos=1,
             )
 
+        # Lo que no debe hacer es INVENTARSE el sentido: sigue esperando.
+        # Desde que AUTO busca la linea avanzando si propone movimiento,
+        # que es justo lo que lo hace usable -parado no alcanza nunca una
+        # linea, porque estan en las esquinas-. El replay sigue sin tocar
+        # hardware, que es la garantia que de verdad protege este test.
         self.assertEqual(resumen["estado_final"], "WAIT_DIRECTION")
-        self.assertEqual(resumen["propuestas_movimiento"], 0)
         self.assertEqual(resumen["comandos_hardware_enviados"], 0)
 
     def test_rechaza_carpeta_incompleta_con_error_descriptivo(self):
