@@ -911,12 +911,13 @@ class ControlRutaTests(unittest.TestCase):
         self.assertEqual(control.estado, "RECENTER")
 
         # Las distancias frontales van por debajo de
-        # recenter_corner_handoff_mm: desde que bajo a 700 mm, entre ese
-        # valor y corner_front_trigger_mm el recentrado conserva el mando en
-        # vez de entregar la esquina en diagonal.
+        # recenter_corner_handoff_mm, que sigue al radio de giro: bajo de
+        # 900 a 700 al medirlo, y de 700 a 620 al comprobar que girando a
+        # la izquierda el radio es menor (559 mm contra 617).
+        handoff = float(self.config["control"]["recenter_corner_handoff_mm"])
         primera = control.procesar(
             corredor(
-                frontal=690.5, frontal_muro=690.5,
+                frontal=handoff - 10.0, frontal_muro=handoff - 10.0,
                 izquierda=732.2, derecha=447.0, calidad=0.816,
             ),
             (), 20.63, "PISTA", ahora=5.69,
@@ -926,7 +927,7 @@ class ControlRutaTests(unittest.TestCase):
 
         segunda = control.procesar(
             corredor(
-                frontal=684.5, frontal_muro=684.5,
+                frontal=handoff - 16.0, frontal_muro=handoff - 16.0,
                 izquierda=729.3, derecha=443.5, calidad=0.634,
             ),
             (), 21.18, "PISTA", ahora=5.79,
