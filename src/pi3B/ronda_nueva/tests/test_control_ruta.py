@@ -209,6 +209,37 @@ class ControlRutaTests(unittest.TestCase):
         orden = control.procesar(borrosa, (), 120.0, "PISTA", ahora=2.1)
         self.assertLess(orden.angulo, 0.0)
 
+    def test_el_punto_de_paso_cabe_en_el_hueco_mas_estrecho(self):
+        """El paso junto al pilar verde del tramo inferior mide 333 mm de la
+        pared al centro del pilar (medido por el LiDAR en las corridas
+        152614 y 153132). Con `obstacle_lateral_clearance_mm` en 255 el
+        punto de paso caia a 78 mm de la pared y el borde del robot a 16:
+        no cabe. El robot nunca llegaba alli porque la guardia de pared lo
+        frenaba antes, y ese rescate era justo lo que lo empujaba hacia el
+        pilar. La restriccion es geometrica, asi que se comprueba aqui."""
+
+        control = self.config["control"]
+        hueco = float(control["narrowest_gap_wall_to_pillar_mm"])
+        semi_pilar = 25.0
+        ancho_robot = float(self.config["parking"]["robot_width_mm"])
+        separacion = float(control["obstacle_lateral_clearance_mm"])
+
+        # Distancia de la pared al eje del robot en el punto de paso.
+        eje = hueco - separacion
+        holgura_pared = eje - ancho_robot / 2.0
+        holgura_pilar = (hueco - semi_pilar) - eje - ancho_robot / 2.0
+
+        self.assertGreater(
+            holgura_pared, 50.0,
+            "el punto de paso deja %.0f mm entre el robot y la pared" % holgura_pared,
+        )
+        self.assertGreater(
+            holgura_pilar, 50.0,
+            "el punto de paso deja %.0f mm entre el robot y el pilar" % holgura_pilar,
+        )
+        # Y debe quedar razonablemente centrado, no rozando un lado.
+        self.assertLess(abs(holgura_pared - holgura_pilar), 40.0)
+
     def test_recentrado_confirma_con_laterales_aunque_baje_la_calidad(self):
         """Regresion de las corridas 152111 y 152413.
 
