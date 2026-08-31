@@ -268,6 +268,54 @@ tiempos (avanzar girando, retroceder al contrario, avanzar), que el
 reglamento no prohíbe pero cuesta segundos de ronda. Conviene medir el
 ángulo de rueda con un transportador antes de decidir.
 
+## La causa raíz: el punto de paso no cabía en el hueco
+
+Todo lo que sigue en esta bitácora —la guardia de pared secuestrando el
+mando, el robot llegando en diagonal a la esquina, la falta de
+repetibilidad— sale de un solo parámetro mal calibrado.
+
+El tramo inferior deja **333 mm de la pared al centro del pilar verde**,
+medido por el LiDAR (la suma `izquierda + track_activo_x` converge a ese
+valor en dos corridas independientes). Descontando el medio pilar quedan
+308 mm libres para un robot de 125 mm de ancho.
+
+`obstacle_lateral_clearance_mm` estaba en **255 mm**, que pide 76 mm más
+de los que existen:
+
+| Con 255 mm | Con 179 mm |
+| --- | --- |
+| punto de paso a 78 mm de la pared | a 154 mm |
+| borde del robot a **16 mm** — no cabe | a 92 mm, centrado en el hueco |
+
+El robot nunca llegaba a ese punto imposible: la guardia de pared lo
+frenaba antes de tocar. **La guardia llevaba toda la sesión compensando
+un objetivo que no existía**, y ese rescate era justo lo que lo empujaba
+de vuelta hacia el pilar. Eso explica también por qué quitarle el término
+lateral (más abajo) salió tan mal: se quitó el parche sin arreglar la
+causa que lo hacía necesario.
+
+### Resultado en pista
+
+| | clearance 255 | clearance 255 (rep.) | **clearance 179** |
+| --- | --- | --- | --- |
+| Paso junto al pilar | 130 mm | 147 mm | **234 mm** |
+| Esquinas | 2 | 0 | **3** |
+| Fin | timeout | timeout | **no falló** |
+
+La corrida con 179 mm corrió **71,5 s sin fallar**, hasta que la cortó el
+timeout externo de la prueba; las anteriores morían entre 14 y 45 s. Las
+dos reincorporaciones se verificaron y las tres esquinas se cerraron.
+
+Y hay un efecto de segundo orden que conviene notar: pasando a 234 mm de
+la pared, por encima de `wall_guard_start_mm` (230), **la guardia ya no
+llega a activarse durante la evasión**. El lado de paso vuelve a decidirlo
+el color por sí solo, sin necesidad de tocar la lógica de la guardia.
+Arreglada la causa, el síntoma desaparece.
+
+Queda abierto el atasco de la cuarta esquina, hacia el segundo 67: entra
+en un ciclo `TURN` → `RECOVERY` del que no sale. Ese caso todavía no
+tiene diagnóstico.
+
 ## El lado de paso lo decide el color, no la pared
 
 Diagnóstico del equipo durante la sesión, confirmado después con los CSV:
