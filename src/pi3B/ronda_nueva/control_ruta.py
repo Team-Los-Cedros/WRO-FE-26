@@ -125,6 +125,7 @@ class ControlRuta:
         self._ultimo_track: Optional[TrackObstaculo] = None
         self._track_observado = False
         self._heading_sobrepaso = 0.0
+        self._t_track_perdido: Optional[float] = None
         self._distancia_sobrepaso_mm = 0.0
         self._t_ultimo_sobrepaso: Optional[float] = None
         self._confirmaciones_recentrado = 0
@@ -644,13 +645,41 @@ class ControlRuta:
         track = self._track_bloqueado(tracks)
         observado = track is not None
         if track is None:
-            return self._emitir(
-                0,
-                0.0,
-                "track bloqueado perdido; parada para reasociar",
-                detener_inmediato=True,
-                direccion_neutra=True,
+            # Pararse a esperar es un punto muerto cuando el pilar se
+            # perdio por acercarse demasiado: la reasociacion exige un
+            # track confirmado, la confirmacion exige color, y el color no
+            # vuelve mientras el pilar siga dentro del punto ciego. Quieto
+            # no se sale nunca de ahi, y el robot agotaba el timeout de
+            # evasion parado (corridas 181323 y 181547, 9,7 s cada una).
+            # Se le da un margen corto para reasociar y, si no llega, se
+            # suelta el pilar y manda el centrado de pared, que sí avanza.
+            if self._t_track_perdido is None:
+                self._t_track_perdido = ahora
+            margen = float(
+                self._control.get("obstacle_relock_timeout_s", 0.8)
             )
+            if ahora - self._t_track_perdido < margen:
+                return self._emitir(
+                    0,
+                    0.0,
+                    "track bloqueado perdido; parada para reasociar",
+                    detener_inmediato=True,
+                    direccion_neutra=True,
+                )
+            self._track_id = None
+            self._track_color = None
+            self._ultimo_track = None
+            self._track_observado = False
+            self._t_track_perdido = None
+            self._entrar("CRUISE", ahora)
+            return self._emitir(
+                self._con_frenado(
+                    int(self._control["speed_cruise_pwm"]), corredor.frontal_mm
+                ),
+                self._angulo_pared(corredor),
+                "pilar no reasociado; se suelta y sigue el carril",
+            )
+        self._t_track_perdido = None
 
         if observado and track.y_mm <= float(
             self._control["obstacle_pass_y_mm"]

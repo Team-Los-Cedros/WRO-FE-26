@@ -209,6 +209,43 @@ class ControlRutaTests(unittest.TestCase):
         orden = control.procesar(borrosa, (), 120.0, "PISTA", ahora=2.1)
         self.assertLess(orden.angulo, 0.0)
 
+    def test_pilar_no_reasociado_se_suelta_en_vez_de_esperar_parado(self):
+        """Regresion de las corridas 181323 y 181547.
+
+        Pararse a reasociar es un punto muerto cuando el pilar se perdio
+        por acercarse demasiado: la reasociacion exige un track confirmado,
+        la confirmacion exige color, y el color no vuelve mientras el pilar
+        siga dentro del punto ciego. Quieto no se sale de ahi nunca, y el
+        robot agotaba parado el timeout de evasion (9,7 s en ambas). Tras
+        un margen corto debe soltar el pilar y seguir el carril."""
+
+        self._sin_slew()
+        control = ControlRuta(self.config)
+        control.procesar(corredor(), (), 0.0, "AZUL", ahora=0.0)
+        control.procesar(
+            corredor(), (track(9, "VERDE", x=-260.0, y=600.0),),
+            0.0, "PISTA", ahora=0.1,
+        )
+        self.assertEqual(control.estado, "AVOID_APPROACH")
+
+        # Sin tracks: al principio espera, quieto.
+        orden = control.procesar(corredor(), (), 0.0, "PISTA", ahora=0.2)
+        self.assertEqual(orden.velocidad, 0)
+        self.assertIn("parada para reasociar", orden.razon)
+
+        margen = float(self.config["control"]["obstacle_relock_timeout_s"])
+        orden = control.procesar(
+            corredor(), (), 0.0, "PISTA", ahora=0.2 + margen + 0.05
+        )
+        self.assertEqual(control.estado, "CRUISE")
+        self.assertGreater(orden.velocidad, 0)
+        self.assertIn("se suelta", orden.razon)
+        self.assertIsNone(control.track_activo_id)
+
+        # Y el margen no debe agotar el timeout de evasion, que es lo que
+        # convertia la espera en un fallo terminal.
+        self.assertLess(margen, float(self.config["control"]["obstacle_timeout_s"]))
+
     def test_el_sobrepaso_arranca_antes_del_punto_ciego(self):
         """La camara pierde el pilar antes que el LiDAR.
 

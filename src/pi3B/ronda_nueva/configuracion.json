@@ -141,6 +141,7 @@
     "narrowest_gap_wall_to_pillar_mm": 333.0,
     "obstacle_pursuit_kp": 1.0,
     "obstacle_relock_gate_mm": 360.0,
+    "obstacle_relock_timeout_s": 0.8,
     "obstacle_track_max_age_s": 0.45,
     "obstacle_timeout_s": 6.0,
     "obstacle_timeout_reference_pwm": 40.0,
