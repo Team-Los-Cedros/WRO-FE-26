@@ -142,6 +142,8 @@
     "obstacle_pursuit_kp": 1.0,
     "obstacle_relock_gate_mm": 360.0,
     "obstacle_relock_timeout_s": 0.8,
+    "obstacle_color_hold_y_mm": 320.0,
+    "obstacle_blind_relock_gate_mm": 180.0,
     "obstacle_track_max_age_s": 0.45,
     "obstacle_timeout_s": 6.0,
     "obstacle_timeout_reference_pwm": 40.0,

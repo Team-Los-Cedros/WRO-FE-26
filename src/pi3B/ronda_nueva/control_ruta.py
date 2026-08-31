@@ -126,6 +126,7 @@ class ControlRuta:
         self._track_observado = False
         self._heading_sobrepaso = 0.0
         self._t_track_perdido: Optional[float] = None
+        self._color_heredado = False
         self._distancia_sobrepaso_mm = 0.0
         self._t_ultimo_sobrepaso: Optional[float] = None
         self._confirmaciones_recentrado = 0
@@ -629,6 +630,46 @@ class ControlRuta:
                 self._ultimo_track = track
                 self._track_observado = True
                 return track
+
+            # Ultimo recurso: heredar el color. Dentro del punto ciego la
+            # camara no puede confirmar nada -la base del pilar sale del
+            # encuadre por debajo de 251 mm- pero el LiDAR sigue viendo el
+            # cluster. Exigir `confirmado` ahi equivale a exigir algo que
+            # ningun barrido puede dar, y el pilar se convierte en un
+            # obstaculo sin lado asignado justo cuando hay que rodearlo.
+            #
+            # El color no se reabre: se conserva el del track anterior. Para
+            # que no salte a otro objeto, la puerta es mas estrecha que la
+            # normal, el candidato no puede traer un color propio distinto,
+            # y solo vale mientras el pilar este cerca, que es el unico
+            # regimen donde la camara tiene excusa para no verlo.
+            techo = float(
+                self._control.get("obstacle_color_hold_y_mm", 320.0)
+            )
+            puerta_ciega = float(
+                self._control.get("obstacle_blind_relock_gate_mm", 180.0)
+            )
+            if self._ultimo_track.y_mm <= techo:
+                ciegos = []
+                for track in tracks:
+                    if track.edad_s > edad_maxima:
+                        continue
+                    color = self._normalizar_color_pilar(track.color)
+                    if color is not None and color != self._track_color:
+                        continue
+                    distancia = math.hypot(
+                        track.x_mm - self._ultimo_track.x_mm,
+                        track.y_mm - self._ultimo_track.y_mm,
+                    )
+                    if distancia <= puerta_ciega:
+                        ciegos.append((distancia, track.track_id, track))
+                if ciegos:
+                    _, nuevo_id, track = min(ciegos)
+                    self._track_id = nuevo_id
+                    self._ultimo_track = track
+                    self._track_observado = True
+                    self._color_heredado = True
+                    return track
 
         self._track_observado = False
         return None

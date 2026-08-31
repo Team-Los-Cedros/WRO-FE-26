@@ -209,6 +209,63 @@ class ControlRutaTests(unittest.TestCase):
         orden = control.procesar(borrosa, (), 120.0, "PISTA", ahora=2.1)
         self.assertLess(orden.angulo, 0.0)
 
+    def _hasta_seguir_pilar(self, control, color="VERDE", y=600.0):
+        control.procesar(corredor(), (), 0.0, "AZUL", ahora=0.0)
+        control.procesar(
+            corredor(), (track(70, color, x=-260.0, y=y),),
+            0.0, "PISTA", ahora=0.1,
+        )
+        self.assertEqual(control.estado, "AVOID_APPROACH")
+        self.assertEqual(control.track_activo_color, color)
+
+    def test_dentro_del_ciego_hereda_el_color_del_track_anterior(self):
+        """La camara no puede confirmar por debajo de 251 mm.
+
+        La base del pilar sale del encuadre y `min_ground_support` lo
+        rechaza, asi que exigir un track `confirmado` para reasociar pide
+        algo que ningun barrido puede dar. El LiDAR si lo sigue viendo: el
+        color se hereda del track anterior en vez de reabrirse."""
+
+        self._sin_slew()
+        control = ControlRuta(self.config)
+        self._hasta_seguir_pilar(control, "VERDE", y=600.0)
+
+        # Se acerca hasta el punto ciego, todavia con color.
+        control.procesar(
+            corredor(), (track(70, "VERDE", x=-250.0, y=300.0),),
+            0.0, "PISTA", ahora=0.2,
+        )
+        # Ahora el LiDAR lo ve pero sin color y con id nuevo.
+        ciego = track(88, None, x=-248.0, y=250.0, confirmado=False)
+        orden = control.procesar(
+            corredor(), (ciego,), 0.0, "PISTA", ahora=0.3
+        )
+        self.assertEqual(control.track_activo_id, 88)
+        self.assertEqual(control.track_activo_color, "VERDE")
+        self.assertNotIn("perdido", orden.razon)
+
+    def test_no_hereda_el_color_lejos_ni_sobre_otro_color(self):
+        """Las dos guardas que impiden que la herencia salte de pilar."""
+
+        self._sin_slew()
+        # Lejos del ciego no se hereda: ahi la camara si deberia ver.
+        lejos = ControlRuta(self.config)
+        self._hasta_seguir_pilar(lejos, "VERDE", y=900.0)
+        suelto = track(91, None, x=-260.0, y=880.0, confirmado=False)
+        lejos.procesar(corredor(), (suelto,), 0.0, "PISTA", ahora=0.2)
+        self.assertNotEqual(lejos.track_activo_id, 91)
+
+        # Y un candidato con color propio distinto nunca se adopta.
+        otro = ControlRuta(self.config)
+        self._hasta_seguir_pilar(otro, "VERDE", y=600.0)
+        otro.procesar(
+            corredor(), (track(70, "VERDE", x=-250.0, y=280.0),),
+            0.0, "PISTA", ahora=0.2,
+        )
+        rojo = track(92, "ROJO", x=-248.0, y=250.0, confirmado=False)
+        otro.procesar(corredor(), (rojo,), 0.0, "PISTA", ahora=0.3)
+        self.assertNotEqual(otro.track_activo_id, 92)
+
     def test_pilar_no_reasociado_se_suelta_en_vez_de_esperar_parado(self):
         """Regresion de las corridas 181323 y 181547.
 
