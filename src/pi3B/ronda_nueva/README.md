@@ -268,6 +268,61 @@ tiempos (avanzar girando, retroceder al contrario, avanzar), que el
 reglamento no prohíbe pero cuesta segundos de ronda. Conviene medir el
 ángulo de rueda con un transportador antes de decidir.
 
+## Maniobra de esquina en tres tiempos
+
+Puente por software mientras el chasis no gane ángulo de rueda. Vive
+dentro del estado `TURN` (sin estados nuevos en la FSM) y se apaga con
+`corner_kturn_enabled`, que es lo que convendrá hacer si el radio baja a
+400 mm.
+
+El detalle que la hace funcionar es el signo del volante: con Ackermann
+la rotación es `omega = v*tan(delta)/L`, así que **al retroceder el
+volante va al lado contrario** para que el morro siga rotando hacia el
+mismo lado. Usar el mismo ángulo que en avance desharía el giro. Hay una
+prueba que fija ese signo en los dos sentidos de vuelta.
+
+La reversa exige lo mismo que la recuperación: trasera válida y con
+holgura. Un `SIN_DATO` detiene la maniobra en vez de ejecutarla a ciegas,
+porque el mástil ya ciega ese arco.
+
+### Lo que enseñó la pista
+
+| Corrida | Esquinas | Conmutaciones | Ciclos en reversa | Fin |
+| --- | --- | --- | --- | --- |
+| `145409` (primera versión) | 2 | 12 | 38 | timeout de recuperación |
+| `145857` (con histéresis) | 1 | 2 | 39 | timeout completando esquina |
+
+La primera prueba cerró dos esquinas, pero los tramos 2 al 6 fueron
+oscilación pura: conmutaba cada 0,2 s y el robot no llegaba a desplazarse
+porque el *slew* de velocidad nunca alcanzaba el PWM pedido. **La causa no
+era ruido del sensor**: en la esquina el sector trasero cruza la arista
+entre dos paredes y la lectura alterna entre dos valores reales, 258 y
+690 mm, los dos con `trasera_valida` y cobertura sobre 0,97. El umbral de
+confort de 300 mm caía justo entre ambos modos.
+
+Ahora un tramo empezado solo lo corta el límite duro
+(`emergency_rear_mm`, que 258 mm no viola) o su duración mínima; la
+holgura de confort decide únicamente si un tramo **nuevo** puede empezar.
+Con eso las conmutaciones bajan de 12 a 2 y el tramo útil pasa de rebotes
+de 0,2 s a uno continuo de 3,9 s.
+
+### Lo que sigue abierto
+
+La esquina 1 se cierra de una sola pasada en las dos corridas, sin
+necesitar la maniobra. La que falla es la **segunda**, y por una causa
+distinta del radio: el pilar de esa esquina deja al robot descolocado y
+`RECENTER` cede el mando a `TURN` 0,1 s después de entrar, con
+`recenter_corner_handoff_mm` en 900 mm. Llega en diagonal y termina
+encajonado con unos 250 mm por delante y 240 mm por detrás: ahí ya no
+cabe ninguna maniobra. Bajar el *handoff* para que se reincorpore antes
+de girar choca con haber subido el disparo de esquina a 900 mm por el
+radio; las dos cosas no se pueden tener a la vez con este chasis.
+
+El `corner_timeout_s` de 14 s tampoco es viable en competencia: doce
+esquinas no caben en los 3 minutos de ronda. La maniobra sirve para
+seguir probando el resto del recorrido, no como configuración de
+carrera.
+
 ## Watchdog autónomo de la Pico
 
 `src/pico/main.py` usa ahora `src/pico/protocolo_seguro.py`: solo acepta tramas
