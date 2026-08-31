@@ -227,6 +227,17 @@ class ControlRutaTests(unittest.TestCase):
         # A 150 mm/s y ~70 ms de edad de vision, cada ciclo son ~10 mm.
         self.assertGreaterEqual(paso - ciego, 20.0)
 
+        # Los dos umbrales estan acoplados: el sobrepaso termina tras
+        # recorrer obstacle_pass_distance_mm desde que empezo, asi que
+        # subir uno sin el otro deja al robot recentrando con el pilar
+        # todavia por delante. Se comprobo en pista (corrida 160916:
+        # 280 con 200 dejaba el pilar 80 mm delante y fallo a los 11,7 s).
+        recorrido = float(control["obstacle_pass_distance_mm"])
+        self.assertLess(
+            paso - recorrido, 0.0,
+            "al terminar el sobrepaso el pilar debe quedar detras",
+        )
+
     def test_el_punto_de_paso_cabe_en_el_hueco_mas_estrecho(self):
         """El paso junto al pilar verde del tramo inferior mide 333 mm de la
         pared al centro del pilar (medido por el LiDAR en las corridas
@@ -279,11 +290,18 @@ class ControlRutaTests(unittest.TestCase):
             corredor(), (track(4, "ROJO", x=-260.0, y=150.0),),
             0.0, "PISTA", ahora=0.1,
         )
-        control.procesar(corredor(), (), 0.0, "PISTA", ahora=1.0)
-        control.procesar(
-            corredor(izquierda=860.0, derecha=140.0, calidad=0.8),
-            (), 0.0, "PISTA", ahora=2.0,
-        )
+        # El sobrepaso dura lo que tarde en recorrer
+        # obstacle_pass_distance_mm, asi que se avanza hasta que termine en
+        # vez de fijar un instante que dependa de ese parametro.
+        t = 1.0
+        for _ in range(40):
+            control.procesar(
+                corredor(izquierda=860.0, derecha=140.0, calidad=0.8),
+                (), 0.0, "PISTA", ahora=t,
+            )
+            if control.estado == "RECENTER":
+                break
+            t += 0.2
         self.assertEqual(control.estado, "RECENTER")
 
         # Centrado de sobra (108 mm), pero con el ajuste degradado.
