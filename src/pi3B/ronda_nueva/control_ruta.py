@@ -118,6 +118,7 @@ class ControlRuta:
         self._heading_inicio_giro = 0.0
         self._kturn_fase = "AVANCE"
         self._kturn_tramos = 0
+        self._t_kturn_fase: Optional[float] = None
 
         self._track_id: Optional[int] = None
         self._track_color: Optional[str] = None
@@ -770,6 +771,7 @@ class ControlRuta:
             self._confirmaciones_salida_esquina = 0
             self._kturn_fase = "AVANCE"
             self._kturn_tramos = 0
+            self._t_kturn_fase = ahora
             self._entrar("TURN", ahora)
             return self._procesar_giro(corredor, ahora)
 
@@ -908,14 +910,39 @@ class ControlRuta:
             slew_angulo_deg=self._slew_esquina(),
         )
 
+    def _trasera_medida(self, corredor: Corredor) -> bool:
+        return bool(corredor.trasera_valida) and _finito_no_negativo(
+            corredor.trasera_mm
+        )
+
     def _reversa_de_esquina_segura(self, corredor: Corredor) -> bool:
-        """Misma exigencia que la recuperacion: trasera medida, no inferida."""
+        """Holgura de confort para *iniciar* un tramo de reversa."""
 
         return (
-            bool(corredor.trasera_valida)
-            and _finito_no_negativo(corredor.trasera_mm)
+            self._trasera_medida(corredor)
             and corredor.trasera_mm
             > float(self._control["corner_kturn_rear_mm"])
+        )
+
+    def _reversa_de_esquina_critica(self, corredor: Corredor) -> bool:
+        """Limite duro que corta un tramo ya empezado."""
+
+        return not self._trasera_medida(corredor) or corredor.trasera_mm <= float(
+            self._control["emergency_rear_mm"]
+        )
+
+    def _tiempo_kturn(self, ahora: float) -> float:
+        if self._t_kturn_fase is None:
+            return math.inf
+        return max(0.0, float(ahora) - self._t_kturn_fase)
+
+    def _cambiar_fase_kturn(self, fase: str, ahora: float) -> None:
+        self._kturn_fase = fase
+        self._t_kturn_fase = float(ahora)
+
+    def _tramo_kturn_maduro(self, ahora: float) -> bool:
+        return self._tiempo_kturn(ahora) >= float(
+            self._control["corner_kturn_min_tramo_s"]
         )
 
     def _giro_avanzando_con_kturn(
@@ -933,9 +960,13 @@ class ControlRuta:
         quedan_tramos = self._kturn_tramos < int(
             self._control["corner_kturn_max_tramos"]
         )
-        if sin_frente and quedan_tramos:
+        # El primer tramo entra sin demora: esperar con el morro a 200 mm de
+        # la pared solo acerca la emergencia. La madurez amortigua los
+        # rebotes posteriores, que son los que oscilaban.
+        listo = self._kturn_tramos == 0 or self._tramo_kturn_maduro(ahora)
+        if sin_frente and quedan_tramos and listo:
             if self._reversa_de_esquina_segura(corredor):
-                self._kturn_fase = "REVERSA"
+                self._cambiar_fase_kturn("REVERSA", ahora)
                 self._kturn_tramos += 1
                 return self._giro_retrocediendo(corredor, ahora)
             return self._emitir(
@@ -957,8 +988,20 @@ class ControlRuta:
             and corredor.frontal_mm
             >= float(self._control["corner_kturn_resume_mm"])
         )
-        if frente_recuperado or not self._reversa_de_esquina_segura(corredor):
-            self._kturn_fase = "AVANCE"
+        # En la esquina el sector trasero cruza la arista entre dos paredes y
+        # la lectura salta entre dos valores reales (medidos: 258 y 690 mm,
+        # ambos con cobertura plena). Comparar cada ciclo contra la holgura de
+        # confort hacia oscilar la maniobra a 5 Hz sin desplazar el robot, asi
+        # que un tramo empezado solo lo corta el limite duro o su madurez.
+        agotado = self._tramo_kturn_maduro(ahora) and not (
+            self._reversa_de_esquina_segura(corredor)
+        )
+        if (
+            frente_recuperado
+            or agotado
+            or self._reversa_de_esquina_critica(corredor)
+        ):
+            self._cambiar_fase_kturn("AVANCE", ahora)
             return self._giro_avanzando(corredor)
         return self._emitir(
             int(self._control["speed_reverse_pwm"]),
@@ -996,6 +1039,7 @@ class ControlRuta:
             self._confirmaciones_salida_esquina = 0
             self._kturn_fase = "AVANCE"
             self._kturn_tramos = 0
+            self._t_kturn_fase = ahora
             self._entrar("TURN", ahora)
             return self._procesar_giro(corredor, ahora)
 

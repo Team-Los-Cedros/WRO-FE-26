@@ -293,6 +293,8 @@ class ControlRutaTests(unittest.TestCase):
         con_frente = corredor(
             frontal=600.0, frontal_muro=600.0, trasera=500.0
         )
+        # Cada fase dura al menos corner_kturn_min_tramo_s, asi que los
+        # ciclos se espacian como lo haria un tramo real en pista.
         t = 0.3
         for tramo in range(2):
             # Un ciclo a cero al invertir el signo, y ya retrocede.
@@ -301,19 +303,66 @@ class ControlRutaTests(unittest.TestCase):
             t += 0.1
             orden = control.procesar(sin_frente, (), 5.0, "PISTA", ahora=t)
             self.assertLess(orden.velocidad, 0)
-            t += 0.1
+            t += 0.9
             # Recuperado el frente, vuelve a avanzar sin esperar timeout.
             orden = control.procesar(con_frente, (), 5.0, "PISTA", ahora=t)
             self.assertNotIn("reversa", orden.razon)
             t += 0.1
             orden = control.procesar(con_frente, (), 5.0, "PISTA", ahora=t)
             self.assertGreater(orden.velocidad, 0)
-            t += 0.1
+            t += 0.9
 
         # Agotados los tramos, insiste avanzando en vez de seguir oscilando.
         orden = control.procesar(sin_frente, (), 5.0, "PISTA", ahora=t)
         self.assertNotIn("reversa", orden.razon)
         self.assertGreaterEqual(orden.velocidad, 0)
+
+    def test_kturn_no_oscila_con_la_trasera_bimodal_de_la_esquina(self):
+        """Regresion de la corrida 145409.
+
+        En la esquina el sector trasero cruza la arista entre dos paredes y
+        la lectura alterna entre dos valores reales (258 y 690 mm medidos,
+        ambos validos y con cobertura plena). Comparar cada ciclo contra la
+        holgura de confort hacia conmutar la fase a 5 Hz: el robot alternaba
+        avance y reversa sin llegar a moverse porque el slew de velocidad
+        nunca alcanzaba el PWM pedido."""
+
+        self._sin_slew()
+        control = ControlRuta(self.config)
+        self._entrar_en_giro(control)
+
+        lejos = corredor(frontal=230.0, frontal_muro=230.0, trasera=690.0)
+        cerca = corredor(frontal=230.0, frontal_muro=230.0, trasera=258.0)
+
+        t = 0.3
+        control.procesar(lejos, (), 5.0, "PISTA", ahora=t)
+        self.assertEqual(control.estado, "TURN")
+
+        # Doce ciclos alternando las dos lecturas, como en el CSV.
+        fases = []
+        for i in range(12):
+            t += 0.1
+            orden = control.procesar(
+                cerca if i % 2 else lejos, (), 5.0 + i, "PISTA", ahora=t
+            )
+            fases.append("reversa" in orden.razon)
+
+        # 258 mm sigue por encima de emergency_rear_mm, asi que el tramo
+        # empezado se sostiene durante su duracion minima en vez de rebotar
+        # en cada barrido. Antes conmutaba en practicamente todos.
+        self.assertTrue(all(fases[:6]), "el tramo debe sostenerse 0,8 s")
+        conmutaciones = sum(
+            1 for a, b in zip(fases, fases[1:]) if a != b
+        )
+        self.assertLessEqual(
+            conmutaciones, 2, "la maniobra no debe oscilar por barrido"
+        )
+
+        # Y el limite duro si lo corta: por debajo de la emergencia trasera.
+        t += 0.1
+        pegado = corredor(frontal=230.0, frontal_muro=230.0, trasera=100.0)
+        orden = control.procesar(pegado, (), 20.0, "PISTA", ahora=t)
+        self.assertNotIn("reversa", orden.razon)
 
     def test_kturn_desactivado_conserva_el_giro_de_una_sola_pasada(self):
         self._sin_slew()
