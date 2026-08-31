@@ -164,6 +164,51 @@ class ControlRutaTests(unittest.TestCase):
         self.assertFalse(orden.verificado)
         self.assertEqual(orden.velocidad, 0)
 
+    def test_sin_pared_confiable_endereza_por_rumbo_no_congela_el_timon(self):
+        """Regresion de la corrida 20260831_120547: con el robot cruzado a
+        +33 grados y calidad de pared bajo el minimo, el timon quedaba en
+        0.0 fijo y el robot derivaba en diagonal hasta el timeout."""
+
+        self._sin_slew()
+        control = ControlRuta(self.config)
+        control.procesar(corredor(), (), 0.0, "AZUL", ahora=0.0)
+        self.assertEqual(control.estado, "CRUISE")
+
+        borrosa = corredor(calidad=0.10)
+        orden = control.procesar(borrosa, (), 33.0, "PISTA", ahora=0.1)
+        self.assertEqual(control.estado, "CRUISE")
+        self.assertLess(orden.angulo, 0.0)
+
+        orden = control.procesar(borrosa, (), -33.0, "PISTA", ahora=0.2)
+        self.assertGreater(orden.angulo, 0.0)
+
+        alineada = control.procesar(borrosa, (), 0.0, "PISTA", ahora=0.3)
+        self.assertAlmostEqual(alineada.angulo, 0.0, places=3)
+
+    def test_rumbo_de_carril_avanza_90_grados_por_esquina(self):
+        self._sin_slew()
+        control = ControlRuta(self.config)
+        abierta = corredor(frontal=1200.0, frontal_muro=1200.0)
+        cerrada = corredor(frontal=1000.0, frontal_muro=500.0)
+
+        control.procesar(abierta, (), 0.0, "AZUL", ahora=0.0)
+        control.procesar(cerrada, (), 0.0, "PISTA", ahora=0.1)
+        control.procesar(cerrada, (), 0.0, "PISTA", ahora=0.2)
+        self.assertEqual(control.estado, "TURN")
+        control.procesar(abierta, (), 88.0, "PISTA", ahora=0.3)
+        control.procesar(abierta, (), 89.0, "PISTA", ahora=0.4)
+        self.assertEqual(control.esquinas, 1)
+        self.assertEqual(control.estado, "CRUISE")
+
+        # Tras una esquina antihoraria el rumbo del tramo es +90: sin pared
+        # confiable, a +60 corrige a la izquierda y a +120 a la derecha.
+        borrosa = corredor(calidad=0.10)
+        orden = control.procesar(borrosa, (), 60.0, "PISTA", ahora=2.0)
+        self.assertEqual(control.estado, "CRUISE")
+        self.assertGreater(orden.angulo, 0.0)
+        orden = control.procesar(borrosa, (), 120.0, "PISTA", ahora=2.1)
+        self.assertLess(orden.angulo, 0.0)
+
     def test_esquina_usa_delta_firmado_reapertura_confirmacion_y_conteo(self):
         self._sin_slew()
         self.config["control"]["corners_before_parking"] = 1

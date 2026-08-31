@@ -110,6 +110,8 @@ class ControlRuta:
 
         self._error_lateral_filtrado: Optional[float] = None
         self._error_rumbo_filtrado: Optional[float] = None
+        self._heading_actual = 0.0
+        self._heading_referencia: Optional[float] = None
         self._confirmaciones_esquina = 0
         self._confirmaciones_salida_esquina = 0
         self._t_ultima_esquina = -math.inf
@@ -279,8 +281,26 @@ class ControlRuta:
             self._sentido = -1
         return self._sentido != 0
 
+    def _rumbo_ideal_carril(self) -> Optional[float]:
+        # El rumbo del tramo actual es la referencia tomada al arrancar mas
+        # 90 grados por esquina contada, con el signo del sentido de vuelta.
+        # No depende del ajuste de pared, solo de la IMU y del conteo.
+        # No hace falta envolver: _diferencia_angular normaliza cualquier
+        # magnitud al comparar contra el heading actual.
+        if self._heading_referencia is None or self._sentido == 0:
+            return None
+        return self._heading_referencia + 90.0 * self._esquinas * self._sentido
+
+    def _angulo_rumbo_carril(self) -> float:
+        rumbo = self._rumbo_ideal_carril()
+        if rumbo is None:
+            return 0.0
+        error = _diferencia_angular(rumbo, self._heading_actual)
+        kp = float(self._control.get("heading_fallback_kp", 0.5))
+        return self._acotar_angulo(error * kp)
+
     def _angulo_pared(self, corredor: Corredor) -> float:
-        """P filtrado, habilitado solo con un ajuste de pared confiable."""
+        """P filtrado por pared; sin pared confiable, endereza por rumbo."""
 
         calidad_minima = float(self._control.get("wall_min_quality", 0.30))
         if (
@@ -289,7 +309,12 @@ class ControlRuta:
             or not math.isfinite(float(corredor.error_lateral_mm))
             or not math.isfinite(float(corredor.error_rumbo_muro_deg))
         ):
-            return 0.0
+            # Un 0.0 fijo aqui congela el timon con el robot cruzado: en la
+            # corrida 20260831_120547 el ajuste de pared perdio calidad tras
+            # el sobrepaso (heading +33 grados) y el robot derivo en diagonal
+            # hasta el timeout de RECENTER. Volver al rumbo del carril
+            # endereza la vista del LiDAR y recupera el propio ajuste.
+            return self._angulo_rumbo_carril()
 
         alfa = _limitar(float(self._control["wall_filter_alpha"]), 0.0, 1.0)
         if self._error_lateral_filtrado is None:
@@ -1170,6 +1195,9 @@ class ControlRuta:
                     detener_inmediato=True,
                     direccion_neutra=True,
                 )
+            # El heading del arranque define el rumbo del primer tramo; las
+            # esquinas contadas le suman 90 grados por sentido de vuelta.
+            self._heading_referencia = self._heading_actual
             self._entrar("CRUISE", instante)
 
         if self._estado == "PARKING":
