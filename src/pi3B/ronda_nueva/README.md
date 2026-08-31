@@ -303,11 +303,39 @@ Bajar el umbral de la guardia (230 → 165) se probó primero y **no es la
 solución**: cierra las esquinas pero el robot pasa a rozar la pared a
 111 mm, a 21 mm de la emergencia lateral.
 
-**Estado:** el cambio de la guardia está probado offline pero **pendiente
-de validar en pista**. La corrida `151437` no sirve para juzgarlo porque
-arrancó pegada al bloque central (`der=206 mm`), donde quedó la corrida
-anterior, en vez de en la línea de salida. Hay que repetirla colocando el
-robot en la salida.
+**La pista refutó el cambio y se revirtió.** Repetido desde la línea de
+salida, dejar solo el término de rumbo dio **cero esquinas** frente a las
+dos de la mejor configuración: sin el término lateral el robot llega al
+recentrado pegado a la pared y agota su timeout antes de la primera
+esquina. Ese término es también lo que impide pegarse, así que se
+conserva; el desvío hay que corregirlo antes, en el punto de paso, no
+quitándole autoridad a la pared. Bajar el umbral (230 → 165) tampoco
+sirve: cierra esquinas pero roza a 111 mm, a 21 mm de la emergencia.
+
+Queda un test que fija el término lateral en su sitio, para que el
+intento no se repita sin leer antes esta bitácora.
+
+### Lo que sí resolvió el caso
+
+Persiguiendo esto apareció la causa real de los timeouts de
+reincorporación: **el criterio de «centrado» exigía calidad de ajuste de
+pared**. Tras rebasar un pilar esa calidad cae (0,21 medido), y el robot
+se quedaba centrado —108 mm de error, dentro de la tolerancia de 150— sin
+poder confirmarlo nunca. Estar centrado es una afirmación sobre
+distancias medidas, no sobre lo bien que se ajustó una recta; la calidad
+sigue gobernando el mando en `_angulo_pared`, que es donde importa.
+
+| Configuración (desde la misma salida) | Esquinas | Margen | Emergencias |
+| --- | --- | --- | --- |
+| handoff 900, guardia 230/125 | 1 | 131 mm | 0 |
+| handoff 700, guardia 165/110 | 2 | 111 mm | 8 |
+| handoff 700, guardia solo-rumbo | 0 | 127 mm | 0 |
+| handoff 700, guardia 230/125 | 0 | 138 mm | 0 |
+| **handoff 700, guardia 230/125 + centrado por laterales** | **2** | **214 mm** | **0** |
+
+La última es la configuración actual: mismas dos esquinas que la mejor
+anterior, pero con casi el doble de margen a la pared y sin una sola
+emergencia.
 
 ## Maniobra de esquina en tres tiempos
 
