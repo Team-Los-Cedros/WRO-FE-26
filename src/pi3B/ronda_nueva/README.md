@@ -268,6 +268,35 @@ tiempos (avanzar girando, retroceder al contrario, avanzar), que el
 reglamento no prohíbe pero cuesta segundos de ronda. Conviene medir el
 ángulo de rueda con un transportador antes de decidir.
 
+## Cierre real de la sesión: tres corridas seguidas sin fallo terminal
+
+| Corrida | Esquinas | Emerg. | Sueltas | Fin |
+| --- | --- | --- | --- | --- |
+| 18:22 (soltar pilar) | 5 | 0 | 0 | **no falló** |
+| 18:39 (desde la curva) | 4 | 39 | 0 | **no falló** |
+| 18:46 (herencia de color) | 4 | 22 | 1 | **no falló** |
+
+Antes de estos dos arreglos, **dos de cada tres corridas morían por
+timeout a los 46-50 s**. Ahora ninguna de las tres muere: las tres llegan
+al final de la ventana de prueba. El techo bajó de 6 a 4-5 esquinas, pero
+el suelo subió, que era exactamente lo que se buscaba.
+
+Dos comprobaciones directas de que los arreglos actúan:
+
+- En la corrida `184623` se ve el ciclo completo en el CSV: a los 39,7 s
+  «track bloqueado perdido; parada para reasociar» y a los 40,5 s «pilar
+  no reasociado; se suelta y sigue el carril». **0,8 s de espera en vez de
+  los 9,7 s** que antes acababan en `FAILED`.
+- La última observación directa de un track llegó a **y = 8 mm**, contra
+  los 63-70 mm típicos de antes: la herencia de color mantiene el pilar
+  identificado hasta pegado al morro.
+
+Lo que sigue abierto es un caso distinto del punto ciego: **tracks que se
+pierden lejos**, a 470 y 774 mm en esta misma corrida. Algunos coinciden
+con giros fuertes (13-15°/s) pero otros no, así que la hipótesis del error
+de predicción durante el giro no los explica todos. Hace falta
+instrumentar la fusión para verlo; los CSV de control no bastan.
+
 ## Estado al cierre de la sesión del 2026-08-31
 
 Mejor corrida: **6 esquinas, 6 pilares rebasados, cero emergencias**, 86,7 s
