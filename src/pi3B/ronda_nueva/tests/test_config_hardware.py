@@ -22,7 +22,12 @@ class ConfiguracionTests(unittest.TestCase):
         self.assertAlmostEqual(camara["hfov_deg"], 68.16865, places=4)
         self.assertAlmostEqual(camara["principal_x_px"], 352.074, places=3)
         self.assertAlmostEqual(camara["forward_from_lidar_mm"], -99.76, places=2)
-        self.assertEqual(config["lidar"]["blind_sectors_deg"], [[163.0, 191.0]])
+        # El 2026-08-31 el arranque se nego a armar por "estructura fuera de
+        # la mascara en 192". Midiendo el barrido crudo, el eco del mastil
+        # llega hasta 193 grados (110 y 112 mm en 192 y 193, dentro del
+        # rango 84-113 del mastil) y solo en 194 salta a 910 mm, que ya es
+        # entorno. La mascara de 163-191 se quedaba dos grados corta.
+        self.assertEqual(config["lidar"]["blind_sectors_deg"], [[163.0, 195.0]])
 
     def test_movimiento_completo_sigue_bloqueado_hasta_calibrar_parqueo(self):
         config = cargar_configuracion()

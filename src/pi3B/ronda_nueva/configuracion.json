@@ -77,7 +77,7 @@
     "bay_lateral_max_mm": 900.0,
     "bay_max_longitudinal_mm": 1100.0,
     "bay_confirm_scans": 3,
-    "blind_sectors_deg": [[163.0, 191.0]],
+    "blind_sectors_deg": [[163.0, 195.0]],
     "rear_axis_deg": 180.0,
     "rear_shoulder_offset_deg": [18.0, 35.0],
     "rear_right_sector_deg": [90.0, 162.0],
