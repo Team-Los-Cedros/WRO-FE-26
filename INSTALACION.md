@@ -97,11 +97,12 @@ ls -l /dev/ttyUSB0 /dev/ttyACM0
 2. Mantén presionado el botón **BOOTSEL** del Pico 2 mientras lo conectas por USB a tu laptop. Aparecerá como una unidad de almacenamiento externa (`RP2350`).
 3. Arrastra el archivo `.uf2` a esa unidad. El Pico se reinicia solo y queda con MicroPython instalado.
 4. Instala [Thonny IDE](https://thonny.org/) en tu laptop (el editor más simple para subir archivos a un microcontrolador; también sirven `mpremote` o `rshell` si prefieres línea de comandos).
-5. En Thonny, selecciona el intérprete `MicroPython (Raspberry Pi Pico)` en la esquina inferior derecha, y copia al Pico (usando `Archivo > Guardar como > Raspberry Pi Pico`) estos dos archivos:
+5. En Thonny, selecciona el intérprete `MicroPython (Raspberry Pi Pico)` en la esquina inferior derecha, y copia al Pico (usando `Archivo > Guardar como > Raspberry Pi Pico`) estos tres archivos:
    - [`src/pico/main.py`](src/pico/main.py)
+   - [`src/pico/protocolo_seguro.py`](src/pico/protocolo_seguro.py)
    - [`src/pico/Mpu6050.py`](src/pico/Mpu6050.py)
 
-No hace falta instalar ningún paquete adicional en el Pico — `main.py` solo usa módulos incluidos en MicroPython (`machine`, `time`, `sys`, `select`).
+No hace falta instalar ningún paquete adicional en el Pico — `main.py` solo usa módulos incluidos en MicroPython (`machine`, `time`, `sys`, `select`) y el módulo local `protocolo_seguro.py`. Esta versión frena y centra de forma autónoma si pasan 500 ms sin una consigna válida; comprueba el corte de USB con las ruedas levantadas antes de una prueba en pista.
 
 ---
 

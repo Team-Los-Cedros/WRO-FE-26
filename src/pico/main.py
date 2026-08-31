@@ -3,6 +3,8 @@ import select
 from machine import Pin, I2C, PWM
 import time
 
+from protocolo_seguro import parsear_consigna, watchdog_vencido
+
 # Configurar el Poller para lectura serial asincrona desde la Pi 3B
 poller = select.poll()
 poller.register(sys.stdin, select.POLLIN)
@@ -216,6 +218,13 @@ KD_ESTABILIDAD = 0.12
 # giro que se mida NO corresponde al comando que se mando.
 kd_activo = 1.0
 
+# Si la Pi deja de enviar consignas validas (cable USB desconectado, proceso
+# caido o trama corrupta), la Pico frena y centra por si sola. El timeout es
+# holgado frente al ciclo LiDAR normal y no depende del watchdog de Linux.
+WATCHDOG_COMANDO_MS = 500
+ultimo_comando_valido = None
+watchdog_activo = True
+
 ultima_lectura = time.ticks_ms()
 ultimo_envio_telemetria = time.ticks_ms()
 
@@ -242,21 +251,22 @@ while True:
         if poller.poll(0):
             linea = sys.stdin.readline().strip()
             if linea:
-                try:
-                    partes = linea.split(',')
-                    if len(partes) >= 2:
-                        velocidad_comandada = int(partes[0])
-                        angulo_objetivo = float(partes[1])
-                        # Una consigna de dos campos devuelve la
-                        # amortiguacion a su valor normal. Sin esto un
-                        # kd=0 de calibracion quedaria pegado hasta
-                        # reiniciar la Pico y la siguiente ronda correria
-                        # sin amortiguacion sin que nadie lo note.
-                        kd_activo = 1.0
-                    if len(partes) == 3:
-                        kd_activo = float(partes[2])
-                except:
-                    pass
+                consigna = parsear_consigna(linea)
+                if consigna is not None:
+                    velocidad_comandada, angulo_objetivo, kd_activo = consigna
+                    ultimo_comando_valido = tiempo_actual
+                    watchdog_activo = False
+
+        if watchdog_vencido(
+            tiempo_actual,
+            ultimo_comando_valido,
+            WATCHDOG_COMANDO_MS,
+            time.ticks_diff,
+        ):
+            velocidad_comandada = 0
+            angulo_objetivo = 0.0
+            kd_activo = 1.0
+            watchdog_activo = True
 
         # 4. Angulo objetivo (de la Pi) sobre el centro, con amortiguacion por gyro
         angulo_servo = CENTRO + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD * kd_activo)
@@ -271,7 +281,10 @@ while True:
 
         # 6. Telemetria a la Pi 3B: angulo acumulado + color de piso
         if time.ticks_diff(tiempo_actual, ultimo_envio_telemetria) > 50:
-            sys.stdout.write(f"IMU:{angulo_acumulado:.2f},COLOR:{color_detectado}\n")
+            estado_watchdog = "STOP" if watchdog_activo else "OK"
+            sys.stdout.write(
+                f"IMU:{angulo_acumulado:.2f},COLOR:{color_detectado},WD:{estado_watchdog}\n"
+            )
             ultimo_envio_telemetria = tiempo_actual
 
         time.sleep(0.005)
