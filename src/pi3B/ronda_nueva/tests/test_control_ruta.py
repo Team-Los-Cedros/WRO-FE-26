@@ -209,20 +209,80 @@ class ControlRutaTests(unittest.TestCase):
         orden = control.procesar(borrosa, (), 120.0, "PISTA", ahora=2.1)
         self.assertLess(orden.angulo, 0.0)
 
-    def test_la_pared_endereza_pero_no_decide_el_lado_de_paso(self):
-        """El lado de paso lo fija el color, no la geometria del LiDAR.
+    def test_recentrado_confirma_con_laterales_aunque_baje_la_calidad(self):
+        """Regresion de las corridas 152111 y 152413.
+
+        El robot llego a 108 mm de error lateral, dentro de la tolerancia
+        de 150, y aun asi agoto el timeout de reincorporacion porque la
+        calidad del ajuste de pared habia caido a 0,21 y el criterio de
+        centrado la exigia por encima de 0,30. Estar centrado es una
+        afirmacion sobre distancias medidas, no sobre el ajuste."""
+
+        self._sin_slew()
+        control = ControlRuta(self.config)
+        control.procesar(corredor(), (), 0.0, "AZUL", ahora=0.0)
+        control.procesar(
+            corredor(), (track(4, "ROJO", x=-260.0, y=150.0),),
+            0.0, "PISTA", ahora=0.1,
+        )
+        control.procesar(corredor(), (), 0.0, "PISTA", ahora=1.0)
+        control.procesar(
+            corredor(izquierda=860.0, derecha=140.0, calidad=0.8),
+            (), 0.0, "PISTA", ahora=2.0,
+        )
+        self.assertEqual(control.estado, "RECENTER")
+
+        # Centrado de sobra (108 mm), pero con el ajuste degradado.
+        centrado = corredor(
+            izquierda=922.0, derecha=814.0, calidad=0.21,
+            frontal=1400.0, frontal_muro=1400.0,
+        )
+        control.procesar(centrado, (), 0.0, "PISTA", ahora=2.1)
+        orden = control.procesar(centrado, (), 0.0, "PISTA", ahora=2.2)
+        self.assertEqual(control.estado, "CRUISE")
+        self.assertIn("reincorporacion verificada", orden.razon)
+
+        # Una lateral invalida si debe impedir la confirmacion: ahi no hay
+        # geometria que respalde la afirmacion de estar centrado.
+        otro = ControlRuta(self.config)
+        otro.procesar(corredor(), (), 0.0, "AZUL", ahora=0.0)
+        otro.procesar(
+            corredor(), (track(5, "ROJO", x=-260.0, y=150.0),),
+            0.0, "PISTA", ahora=0.1,
+        )
+        otro.procesar(corredor(), (), 0.0, "PISTA", ahora=1.0)
+        otro.procesar(
+            corredor(izquierda=860.0, derecha=140.0, calidad=0.8),
+            (), 0.0, "PISTA", ahora=2.0,
+        )
+        ciego = corredor(
+            izquierda=922.0, derecha=814.0, calidad=0.21,
+            laterales_validas=False,
+        )
+        otro.procesar(ciego, (), 0.0, "PISTA", ahora=2.1)
+        otro.procesar(ciego, (), 0.0, "PISTA", ahora=2.2)
+        self.assertEqual(otro.estado, "RECENTER")
+
+    def test_la_pared_conserva_su_termino_lateral_con_pilar_activo(self):
+        """La guardia empuja hacia el pilar, y aun asi debe conservarse.
 
         Rebasar un pilar centrado deja unos 175 mm a la pared en un carril
-        de 1000, asi que la guardia se activa en toda evasion. Con el
-        termino lateral dentro empujaba al robot hacia el pilar que estaba
-        esquivando (corrida 145857: la pared llego a pesar 0,94)."""
+        de 1000, asi que la guardia interviene en toda evasion, no como
+        excepcion: en la corrida 145857 llego a pesar 0,94 del mando y el
+        robot giraba hacia el pilar que esquivaba. Se probo dejar solo el
+        termino de rumbo mientras hay un pilar activo y en pista salio
+        peor -- corrida 152111, cero esquinas frente a las dos de la 151037
+        desde la misma salida-- porque ese termino lateral es tambien lo
+        que impide pegarse a la pared: sin el, el robot llega descentrado
+        al recentrado y agota su timeout antes de la primera esquina.
+
+        Esta prueba fija que se conserva, para que el intento no se repita
+        sin leer antes la bitacora del README."""
 
         self._sin_slew()
         control = ControlRuta(self.config)
         control.procesar(corredor(), (), 0.0, "AZUL", ahora=0.0)
 
-        # Verde: el robot pasa por la izquierda y queda pegado a esa pared,
-        # descentrado a proposito pero paralelo (error de rumbo nulo).
         pegado = corredor(
             izquierda=150.0, derecha=850.0, error_rumbo=0.0, calidad=0.9
         )
@@ -231,28 +291,9 @@ class ControlRutaTests(unittest.TestCase):
             0.0, "PISTA", ahora=0.1,
         )
         self.assertEqual(control.track_activo_color, "VERDE")
-        # Estando paralelo no hay nada que enderezar: lo poco que queda es
-        # el pure-pursuit, no la pared. Con el termino lateral dentro, el
-        # protector saturaba en el tope derecho y arrastraba el mando.
-        self.assertLess(abs(verde.angulo), 2.0)
-
-        # Contraste: el mismo corredor sin pilar activo si debe recentrar
-        # con fuerza, porque ahi no hay ninguna intencion que respetar.
-        libre = ControlRuta(self.config)
-        libre.procesar(corredor(), (), 0.0, "AZUL", ahora=0.0)
-        crucero = libre.procesar(pegado, (), 0.0, "PISTA", ahora=0.1)
-        self.assertLess(crucero.angulo, -10.0)
-
-        # Por debajo de la holgura completa manda no chocar, y ahi la pared
-        # recupera toda su autoridad aunque el pilar siga activo.
-        critico = corredor(
-            izquierda=100.0, derecha=900.0, error_rumbo=0.0, calidad=0.9
-        )
-        orden = control.procesar(
-            critico, (track(3, "VERDE", x=260.0, y=280.0),),
-            0.0, "PISTA", ahora=0.2,
-        )
-        self.assertLess(orden.angulo, 0.0)
+        # Descentrado y paralelo, el mando lo domina la pared alejandolo de
+        # ella, no el pure-pursuit hacia el punto de paso.
+        self.assertLess(verde.angulo, -10.0)
 
     def _entrar_en_giro(self, control, sentido_color="AZUL"):
         """Deja la FSM en TURN, que es donde vive la maniobra de esquina."""
