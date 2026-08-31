@@ -219,15 +219,20 @@ class ControlRutaTests(unittest.TestCase):
         pilar. La restriccion es geometrica, asi que se comprueba aqui."""
 
         control = self.config["control"]
+        parking = self.config["parking"]
         hueco = float(control["narrowest_gap_wall_to_pillar_mm"])
         semi_pilar = 25.0
-        ancho_robot = float(self.config["parking"]["robot_width_mm"])
         separacion = float(control["obstacle_lateral_clearance_mm"])
+        # El LiDAR no esta centrado: 61 mm al perimetro izquierdo y 45 al
+        # derecho, medidos con regla el 2026-08-31. Rebasando un pilar verde
+        # la pared queda a la izquierda, que es el borde mas lejano.
+        borde_pared = float(parking["lidar_to_left_edge_mm"])
+        borde_pilar = float(parking["lidar_to_right_edge_mm"])
 
-        # Distancia de la pared al eje del robot en el punto de paso.
+        # Distancia de la pared al eje del LiDAR en el punto de paso.
         eje = hueco - separacion
-        holgura_pared = eje - ancho_robot / 2.0
-        holgura_pilar = (hueco - semi_pilar) - eje - ancho_robot / 2.0
+        holgura_pared = eje - borde_pared
+        holgura_pilar = (hueco - semi_pilar) - eje - borde_pilar
 
         self.assertGreater(
             holgura_pared, 50.0,

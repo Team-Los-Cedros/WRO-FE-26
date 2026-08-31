@@ -38,7 +38,7 @@ RADIO_RUEDA    = 18.0    # neumatico LEGO de 36mm de diametro
 VOLADIZO_TRASERO = 60.0
 
 # ==========================================
-# OFFSET DEL LIDAR RESPECTO AL EJE TRASERO  [ESTIMADO]
+# OFFSET DEL LIDAR RESPECTO AL EJE TRASERO  [MEDIDO] 2026-08-31
 # ==========================================
 # LIDAR_X: cuanto ADELANTE del eje trasero esta el eje de rotacion del
 #          LiDAR. Positivo = hacia el frente.
@@ -46,13 +46,33 @@ VOLADIZO_TRASERO = 60.0
 #          izquierda.
 # LIDAR_Z: altura del plano de barrido sobre el piso (README: 90mm).
 #
-# Estos valores salen de fotogrametria sobre v-photos/Topview.jpeg,
-# v-photos/Rightview.jpeg y v-photos/frontview.jpeg, corrigiendo el
-# paralaje por altura (ver MEDICIONES.md, seccion 1). Incertidumbre
-# +-10mm en x y +-5mm en y. SUSTITUIR por la medicion con regla.
-LIDAR_X = 128.0
-LIDAR_Y = -4.0
+# Medido con regla sobre el robot: el LiDAR esta AL RAS DEL MORRO y el
+# perimetro queda a 45mm por la derecha y 61mm por la izquierda. De ahi
+# salen los dos valores de abajo. Los anteriores (128 y -4) venian de
+# fotogrametria sobre las v-photos y el propio archivo pedia sustituirlos
+# por una medicion con regla: el error en x resulto de 34mm, mas del
+# triple de la incertidumbre que se les habia asignado.
+DISTANCIA_LIDAR_MORRO    = 0.0    # el LiDAR va al ras del borde delantero
+DISTANCIA_LIDAR_DERECHA  = 45.0   # del eje del LiDAR al perimetro derecho
+DISTANCIA_LIDAR_IZQUIERDA = 61.0  # del eje del LiDAR al perimetro izquierdo
+
+# El morro esta a LARGO_ROBOT - VOLADIZO_TRASERO del eje trasero, y el
+# LiDAR coincide con el morro.
+LIDAR_X = LARGO_ROBOT - VOLADIZO_TRASERO - DISTANCIA_LIDAR_MORRO   # 162.0
+# Esta mas cerca del perimetro derecho, luego cae a la derecha del eje.
+LIDAR_Y = (DISTANCIA_LIDAR_IZQUIERDA - DISTANCIA_LIDAR_DERECHA) / 2.0  # +8.0
 LIDAR_Z = 90.0
+
+# Ancho en el plano de barrido, que es el que importa para decidir si el
+# robot pasa por un hueco.
+ANCHO_EN_LIDAR = DISTANCIA_LIDAR_DERECHA + DISTANCIA_LIDAR_IZQUIERDA  # 106.0
+
+# [POR ACLARAR] ANCHO_ROBOT dice 125 y VIA 115, pero el perimetro medido
+# en el plano del LiDAR da 106. Lo mas probable es que 125 incluya las
+# ruedas, que sobresalen por debajo del plano de barrido: el LiDAR no las
+# ve, pero si rozan la pared. Mientras no se aclare, usar ANCHO_EN_LIDAR
+# para calcular huecos vistos por el LiDAR y ANCHO_ROBOT para cualquier
+# holgura de colision real.
 
 # ==========================================
 # OFFSET DE LA CAMARA RESPECTO AL LIDAR  [ESTIMADO]

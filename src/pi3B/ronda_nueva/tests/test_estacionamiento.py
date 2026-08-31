@@ -120,9 +120,25 @@ class EstacionamientoTests(unittest.TestCase):
         self.assertTrue(resultado.verificado)
         self.assertEqual(resultado.velocidad, 0)
 
-    def test_centro_corrige_offset_del_lidar_delta_154_mm(self):
+    def test_centro_corrige_offset_del_lidar(self):
+        """El objetivo sale de la geometria, no de un numero fijo.
+
+        Con el LiDAR medido al ras del morro el delta es 222 mm. Antes se
+        creia 154 porque `lidar_forward_from_rear_axle_mm` valia 128, un
+        valor de fotogrametria que el propio geometria_robot.py pedia
+        sustituir por una medicion con regla; la real dio 162."""
+
         controlador, hueco = self._hasta_center()
-        self.assertAlmostEqual(controlador.delta_centrado_objetivo_mm, 154.0)
+        parking = self.config["parking"]
+        esperado = 2.0 * (
+            float(parking["rear_overhang_mm"])
+            + float(parking["lidar_forward_from_rear_axle_mm"])
+            - float(parking["robot_length_mm"]) / 2.0
+        )
+        self.assertAlmostEqual(esperado, 222.0)
+        self.assertAlmostEqual(
+            controlador.delta_centrado_objetivo_mm, esperado
+        )
 
         # Igualar ambas holguras centraria el LiDAR, pero dejaria adelantado el
         # centro del robot. Debe ordenar avance para corregirlo.
@@ -138,7 +154,7 @@ class EstacionamientoTests(unittest.TestCase):
         self.assertGreater(resultado.velocidad, 0)
 
         frontal, trasera = self._distancias_centradas(controlador)
-        self.assertAlmostEqual(trasera - frontal, 154.0)
+        self.assertAlmostEqual(trasera - frontal, esperado)
         resultado = controlador.procesar(
             hueco,
             0.0,
@@ -367,7 +383,16 @@ class EstacionamientoTests(unittest.TestCase):
         config["parking"]["align_edge_trim_mm"] = 25.0
         config["parking"]["align_edge_y_mm"] = 999.0  # no debe dominar al nuevo
         controlador = ControlEstacionamiento(config)
-        self.assertAlmostEqual(controlador.objetivo_alineacion_mm, -93.0)
+        # Derivado de la geometria: -(lidar_desde_eje - medio_separador -
+        # recorte). Con el LiDAR medido en el morro (162 mm) son -127; con
+        # el valor viejo de fotogrametria (128) salian -93.
+        esperado = -(
+            float(config["parking"]["lidar_forward_from_rear_axle_mm"])
+            - float(config["parking"]["separator_thickness_mm"]) / 2.0
+            - float(config["parking"]["align_edge_trim_mm"])
+        )
+        self.assertAlmostEqual(esperado, -127.0)
+        self.assertAlmostEqual(controlador.objetivo_alineacion_mm, esperado)
 
         hueco = crear_hueco(controlador.objetivo_alineacion_mm)
         controlador.procesar(hueco, 0.0, 500.0, 500.0, ahora=0.0)
