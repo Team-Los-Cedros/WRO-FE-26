@@ -209,6 +209,65 @@ No realizarla mientras se modifica el chasis.
 7. Solo entonces marcar `parking_ready=true` y `motion_enabled=true` en una
    copia de configuración versionada con la fecha de la medición.
 
+## Sesión de pista 2026-08-31: el radio de giro es el bloqueante
+
+Tres corridas con motores (`--sin-parqueo`, 25 PWM) sobre la pista con los
+ocho pilares montados. Los CSV están en el `logs_prueba_*` de cada
+despliegue y el video cenital en `video/video-drafts/`.
+
+**Lo que quedó resuelto.** El *fallback* de rumbo funciona: en la corrida
+`143903` `RECENTER` terminó por primera vez en «reincorporación
+verificada» en vez de agotar su timeout. Las tres corridas mantuvieron
+`WD:OK` en el 100 % de los ciclos y la edad de visión se quedó en
+67–72 ms de mediana (p95 ≤ 85 ms), así que ni el enlace con la Pico ni la
+cámara son cuello de botella.
+
+**La medida que importa.** Con el servo en su tope y 22–23 PWM:
+
+| Magnitud | Valor medido |
+| --- | --- |
+| Velocidad lineal | 150 mm/s (cierre de `frontal_muro` en recta) |
+| Giro máximo a la izquierda | 14,4 °/s |
+| Giro máximo a la derecha | 14,1 °/s |
+| **Radio de giro mínimo** | **≈ 600 mm, en ambos sentidos** |
+| Ángulo de rueda implícito | 12,7° (Ackermann, batalla 136 mm) |
+
+**Esto corrige la hipótesis anterior.** La bitácora del 28-08 atribuía los
+fallos a que el robot «no puede hacer las curvas a derechas» por la
+asimetría 25°/20° del servo. Los datos dicen otra cosa: izquierda y
+derecha giran prácticamente igual (14,4 contra 14,1 °/s, un 2 % de
+diferencia). El problema no es la asimetría sino que **ambos lados giran
+demasiado poco**: se comandan 20–25° de servo y la rueda solo alcanza
+unos 12,7°, es decir, algo más de la mitad del ángulo pedido. La pérdida
+está en la relación varilla/horn, no en el firmware ni en el signo.
+
+**Por qué ninguna calibración lo salva.** Un carril WRO mide 1000 mm, así
+que una esquina de 90° necesita un radio de unos 400–500 mm. Con 600 mm
+el arco no cabe. Se probaron dos calibraciones muy distintas y las dos
+fallan por la misma geometría:
+
+- `corner_front_trigger_mm` 650 y `corner_timeout_s` 3,2: el giro se corta
+  a los 39° porque el timeout solo da para eso.
+- `corner_front_trigger_mm` 900 y `corner_timeout_s` 8,0 (valores que la
+  medición justifica): el robot llega a girar 110°, pero `frontal_muro`
+  cae de forma monótona de 906 mm a 282 mm y **nunca** vuelve a abrirse a
+  los 780 mm que exige la salida. El arco lo lleva contra la pared en vez
+  de rodearla; el video cenital muestra al robot cruzando el carril
+  entero en lugar de girar dentro de él.
+
+Los valores nuevos (900 mm y 8,0 s) quedan en `configuracion.json` porque
+son los que la medición respalda, pero conviene leerlos como «necesarios
+y todavía no suficientes».
+
+**Qué desbloquea esto.** Subir el ángulo real de rueda de 12,7° a ~18°
+(radio 400 mm) es trabajo mecánico: alargar el brazo del horn del servo o
+acortar el del muñón para ganar recorrido, y comprobar que ningún tope
+físico esté recortando el giro antes que el firmware. Si el chasis no da
+más, la alternativa por software es una maniobra de esquina en tres
+tiempos (avanzar girando, retroceder al contrario, avanzar), que el
+reglamento no prohíbe pero cuesta segundos de ronda. Conviene medir el
+ángulo de rueda con un transportador antes de decidir.
+
 ## Watchdog autónomo de la Pico
 
 `src/pico/main.py` usa ahora `src/pico/protocolo_seguro.py`: solo acepta tramas
