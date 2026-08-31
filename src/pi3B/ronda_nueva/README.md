@@ -634,3 +634,40 @@ automáticamente el firmware que ya esté en la Pico.
 
 Las fuentes internacionales estudiadas y las decisiones de portabilidad están
 en [`REFERENCIAS_2025.md`](REFERENCIAS_2025.md).
+
+## El sentido detectado NO es el que llevábamos configurado
+
+Primera corrida real en `AUTO` (`185856`). El robot avanzó **11,6 s
+buscando la línea**, centrado por las paredes, y al cruzarla fijó el
+sentido:
+
+| | |
+| --- | --- |
+| Primer color de línea leído | **AZUL** a los 11,58 s |
+| Sentido fijado | **ANTIHORARIO (LEFT)** |
+| Giro ejecutado | +25° de servo, heading −4,8° → +67,3° |
+
+Todas las corridas del día se hicieron con `RIGHT` escrito a mano. Si la
+lectura es correcta, **íbamos en el sentido contrario al que marca la
+pista**, y eso invalida como referencia buena parte de lo medido hoy en
+esquinas.
+
+Hay un segundo efecto, y no es menor. Los topes de dirección son
+asimétricos —+25° a la izquierda contra −20° a la derecha— así que el
+sentido cambia el radio de giro:
+
+| Sentido de giro | Velocidad angular | Radio implicado |
+| --- | --- | --- |
+| Izquierda (+25°) | 15,4 °/s | **559 mm** |
+| Derecha (−20°) | 13,9 °/s | 617 mm |
+
+Girando a la izquierda el robot cierra **58 mm más de radio**. Es la
+misma diferencia que llevamos todo el día intentando ganar por software.
+Ojo: la cifra de la izquierda sale de **una sola esquina**, así que hay
+que repetirla antes de darla por buena.
+
+Queda por confirmar que la convención `AZUL → LEFT` es la correcta para
+esta pista; si estuviera invertida se corrige en `floor_color_left` y
+`floor_color_right` sin tocar código. Y los 11,6 s de búsqueda son
+demasiados: el timeout está en 12, así que faltó poco para fallar, y en
+competencia son 11,6 s de los 180 gastados antes de empezar.
