@@ -268,6 +268,68 @@ tiempos (avanzar girando, retroceder al contrario, avanzar), que el
 reglamento no prohíbe pero cuesta segundos de ronda. Conviene medir el
 ángulo de rueda con un transportador antes de decidir.
 
+## Punto ciego a corta distancia: el LiDAR ve y la cámara no
+
+El atasco de la cuarta esquina (corrida `154741`, segundo 67) es un bucle
+`TURN` → `RECOVERY` → `CRUISE` → `TURN` repetido cuatro veces. El CSV lo
+explica con dos columnas:
+
+- en `TURN`, `frontal == frontal_muro` (596 = 596): lo más cercano es la
+  pared;
+- en `RECOVERY`, `frontal = 116` pero `frontal_muro = 597`: **hay un
+  objeto a 12 cm que no es pared**;
+- y a la vez `tracks = 3`, `tracks_confirmados = 0`.
+
+O sea: el robot tiene un pilar pegado al morro, el LiDAR lo ve, y **no
+sabe de qué color es**. Sin color no hay regla de evasión que aplicar, así
+que el pilar solo existe como disparador de emergencia. `TURN` gira, el
+pilar entra en el sector frontal, salta la emergencia, `RECOVERY`
+retrocede, el pilar sale, y vuelta a empezar.
+
+### Dónde empieza el punto ciego
+
+Medido sobre un frame real de a bordo (captura `pilar_verde_160314`,
+robot quieto, sin abrir la Pico), usando la óptica ya calibrada
+(f = 472,9 px) y los dos pilares del encuadre como referencias:
+
+| Pilar | Alto aparente | Distancia al LiDAR | Base en el frame |
+| --- | --- | --- | --- |
+| verde | 125 px | **657 mm** | 0,556 |
+| rojo | 67 px | 1312 mm | 0,410 |
+
+Los 657 mm calculados coinciden con los ~60 cm medidos a mano, lo que
+confirma de paso que la óptica está bien. Ajustando `y = 0,241 + 237,8/d`
+y despejando en el recorte inferior de la ROI (`roi_bottom_ratio` 0,92):
+
+> **La base del pilar sale del encuadre a unos 251 mm del LiDAR.**
+
+Por debajo de esa distancia no hay suelo bajo el blob, y `min_ground_support`
+—la comprobación que se adoptó del campeón 2025 para descartar falsos
+positivos— lo rechaza. La comprobación es correcta; simplemente nadie
+había medido a partir de qué distancia empieza a rechazar pilares buenos.
+
+A 657 mm la detección es sólida: el replay en sombra confirmó el color en
+63 de 64 barridos.
+
+### La incoherencia que esto destapa
+
+`obstacle_pass_y_mm` vale 160 mm: el robot considera que «ya está
+rebasando» el pilar cuando lo tiene a 16 cm. Pero **lo pierde de vista a
+25 cm**. Hay una franja de 9 cm en la que la maniobra depende de un color
+que ya no se está midiendo.
+
+Dos arreglos, complementarios:
+
+1. **Subir el umbral de sobrepaso por encima del punto ciego** (~260 mm),
+   para congelar el rumbo mientras el dato todavía es válido en vez de
+   perseguir un punto de paso con información que ya no existe. Es
+   calibración, no código.
+2. **Conservar el color del track cuando el LiDAR lo sigue viendo pero la
+   cámara ya no.** La fusión ya acumula votos por track; falta que el
+   track no se dé por perdido y se recree en blanco al entrar en la zona
+   ciega. El lado de paso se seguiría recalculando con la posición actual,
+   no congelado.
+
 ## La causa raíz: el punto de paso no cabía en el hueco
 
 Todo lo que sigue en esta bitácora —la guardia de pared secuestrando el
