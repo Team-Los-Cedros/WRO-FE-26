@@ -1184,18 +1184,15 @@ class ControlRuta:
                 self._cambiar_fase_kturn("REVERSA", ahora)
                 self._kturn_tramos += 1
                 return self._giro_retrocediendo(corredor, ahora)
-            # Pararse aqui es el mismo punto muerto que ya costo la evasion:
-            # se espera una trasera fiable que puede no llegar nunca. En la
-            # corrida 144939 el robot quedo 14 s inmovil con el heading
-            # congelado en +430 y el timeout de esquina lo mato, teniendo
-            # 1093 mm libres a la izquierda y 750 a la derecha.
-            #
-            # Sin reversa disponible queda seguir girando hacia delante, que
-            # es lo que se hacia antes de existir la maniobra. La velocidad
-            # ya la modera _con_frenado segun el frente, y si llega a tocar
-            # el limite la emergencia toma el mando: cualquiera de las dos
-            # cosas avanza, y estar quieto no.
-            return self._giro_avanzando(corredor)
+            return self._emitir(
+                0,
+                self._angulo_giro_avance(),
+                "esquina sin frente y sin trasera fiable para el tramo {}".format(
+                    self._kturn_tramos + 1
+                ),
+                detener_inmediato=True,
+                slew_angulo_deg=self._slew_esquina(),
+            )
         return self._giro_avanzando(corredor)
 
     def _giro_retrocediendo(
