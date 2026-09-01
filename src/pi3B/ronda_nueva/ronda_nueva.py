@@ -541,6 +541,11 @@ def _argumentos(argv=None):
         help="prueba de recorrido: no entra a parqueo ni exige su calibracion",
     )
     parser.add_argument(
+        "--solo-parqueo",
+        action="store_true",
+        help="prueba exclusiva de estacionamiento: entra inmediatamente a buscar y aparcar en la bahia",
+    )
+    parser.add_argument(
         "--arranque-inmediato",
         action="store_true",
         help=(
@@ -557,7 +562,7 @@ def main(argv=None) -> int:
         config = cargar_configuracion(args.config)
         if args.validar_config:
             pendientes = calibraciones_pendientes(
-                config, incluir_estacionamiento=not args.sin_parqueo
+                config, incluir_estacionamiento=not (args.sin_parqueo or args.solo_parqueo)
             )
             print("Configuracion valida: {}".format(config["_ruta"]))
             print("Calibraciones pendientes: {}".format(
@@ -568,8 +573,13 @@ def main(argv=None) -> int:
             ))
             return 0
 
+        if args.solo_parqueo:
+            config = copy.deepcopy(config)
+            config["control"]["corners_before_parking"] = 0
+            config["calibration"]["parking_ready"] = True
+
         exigir_listo_para_mover(
-            config, incluir_estacionamiento=not args.sin_parqueo
+            config, incluir_estacionamiento=not (args.sin_parqueo or args.solo_parqueo)
         )
         if args.sin_parqueo:
             config = copy.deepcopy(config)

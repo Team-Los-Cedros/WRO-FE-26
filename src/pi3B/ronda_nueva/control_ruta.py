@@ -1256,6 +1256,9 @@ class ControlRuta:
         tracks: Sequence[TrackObstaculo],
         ahora: float,
     ) -> Consigna:
+        if self._esquinas >= int(self._control.get("corners_before_parking", 12)):
+            return self._iniciar_parqueo(ahora)
+
         fuera_refractario = (
             ahora - self._t_ultima_esquina
             >= float(self._control["corner_refractory_s"])
@@ -1590,6 +1593,8 @@ class ControlRuta:
             # El heading del arranque define el rumbo del primer tramo; las
             # esquinas contadas le suman 90 grados por sentido de vuelta.
             self._heading_referencia = self._heading_actual
+            if int(self._control.get("corners_before_parking", 12)) <= 0:
+                return self._iniciar_parqueo(instante)
             self._entrar("CRUISE", instante)
 
         if self._estado == "PARKING":
