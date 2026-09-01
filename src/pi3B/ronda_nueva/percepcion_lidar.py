@@ -460,13 +460,41 @@ class PercepcionLidar:
             if pared_der is not None
             else self._valor_medicion(medicion, "derecha", 2000.0)
         )
+
+        # Sin recta ajustada se cae al minimo crudo del sector, que no pasa
+        # por ``wall_side_min_mm`` y recoge el propio mecanismo de direccion:
+        # al girar, la rueda entra en el barrido lateral y aparecen lecturas
+        # por debajo del perimetro del robot, que esta a 61 mm por la
+        # izquierda y 45 por la derecha del eje del LiDAR. Medido sobre las
+        # corridas del 2026-08-31 y 09-01: 101 lecturas laterales imposibles
+        # a la izquierda, con el servo mediano en +17 grados, y 90 a la
+        # derecha con -8. Cada una podia disparar una emergencia falsa.
+        #
+        # Un eco mas cercano que el propio chasis no es una pared. Se marca
+        # sin dato en vez de creerselo, y el error lateral deja de ser
+        # calculable: ``_angulo_pared`` cae entonces a enderezar por rumbo,
+        # que es el comportamiento seguro ya probado en pista.
+        lateral_min = float(self._cfg("wall_side_min_mm", 80.0))
+        autoeco_izq = pared_izq is None and izquierda < lateral_min
+        autoeco_der = pared_der is None and derecha < lateral_min
+        if autoeco_izq:
+            izquierda = sin_dato
+        if autoeco_der:
+            derecha = sin_dato
+
         izquierda_valida = bool(
-            pared_izq is not None
-            or self._sector_medicion_valido(medicion, "izquierda", sin_dato)
+            not autoeco_izq
+            and (
+                pared_izq is not None
+                or self._sector_medicion_valido(medicion, "izquierda", sin_dato)
+            )
         )
         derecha_valida = bool(
-            pared_der is not None
-            or self._sector_medicion_valido(medicion, "derecha", sin_dato)
+            not autoeco_der
+            and (
+                pared_der is not None
+                or self._sector_medicion_valido(medicion, "derecha", sin_dato)
+            )
         )
 
         paredes = [p for p in (pared_izq, pared_der) if p is not None]
@@ -523,7 +551,11 @@ class PercepcionLidar:
             derecha_mm=derecha,
             trasera_izquierda_mm=trasera_izq,
             trasera_derecha_mm=trasera_der,
-            error_lateral_mm=izquierda - derecha,
+            error_lateral_mm=(
+                izquierda - derecha
+                if not (autoeco_izq or autoeco_der)
+                else float("nan")
+            ),
             error_rumbo_muro_deg=error_rumbo,
             calidad_pared=_limitar(calidad_pared, 0.0, 1.0),
             pared_izquierda=pared_izq,

@@ -146,6 +146,24 @@ class PercepcionLidarTests(unittest.TestCase):
             self.config["lidar"]["rear_no_data_mm"],
         )
 
+    def test_descarta_el_eco_de_la_direccion_como_pared_lateral(self):
+        """La rueda entra en el barrido al girar y no es una pared.
 
-if __name__ == "__main__":
-    unittest.main()
+        Sin recta ajustada, el lateral cae al minimo crudo del sector, que
+        no pasa por ``wall_side_min_mm``. Al girar, el mecanismo de
+        direccion aparece por debajo del perimetro del robot: 61 mm por la
+        izquierda y 45 por la derecha del eje del LiDAR. Medido en las
+        corridas del 2026-08-31 y 09-01, 101 lecturas imposibles a la
+        izquierda con el servo mediano en +17 grados y 90 a la derecha con
+        -8, cada una capaz de disparar una emergencia falsa."""
+
+        # Barrido sin puntos suficientes para ajustar ninguna recta lateral.
+        scan = ordenar_scan([(float(a), 1500.0) for a in range(0, 360, 24)])
+        medicion = crear_medicion(scan, derecha=450.0, izquierda=51.0)
+
+        corredor = PercepcionLidar(self.config).procesar(scan, medicion).corredor
+
+        self.assertIsNone(corredor.pared_izquierda)
+        self.assertFalse(corredor.izquierda_valida)
+        self.assertGreater(corredor.izquierda_mm, 1000.0)
+        self.assertTrue(math.isnan(corredor.error_lateral_mm))
