@@ -562,13 +562,17 @@ class ControlRutaTests(unittest.TestCase):
             trasera=800.0,
             trasera_valida=False,
         )
+        # Sin reversa disponible sigue girando hacia delante en vez de
+        # esperar quieto: en la corrida 144939 esa espera dejo al robot 14 s
+        # inmovil, con el heading congelado, hasta el timeout de esquina.
         orden = control.procesar(ciego, (), 5.0, "PISTA", ahora=0.3)
-        self.assertEqual(orden.velocidad, 0)
-        self.assertIn("sin trasera fiable", orden.razon)
+        self.assertNotIn("reversa", orden.razon)
+        self.assertGreaterEqual(orden.velocidad, 0)
+        self.assertGreater(orden.angulo, 0.0)
 
         pegado = corredor(frontal=200.0, frontal_muro=200.0, trasera=120.0)
         orden = control.procesar(pegado, (), 5.0, "PISTA", ahora=0.4)
-        self.assertEqual(orden.velocidad, 0)
+        self.assertNotIn("reversa", orden.razon)
 
     def test_kturn_resuelve_frontal_critico_sin_bucle_de_recuperacion(self):
         """Regresion de la corrida 20260901_111701, barrido 164."""
