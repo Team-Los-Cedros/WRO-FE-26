@@ -487,8 +487,17 @@ class PercepcionLidar:
                 float(self._cfg("wall_side_min_mm", 80.0)) * 2.0,
             )
         )
-        autoeco_izq = pared_izq is None and izquierda < lateral_min
-        autoeco_der = pared_der is None and derecha < lateral_min
+        # El descarte no depende de si hubo recta: el ajuste tambien puede
+        # producir una "pared" espuria ahi. Medido en la corrida 134145, la
+        # lateral izquierda alternaba 709 mm con calidad 0,83 y 58 mm con
+        # calidad 0,23 en ciclos consecutivos; el segundo valor venia de una
+        # recta ajustada, asi que el filtro anterior -que solo miraba el
+        # minimo crudo- lo dejaba pasar y disparaba la emergencia.
+        #
+        # Una pared mas cercana que el propio chasis no existe: el perimetro
+        # esta a 61 mm por la izquierda y 45 por la derecha del eje.
+        autoeco_izq = izquierda < lateral_min
+        autoeco_der = derecha < lateral_min
         if autoeco_izq:
             izquierda = sin_dato
         if autoeco_der:

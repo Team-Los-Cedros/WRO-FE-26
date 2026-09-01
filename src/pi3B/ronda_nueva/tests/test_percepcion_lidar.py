@@ -187,3 +187,23 @@ class PercepcionLidarTests(unittest.TestCase):
                 "un eco de %.0f mm sin recta no es una pared" % eco,
             )
             self.assertTrue(math.isnan(corredor.error_lateral_mm))
+
+    def test_descarta_la_pared_espuria_mas_cercana_que_el_chasis(self):
+        """Ni siquiera valiendose de una recta ajustada.
+
+        En la corrida 134145 la lateral izquierda alternaba 709 mm con
+        calidad 0,83 y 58 mm con calidad 0,23 en ciclos consecutivos. El
+        segundo valor venia de una recta, no del minimo crudo, asi que el
+        filtro anterior lo dejaba pasar y disparaba la emergencia. Una
+        pared mas cercana que el propio chasis -61 mm a la izquierda del
+        eje- no existe."""
+
+        percepcion = PercepcionLidar(self.config)
+        puntos = pared_vertical(-58.0) + pared_vertical(470.0)
+        scan = ordenar_scan(puntos)
+        corredor = percepcion.procesar(
+            scan, crear_medicion(scan, izquierda=58.0, derecha=470.0)
+        ).corredor
+        self.assertFalse(corredor.izquierda_valida)
+        self.assertGreater(corredor.izquierda_mm, 1000.0)
+        self.assertTrue(math.isnan(corredor.error_lateral_mm))
