@@ -740,3 +740,40 @@ a doce esquinas son 288 s contra los 180 de una ronda. El tiempo se va en
 las evasiones, no en las esquinas, y la velocidad configurada para las
 pruebas es de 25 PWM (unos 100 mm/s). Subirla es el siguiente paso, ya en
 terreno de afinado y no de depuración.
+
+## Intento de subir la velocidad: fallido, revertido
+
+Con el eco lateral filtrado, el límite pasó a ser el ritmo: 24 s por
+esquina son 288 s a doce, contra los 180 de una ronda. Subir el crucero de
+25 a 35 PWM no funcionó, y el porqué es instructivo.
+
+**La velocidad no rompió nada nuevo, hizo insostenible algo que ya estaba
+justo.** El sector frontal pasaba de 760 a 30 mm en un solo barrido de
+0,1 s, cuando a esa velocidad el robot avanza 12: el pilar que hay tras la
+esquina no se acercaba, aparecía. Está fuera del campo durante todo el
+giro. A 25 PWM había margen de reacción; a 35 la emergencia llegaba con el
+pilar tocando el morro.
+
+Se probaron dos arreglos y **ninguno sirvió**:
+
+- *Salida lenta de esquina* (1,5 s a velocidad de evasión tras cada giro).
+  No bastó: el siguiente fallo fue lateral, con el eco de la rueda a
+  91-107 mm, por encima del umbral de 80 que lo filtraba.
+- *Filtro de continuidad lateral*, rechazando saltos físicamente
+  imposibles (832 → 101 mm en un barrido). Descartaba la lateral derecha
+  desde el primer ciclo y la corrida moría a los 12 s. **Revertido.**
+
+Subir el umbral del fallback de 80 a 160 mm tampoco ayudó: con esa
+configuración la corrida hizo las mismas cinco esquinas pero con **136
+emergencias frente a 42**, y 30 s por esquina en vez de 24.
+
+La configuración volvió a la de la corrida `125223`, que sigue siendo la
+mejor medida: crucero 25 PWM, `lateral_fallback_min_mm` 80, sin salida
+lenta de esquina.
+
+**Lo que esto enseña sobre el orden de trabajo:** el pilar oculto tras la
+esquina hay que resolverlo *antes* de tocar la velocidad, no después. Y
+mientras el eco de la rueda no se distinga de una pared por algo mejor que
+un umbral de distancia —lo natural sería enmascarar el sector en función
+del ángulo del servo, que el robot conoce— cada subida de velocidad va a
+volver a chocar con él.
