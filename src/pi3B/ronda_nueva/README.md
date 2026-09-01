@@ -701,3 +701,42 @@ inferior apuntando al lado contrario del habitual, de modo que su marcha
 física sea antihoraria. Si entonces lee AZUL y completa varias esquinas,
 queda confirmado que el problema era la incoherencia entre pose y sentido,
 no la detección ni el control.
+
+## El eco de la dirección era el bloqueante del sentido antihorario
+
+Corriendo en el sentido correcto (antihorario), el robot moría siempre en
+la primera esquina. La causa no era el sentido: **al girar, la rueda entra
+en el barrido lateral del LiDAR**.
+
+El perímetro está a 61 mm por la izquierda y 45 por la derecha del eje del
+LiDAR, así que cualquier lectura por debajo de eso es físicamente
+imposible. Contando sobre todas las corridas del 31-08 y el 01-09:
+
+| Lado | Lecturas imposibles | Ángulo mediano del servo |
+| --- | --- | --- |
+| Izquierda (<80 mm) | 101 | **+17,3°** (girando a la izquierda) |
+| Derecha (<65 mm) | 90 | **−8,0°** (girando a la derecha) |
+
+La correlación entre el lado imposible y el lado hacia el que gira el
+servo no deja mucho margen de duda. `wall_side_min_mm` ya protegía el
+ajuste de rectas, pero cuando no hay recta el lateral cae al mínimo crudo
+del sector, que no pasa por ese filtro. En la corrida `124629` la lateral
+izquierda marcó 51, 50 y 49 mm en tres `RECOVERY` seguidos, con el robot
+girando y sin nada a su lado.
+
+Resultado de descartar como sin dato cualquier eco más cercano que el
+propio chasis, en el sentido antihorario:
+
+| Corrida | Esquinas | Duración | Emergencias | Lecturas imposibles |
+| --- | --- | --- | --- | --- |
+| 18:58 – 12:46 (seis corridas) | 0–1 | 21–46 s | 30–153 | 0–58 |
+| **12:52 (con filtro)** | **5** | **143,7 s** | **42** | **0** |
+
+De una esquina a cinco, y de morir a los 40 s a llegar a 144. Once pilares
+rebasados por el camino.
+
+**Lo que limita ahora es el ritmo, no los atascos:** 24 s por esquina, que
+a doce esquinas son 288 s contra los 180 de una ronda. El tiempo se va en
+las evasiones, no en las esquinas, y la velocidad configurada para las
+pruebas es de 25 PWM (unos 100 mm/s). Subirla es el siguiente paso, ya en
+terreno de afinado y no de depuración.
