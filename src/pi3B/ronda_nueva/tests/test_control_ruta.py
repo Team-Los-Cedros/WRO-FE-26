@@ -534,6 +534,34 @@ class ControlRutaTests(unittest.TestCase):
         orden = control.procesar(pegado, (), 5.0, "PISTA", ahora=0.4)
         self.assertEqual(orden.velocidad, 0)
 
+    def test_kturn_resuelve_frontal_critico_sin_bucle_de_recuperacion(self):
+        """Regresion de la corrida 20260901_111701, barrido 164."""
+
+        self._sin_slew()
+        self.config["control"]["turn_direction"] = "RIGHT"
+        control = ControlRuta(self.config)
+        self._entrar_en_giro(control, sentido_color="NARANJA")
+        critico = corredor(
+            frontal=66.0,
+            frontal_muro=592.5,
+            izquierda=521.6,
+            derecha=712.6,
+            trasera=543.3,
+            trasera_valida=True,
+            cobertura_trasera=0.917,
+        )
+
+        orden = control.procesar(critico, (), -43.13, "PISTA", ahora=0.3)
+        self.assertEqual(control.estado, "TURN")
+        self.assertIn("reversa", orden.razon)
+        self.assertEqual(orden.velocidad, 0)
+        self.assertGreater(orden.angulo, 0.0)
+
+        orden = control.procesar(critico, (), -43.0, "PISTA", ahora=0.4)
+        self.assertEqual(control.estado, "TURN")
+        self.assertLess(orden.velocidad, 0)
+        self.assertGreater(orden.angulo, 0.0)
+
     def test_kturn_alterna_tramos_y_respeta_el_maximo(self):
         self._sin_slew()
         self.config["control"]["corner_kturn_max_tramos"] = 2
@@ -675,6 +703,40 @@ class ControlRutaTests(unittest.TestCase):
         orden = quieto.procesar(corredor(), (), 0.0, "PISTA", ahora=0.0)
         self.assertEqual(orden.velocidad, 0)
         self.assertIn("esperando", orden.razon)
+
+    def test_sale_despacio_de_la_esquina_y_luego_recupera_el_crucero(self):
+        """Girando 90 grados el robot no ve hacia donde va a salir.
+
+        Un pilar situado tras la esquina queda fuera del campo durante todo
+        el giro y aparece de golpe: en la corrida 130028 el sector frontal
+        paso de 760 a 30 mm en un solo barrido de 0,1 s, cuando a esa
+        velocidad el robot solo avanza 12 mm. A 25 PWM habia margen de
+        reaccion; a 35 la emergencia llego con el pilar tocando el morro."""
+
+        self._sin_slew()
+        self.config["control"]["speed_cruise_pwm"] = 35
+        self.config["control"]["speed_avoid_pwm"] = 25
+        control = ControlRuta(self.config)
+        abierta = corredor(frontal=1200.0, frontal_muro=1200.0)
+        cerrada = corredor(frontal=1000.0, frontal_muro=500.0)
+
+        control.procesar(abierta, (), 0.0, "AZUL", ahora=0.0)
+        control.procesar(cerrada, (), 0.0, "PISTA", ahora=0.1)
+        control.procesar(cerrada, (), 0.0, "PISTA", ahora=0.2)
+        self.assertEqual(control.estado, "TURN")
+        control.procesar(abierta, (), 88.0, "PISTA", ahora=0.3)
+        salida = control.procesar(abierta, (), 89.0, "PISTA", ahora=0.4)
+        self.assertEqual(control.esquinas, 1)
+
+        # Recien salido de la esquina va moderado, no a crucero.
+        self.assertLessEqual(salida.velocidad, 25)
+        ventana = float(self.config["control"]["post_corner_slow_s"])
+        dentro = control.procesar(abierta, (), 89.0, "PISTA", ahora=0.4 + ventana / 2.0)
+        self.assertLessEqual(dentro.velocidad, 25)
+
+        # Pasada la ventana recupera el crucero completo.
+        fuera = control.procesar(abierta, (), 89.0, "PISTA", ahora=0.4 + ventana + 0.2)
+        self.assertGreater(fuera.velocidad, 25)
 
     def test_esquina_usa_delta_firmado_reapertura_confirmacion_y_conteo(self):
         self._sin_slew()
@@ -996,6 +1058,7 @@ class ControlRutaTests(unittest.TestCase):
         self._sin_slew()
         self.config["control"]["forced_turn_after_recoveries"] = 2
         self.config["control"]["recovery_min_s"] = 0.05
+        self.config["control"]["recovery_exit_confirm_scans"] = 1
         self.config["control"]["turn_direction"] = "RIGHT"
         control = ControlRuta(self.config)
         libre = corredor(frontal=900.0, frontal_muro=900.0)
@@ -1011,6 +1074,60 @@ class ControlRutaTests(unittest.TestCase):
         self.assertEqual(control.estado, "FORCED_TURN")
         self.assertLess(orden.angulo, 0.0)
         self.assertIn("sentido de pista", orden.razon)
+
+    def test_recuperacion_lateral_confirma_salida_y_gira_lejos_del_pilar(self):
+        """Reproduce el bucle observado junto al pilar verde derecho."""
+
+        self._sin_slew()
+        self.config["control"]["turn_direction"] = "RIGHT"
+        self.config["control"]["forced_turn_after_recoveries"] = 1
+        self.config["control"]["recovery_min_s"] = 0.05
+        self.config["control"]["recovery_exit_confirm_scans"] = 3
+        control = ControlRuta(self.config)
+        libre = corredor(frontal=490.0, frontal_muro=490.0, derecha=890.0)
+        pilar_derecho = corredor(
+            frontal=490.0,
+            frontal_muro=490.0,
+            izquierda=472.0,
+            derecha=56.0,
+            trasera=610.0,
+        )
+
+        control.procesar(libre, (), 0.0, "AZUL", ahora=0.0)
+        control.procesar(pilar_derecho, (), 0.0, "PISTA", ahora=0.1)
+        self.assertEqual(control.estado, "RECOVERY")
+
+        # Un unico barrido libre no debe invertir inmediatamente la marcha.
+        control.procesar(libre, (), 0.0, "PISTA", ahora=0.2)
+        self.assertEqual(control.estado, "RECOVERY")
+        control.procesar(libre, (), 0.0, "PISTA", ahora=0.3)
+        self.assertEqual(control.estado, "RECOVERY")
+
+        orden = control.procesar(libre, (), 0.0, "PISTA", ahora=0.4)
+        self.assertEqual(control.estado, "FORCED_TURN")
+        self.assertGreater(orden.angulo, 0.0)
+        self.assertIn("lateral derecho", orden.razon)
+
+    def test_recuperacion_acepta_salida_confirmada_en_borde_del_timeout(self):
+        """Regresion de la corrida 20260901_121058."""
+
+        self._sin_slew()
+        self.config["control"]["recovery_min_s"] = 0.0
+        self.config["control"]["recovery_timeout_s"] = 0.25
+        self.config["control"]["recovery_exit_confirm_scans"] = 3
+        control = ControlRuta(self.config)
+        libre = corredor(frontal=1300.0, izquierda=480.0, derecha=500.0)
+        peligro = corredor(frontal=43.0, trasera=600.0)
+
+        control.procesar(libre, (), 0.0, "AZUL", ahora=0.0)
+        control.procesar(peligro, (), 0.0, "PISTA", ahora=0.1)
+        control.procesar(libre, (), 0.0, "PISTA", ahora=0.2)
+        control.procesar(libre, (), 0.0, "PISTA", ahora=0.3)
+        orden = control.procesar(libre, (), 0.0, "PISTA", ahora=0.4)
+
+        self.assertEqual(control.estado, "CRUISE")
+        self.assertFalse(orden.terminado)
+        self.assertIn("recuperacion despejada", orden.razon)
 
     def test_parqueo_recibe_validez_y_lateral_y_propaga_done_failed(self):
         self._sin_slew()

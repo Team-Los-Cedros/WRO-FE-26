@@ -135,6 +135,8 @@ class ControlRuta:
         self._forzar_al_salir = False
         self._heading_inicio_forzado = 0.0
         self._signo_giro_forzado = 0
+        self._lado_emergencia = 0
+        self._confirmaciones_recuperacion_despejada = 0
 
         self._ultimo_angulo = 0.0
         self._ultima_velocidad = 0
@@ -387,6 +389,30 @@ class ControlRuta:
             protector = 0.0
         return self._acotar_angulo(deseado * (1.0 - peso) + protector * peso)
 
+    def _velocidad_crucero(self, ahora: float) -> int:
+        """Crucero, reducido durante el tramo ciego que sigue a una esquina.
+
+        Girando 90 grados el robot deja de ver hacia donde va a salir: un
+        pilar situado justo despues de la esquina permanece fuera del campo
+        durante todo el giro y aparece de golpe. Medido en la corrida
+        130028, el sector frontal paso de 760 a 30 mm en un solo barrido de
+        0,1 s, cuando a esa velocidad el robot solo avanza 12 mm: no es que
+        se acercara, es que aparecio. A 25 PWM habia margen para reaccionar;
+        a 35 ya no, y la emergencia llego con el pilar tocando el morro.
+
+        Se sale de la esquina despacio durante un tramo corto, el tiempo de
+        observar lo que no se pudo ver mientras se giraba, y despues se
+        recupera el crucero normal.
+        """
+
+        crucero = int(self._control["speed_cruise_pwm"])
+        ventana = float(self._control.get("post_corner_slow_s", 0.0))
+        if ventana <= 0.0 or not math.isfinite(self._t_ultima_esquina):
+            return crucero
+        if float(ahora) - self._t_ultima_esquina > ventana:
+            return crucero
+        return min(crucero, int(self._control["speed_avoid_pwm"]))
+
     def _con_frenado(self, velocidad_base: int, frontal_mm: float) -> int:
         inicio = float(self._control["brake_start_mm"])
         completa = float(self._control["brake_full_mm"])
@@ -434,7 +460,40 @@ class ControlRuta:
             or corredor.derecha_mm < float(self._control["emergency_side_mm"])
         )
 
-    def _iniciar_recuperacion(self, ahora: float) -> None:
+    def _giro_gestiona_emergencia_frontal(self, corredor: Corredor) -> bool:
+        """Deja al K-turn resolver un frente critico con costados seguros.
+
+        En la corrida 20260901_111701 el sector frontal salto a 66 mm por
+        un objeto estrecho mientras la pared seguia a 593 mm, los laterales
+        superaban 520 mm y habia 543 mm detras. Mandarlo a RECOVERY deshacia
+        el giro al retroceder con el signo de volante equivocado y repetia
+        el mismo episodio. TURN ya posee una reversa segura que invierte el
+        volante y valida la holgura trasera; solo se le entrega el caso
+        estrictamente frontal. Una emergencia lateral conserva la prioridad
+        global de RECOVERY.
+        """
+
+        if self._estado != "TURN" or not bool(
+            self._control.get("corner_kturn_enabled", False)
+        ):
+            return False
+        limite_frontal = float(self._control["emergency_front_mm"])
+        limite_lateral = float(self._control["emergency_side_mm"])
+        laterales_seguras = (
+            bool(corredor.izquierda_valida)
+            and bool(corredor.derecha_valida)
+            and _finito_no_negativo(corredor.izquierda_mm)
+            and _finito_no_negativo(corredor.derecha_mm)
+            and corredor.izquierda_mm >= limite_lateral
+            and corredor.derecha_mm >= limite_lateral
+        )
+        return bool(
+            _finito_no_negativo(corredor.frontal_mm)
+            and corredor.frontal_mm < limite_frontal
+            and laterales_seguras
+        )
+
+    def _iniciar_recuperacion(self, corredor: Corredor, ahora: float) -> None:
         ventana = float(self._control["forced_turn_window_s"])
         self._recuperaciones = [
             instante
@@ -450,16 +509,41 @@ class ControlRuta:
         self._ultimo_track = None
         self._track_observado = False
         self._confirmaciones_recentrado = 0
+        self._confirmaciones_recuperacion_despejada = 0
+
+        # Conserva el lateral que origino la maniobra. En la prueba real
+        # 20260901_112827, un pilar verde quedo a 44--60 mm a la derecha:
+        # retroceder y volver a avanzar con el mismo volante repetia el arco
+        # indefinidamente. El giro forzado debe apartarse de ese lateral; una
+        # emergencia puramente frontal mantiene el sentido normal de pista.
+        limite_lateral = float(self._control["emergency_side_mm"])
+        izquierda_critica = bool(
+            corredor.izquierda_valida
+            and _finito_no_negativo(corredor.izquierda_mm)
+            and corredor.izquierda_mm < limite_lateral
+        )
+        derecha_critica = bool(
+            corredor.derecha_valida
+            and _finito_no_negativo(corredor.derecha_mm)
+            and corredor.derecha_mm < limite_lateral
+        )
+        if izquierda_critica and derecha_critica:
+            self._lado_emergencia = (
+                1
+                if corredor.izquierda_mm <= corredor.derecha_mm
+                else -1
+            )
+        elif izquierda_critica:
+            self._lado_emergencia = 1
+        elif derecha_critica:
+            self._lado_emergencia = -1
+        else:
+            self._lado_emergencia = 0
         self._entrar("RECOVERY", ahora)
 
     def _procesar_recuperacion(
         self, corredor: Corredor, ahora: float
     ) -> Consigna:
-        if self._tiempo_estado(ahora) > float(
-            self._control["recovery_timeout_s"]
-        ):
-            return self._fallar("timeout de recuperacion", ahora)
-
         despejado = (
             corredor.frontal_mm
             > float(self._control["recovery_exit_front_mm"])
@@ -468,16 +552,31 @@ class ControlRuta:
             and corredor.derecha_mm
             > float(self._control["recovery_exit_side_mm"])
         )
+        if despejado:
+            self._confirmaciones_recuperacion_despejada += 1
+        else:
+            self._confirmaciones_recuperacion_despejada = 0
+        confirmaciones_salida = max(
+            1,
+            int(self._control.get("recovery_exit_confirm_scans", 3)),
+        )
         if (
             self._tiempo_estado(ahora)
             >= float(self._control["recovery_min_s"])
             and despejado
+            and self._confirmaciones_recuperacion_despejada
+            >= confirmaciones_salida
         ):
             if self._forzar_al_salir:
-                self._signo_giro_forzado = self._sentido
+                self._signo_giro_forzado = (
+                    -self._lado_emergencia
+                    if self._lado_emergencia != 0
+                    else self._sentido
+                )
                 self._heading_inicio_forzado = self._heading_actual
                 self._entrar("FORCED_TURN", ahora)
                 return self._procesar_giro_forzado(corredor, ahora)
+            self._lado_emergencia = 0
             self._entrar("CRUISE", ahora)
             return self._emitir(
                 self._con_frenado(
@@ -486,6 +585,17 @@ class ControlRuta:
                 self._angulo_pared(corredor),
                 "recuperacion despejada",
             )
+
+        # La corrida 20260901_121058 alcanzo el tercer barrido despejado a
+        # los 4.59 s, apenas despues del limite de 4.5 s. La maniobra habia
+        # aumentado el frente de 43 a 1329 mm con costados y trasera seguros,
+        # pero el timeout se evaluaba antes que esta salida ya confirmada.
+        # Una recuperacion realmente despejada debe poder finalizar; el
+        # timeout sigue deteniendo cualquier caso que no cumpla las guardas.
+        if self._tiempo_estado(ahora) > float(
+            self._control["recovery_timeout_s"]
+        ):
+            return self._fallar("timeout de recuperacion", ahora)
 
         trasera_segura = (
             bool(corredor.trasera_valida)
@@ -545,6 +655,7 @@ class ControlRuta:
         ):
             self._recuperaciones = []
             self._forzar_al_salir = False
+            self._lado_emergencia = 0
             self._entrar("CRUISE", ahora)
             return self._emitir(
                 self._con_frenado(
@@ -559,12 +670,18 @@ class ControlRuta:
             if self._signo_giro_forzado > 0
             else self._angulo_derecha
         )
+        if self._lado_emergencia > 0:
+            razon = "giro de escape alejandose del lateral izquierdo"
+        elif self._lado_emergencia < 0:
+            razon = "giro de escape alejandose del lateral derecho"
+        else:
+            razon = "giro comprometido hacia el sentido de pista"
         return self._emitir(
             self._con_frenado(
                 int(self._control["speed_turn_pwm"]), corredor.frontal_mm
             ),
             angulo,
-            "giro comprometido hacia el sentido de pista",
+            razon,
             slew_angulo_deg=float(
                 self._control.get(
                     "corner_steering_slew_deg_per_scan",
@@ -964,7 +1081,7 @@ class ControlRuta:
             self._entrar("CRUISE", ahora)
             return self._emitir(
                 self._con_frenado(
-                    int(self._control["speed_cruise_pwm"]), corredor.frontal_mm
+                    self._velocidad_crucero(ahora), corredor.frontal_mm
                 ),
                 self._angulo_pared(corredor),
                 "esquina {} verificada".format(self._esquinas),
@@ -1158,7 +1275,7 @@ class ControlRuta:
 
         return self._emitir(
             self._con_frenado(
-                int(self._control["speed_cruise_pwm"]), corredor.frontal_mm
+                self._velocidad_crucero(ahora), corredor.frontal_mm
             ),
             self._angulo_pared(corredor),
             "crucero centrado por paredes",
@@ -1454,8 +1571,12 @@ class ControlRuta:
         # Prioridad global sobre carrera, evasion y giro. RECOVERY conserva
         # su propio mando hasta despejar o fallar; no cuenta una emergencia
         # nueva por cada barrido del mismo episodio.
-        if self._estado != "RECOVERY" and self._hay_emergencia(corredor):
-            self._iniciar_recuperacion(instante)
+        if (
+            self._estado != "RECOVERY"
+            and self._hay_emergencia(corredor)
+            and not self._giro_gestiona_emergencia_frontal(corredor)
+        ):
+            self._iniciar_recuperacion(corredor, instante)
         if self._estado == "RECOVERY":
             return self._procesar_recuperacion(corredor, instante)
         if self._estado == "FORCED_TURN":
