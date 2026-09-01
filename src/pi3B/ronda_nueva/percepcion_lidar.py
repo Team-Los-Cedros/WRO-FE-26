@@ -241,39 +241,9 @@ class PercepcionLidar:
 
         self._hueco_lado = 0
         self._hueco_conteo = 0
-        self._lateral_previa: Dict[str, float] = {}
-        self._lateral_previa_t: Optional[float] = None
         self._hueco_ultimo_timestamp: Optional[float] = None
         self._hueco_candidato: Optional[_CandidatoHueco] = None
         self._hueco_confirmado: Optional[HuecoParqueo] = None
-
-    def _salto_lateral_imposible(
-        self, lado: str, valor: float, timestamp: float
-    ) -> bool:
-        """Rechaza acercamientos laterales que la fisica no permite.
-
-        Al girar, la rueda entra en el barrido y la lateral salta de golpe:
-        medido 832 -> 101 mm en un solo barrido de 0,1 s, cuando a esa
-        velocidad el robot avanza 9 mm. No es que apareciera una pared, es
-        que el LiDAR se vio a si mismo. El eco supera ``wall_side_min_mm``,
-        asi que llega a ajustarse como recta y ningun filtro por distancia
-        lo distingue de una pared legitima.
-
-        La continuidad si lo distingue. Solo se vigila el acercamiento: que
-        una lateral se aleje de golpe es normal cuando la pared se acaba en
-        una esquina, y bloquear eso si romperia el recorrido.
-        """
-
-        previa = self._lateral_previa.get(lado)
-        anterior_t = self._lateral_previa_t
-        if previa is None or anterior_t is None:
-            return False
-        dt = max(1e-3, float(timestamp) - float(anterior_t))
-        if dt > float(self._cfg("lateral_continuity_max_dt_s", 0.5)):
-            return False
-        # Cota generosa: varias veces lo que el robot puede recorrer.
-        margen = float(self._cfg("lateral_continuity_mm_per_s", 1500.0)) * dt
-        return bool(previa - float(valor) > margen)
 
     def _cfg(self, nombre: str, defecto: Any) -> Any:
         return self._lidar.get(nombre, defecto)
@@ -517,24 +487,12 @@ class PercepcionLidar:
                 float(self._cfg("wall_side_min_mm", 80.0)) * 2.0,
             )
         )
-        autoeco_izq = (
-            (pared_izq is None and izquierda < lateral_min)
-            or self._salto_lateral_imposible("izquierda", izquierda, timestamp)
-        )
-        autoeco_der = (
-            (pared_der is None and derecha < lateral_min)
-            or self._salto_lateral_imposible("derecha", derecha, timestamp)
-        )
+        autoeco_izq = pared_izq is None and izquierda < lateral_min
+        autoeco_der = pared_der is None and derecha < lateral_min
         if autoeco_izq:
             izquierda = sin_dato
         if autoeco_der:
             derecha = sin_dato
-
-        self._lateral_previa_t = float(timestamp)
-        if not autoeco_izq:
-            self._lateral_previa["izquierda"] = float(izquierda)
-        if not autoeco_der:
-            self._lateral_previa["derecha"] = float(derecha)
 
         izquierda_valida = bool(
             not autoeco_izq

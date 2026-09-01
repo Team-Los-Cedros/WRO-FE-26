@@ -187,39 +187,3 @@ class PercepcionLidarTests(unittest.TestCase):
                 "un eco de %.0f mm sin recta no es una pared" % eco,
             )
             self.assertTrue(math.isnan(corredor.error_lateral_mm))
-
-    def test_rechaza_el_salto_lateral_imposible_de_la_rueda(self):
-        """832 -> 101 mm en un barrido no es una pared que aparece.
-
-        Con el volante al tope la rueda entra en el sector lateral y supera
-        wall_side_min_mm, asi que llega a ajustarse como recta: ningun
-        filtro por distancia la distingue de una pared. La continuidad si.
-        Medido en la corrida 131112, donde disparo tres emergencias.
-        """
-
-        percepcion = PercepcionLidar(self.config)
-        lejos = pared_vertical(-830.0) + pared_vertical(470.0)
-        scan_lejos = ordenar_scan(lejos)
-        r1 = percepcion.procesar(
-            scan_lejos, crear_medicion(scan_lejos, izquierda=830.0, derecha=470.0, timestamp=0.0)
-        ).corredor
-        self.assertTrue(r1.izquierda_valida)
-
-        # Barrido siguiente, 0,1 s despues: la izquierda salta a 101 mm.
-        cerca = pared_vertical(-101.0) + pared_vertical(468.0)
-        scan_cerca = ordenar_scan(cerca)
-        r2 = percepcion.procesar(
-            scan_cerca, crear_medicion(scan_cerca, izquierda=101.0, derecha=468.0, timestamp=0.1)
-        ).corredor
-        self.assertFalse(r2.izquierda_valida)
-        self.assertTrue(math.isnan(r2.error_lateral_mm))
-
-        # Alejarse de golpe si es legitimo: la pared se acaba en la esquina.
-        otra = PercepcionLidar(self.config)
-        otra.procesar(
-            scan_cerca, crear_medicion(scan_cerca, izquierda=300.0, derecha=468.0, timestamp=0.0)
-        )
-        r3 = otra.procesar(
-            scan_lejos, crear_medicion(scan_lejos, izquierda=1600.0, derecha=470.0, timestamp=0.1)
-        ).corredor
-        self.assertTrue(r3.izquierda_valida)
