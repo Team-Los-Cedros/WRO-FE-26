@@ -671,3 +671,33 @@ esta pista; si estuviera invertida se corrige en `floor_color_left` y
 `floor_color_right` sin tocar código. Y los 11,6 s de búsqueda son
 demasiados: el timeout está en 12, así que faltó poco para fallar, y en
 competencia son 11,6 s de los 180 gastados antes de empezar.
+
+## El sentido detectado depende de la pose de arranque, no de la pista
+
+Cinco corridas en `AUTO`, y el patrón no admite dudas:
+
+| Pose de arranque | 1.ª línea | Sentido fijado | Esquinas |
+| --- | --- | --- | --- |
+| Recta inferior (×4) | AZUL | ANTIHORARIO | **1, 1, 1, 1** |
+| Carril izquierdo | NARANJA | HORARIO | **3** |
+
+La detección **funciona y es repetible**: cuatro veces seguidas leyó lo
+mismo desde la misma pose. Y en el carril izquierdo el vídeo confirma que
+el robot avanzaba hacia arriba, que es sentido horario — exactamente lo
+que dedujo de la línea naranja. Sensor y realidad coinciden.
+
+Lo que esto destapa es conceptual: **el robot no detecta el sentido de la
+pista, detecta el sentido en el que lo han colocado**. Cruzar primero azul
+o naranja depende de hacia dónde apunta al arrancar. Si la orientación
+física y el sentido deducido no concuerdan, el robot gira hacia el lado
+contrario del que avanza y se mete contra el bloque o la pared.
+
+Esa es la explicación más probable de los cuatro fallos desde la recta
+inferior: allí se colocó siempre con la orientación que veníamos usando
+para recorrer en horario, pero la línea que cruzaba le decía antihorario.
+
+**Prueba pendiente que lo resolvería:** colocar el robot en la recta
+inferior apuntando al lado contrario del habitual, de modo que su marcha
+física sea antihoraria. Si entonces lee AZUL y completa varias esquinas,
+queda confirmado que el problema era la incoherencia entre pose y sentido,
+no la detección ni el control.
