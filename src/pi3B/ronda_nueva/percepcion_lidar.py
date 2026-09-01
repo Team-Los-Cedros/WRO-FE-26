@@ -474,7 +474,19 @@ class PercepcionLidar:
         # sin dato en vez de creerselo, y el error lateral deja de ser
         # calculable: ``_angulo_pared`` cae entonces a enderezar por rumbo,
         # que es el comportamiento seguro ya probado en pista.
-        lateral_min = float(self._cfg("wall_side_min_mm", 80.0))
+        # El umbral del fallback es mayor que ``wall_side_min_mm``, que
+        # solo filtra puntos para ajustar rectas. Con el servo al tope el
+        # eco de la rueda aparece mas lejos: 49-51 mm medidos con el
+        # volante a +17 y 91-107 con el a +25. Subirlo es seguro porque
+        # una pared de verdad a esa distancia deja puntos de sobra y se
+        # ajusta como recta; se cae al minimo crudo justamente cuando lo
+        # que se ve no es una pared.
+        lateral_min = float(
+            self._cfg(
+                "lateral_fallback_min_mm",
+                float(self._cfg("wall_side_min_mm", 80.0)) * 2.0,
+            )
+        )
         autoeco_izq = pared_izq is None and izquierda < lateral_min
         autoeco_der = pared_der is None and derecha < lateral_min
         if autoeco_izq:

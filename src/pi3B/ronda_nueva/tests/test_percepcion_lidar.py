@@ -167,3 +167,23 @@ class PercepcionLidarTests(unittest.TestCase):
         self.assertFalse(corredor.izquierda_valida)
         self.assertGreater(corredor.izquierda_mm, 1000.0)
         self.assertTrue(math.isnan(corredor.error_lateral_mm))
+
+    def test_el_umbral_del_fallback_cubre_el_eco_con_el_servo_al_tope(self):
+        """El eco de la rueda se aleja segun cuanto gire el volante.
+
+        Medido: 49-51 mm con el servo en +17 grados y 91-107 con el a +25.
+        Un umbral de 80 dejaba pasar el segundo caso, que fue el que mato la
+        corrida 130404. Y el discriminante es nitido: con recta ajustada la
+        izquierda daba 783-830 mm; sin ella, 91-265."""
+
+        scan = ordenar_scan([(float(a), 1500.0) for a in range(0, 360, 24)])
+        percepcion = PercepcionLidar(self.config)
+        for eco in (51.0, 99.0, 155.0):
+            corredor = percepcion.procesar(
+                scan, crear_medicion(scan, derecha=450.0, izquierda=eco)
+            ).corredor
+            self.assertFalse(
+                corredor.izquierda_valida,
+                "un eco de %.0f mm sin recta no es una pared" % eco,
+            )
+            self.assertTrue(math.isnan(corredor.error_lateral_mm))

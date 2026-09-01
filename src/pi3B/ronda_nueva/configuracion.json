@@ -64,6 +64,7 @@
     "wall_max_residual_mm": 75.0,
     "wall_forward_extent_mm": 1100.0,
     "wall_side_min_mm": 80.0,
+    "lateral_fallback_min_mm": 160.0,
     "wall_side_max_mm": 1600.0,
     "left_sector_deg": [225.0, 315.0],
     "right_sector_deg": [45.0, 135.0],
