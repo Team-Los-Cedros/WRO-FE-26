@@ -777,3 +777,37 @@ mientras el eco de la rueda no se distinga de una pared por algo mejor que
 un umbral de distancia —lo natural sería enmascarar el sector en función
 del ángulo del servo, que el robot conoce— cada subida de velocidad va a
 volver a chocar con él.
+
+## Serie de cinco: la primera medida que merece ese nombre
+
+Cinco corridas seguidas, misma configuracion, sin tocar nada entre ellas.
+Es lo que faltaba en todo lo anterior, donde cada decision se tomaba sobre
+una sola corrida.
+
+| Run | Esquinas | Vueltas | Duración | Emerg. | Fin |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 7 | 1,8 | 171,6 s | 11 | no falló |
+| 2 | 6 | 1,5 | 171,8 s | 172 | no falló |
+| 3 | **8** | **2,0** | 176,9 s | 86 | no falló |
+| 4 | 4 | 1,0 | 81,7 s | 0 | timeout reincorporación |
+| 5 | 6 | 1,5 | 106,5 s | 69 | timeout recuperación |
+
+**Mediana 6 esquinas (vuelta y media), rango 4-8. Tres de cinco llegan al
+final de la ventana de 180 s.** Esa es la linea base real, y hay que
+compararla con lo que veniamos creyendo: la corrida de 5 esquinas que
+tomamos por «la mejor» y la de 1 esquina que nos hizo revertir estaban
+las dos dentro de este mismo rango. Ninguna de las dos medía el codigo.
+
+Dos observaciones que solo aparecen con la serie:
+
+- **Las emergencias no predicen el resultado.** La run 1 hizo 7 esquinas
+  con 11 y la run 2 hizo 6 con 172. La run 4, con **cero** emergencias,
+  es la peor de todas. Como metrica de calidad no sirve; solo cuentan las
+  esquinas y la duración.
+- **Los dos fallos son de recentrado y recuperación**, no de percepción ni
+  de esquina. Ahi esta el trabajo que queda.
+
+Para las tres vueltas faltan 6 esquinas sobre la mediana, y el ritmo de
+~21 s por esquina las situa en 250-270 s contra los 180 del limite. No es
+cuestion de estabilidad: hace falta velocidad, y subirla choca con el
+pilar que aparece tras la esquina.
