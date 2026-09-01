@@ -369,6 +369,42 @@ class ControlRutaTests(unittest.TestCase):
         # Y debe quedar razonablemente centrado, no rozando un lado.
         self.assertLess(abs(holgura_pared - holgura_pilar), 40.0)
 
+    def test_el_recentrado_es_alcanzable_con_el_radio_real(self):
+        """La tolerancia y el timeout tienen que caber en la geometria.
+
+        Rebasar el pilar deja el eje a unos 154 mm de la pared -el hueco
+        mide 333 de pared a centro de pilar y la separacion pedida es 179-,
+        y desde ahi hay que volver al centro de un carril de ~1015 mm. Con
+        el radio medido de 559 mm, cerrar hasta una tolerancia de 150
+        exigia 5,74 s de arco puro cuando el timeout daba 4,8: no cabia ni
+        en el caso ideal. Las corridas 134517 y 144526 murieron ahi las
+        dos, con el mismo error de 689 mm.
+        """
+
+        import math
+
+        control = self.config["control"]
+        radio_mm = 559.0
+        velocidad_mm_s = float(control["speed_cruise_pwm"]) * 4.0
+        carril_mm = 1015.0
+        eje_tras_rebasar = (
+            float(control["narrowest_gap_wall_to_pillar_mm"])
+            - float(control["obstacle_lateral_clearance_mm"])
+        )
+        objetivo = (carril_mm - float(control["recenter_tolerance_mm"])) / 2.0
+        desplazamiento = objetivo - eje_tras_rebasar
+        coseno = 1.0 - desplazamiento / radio_mm
+        arco_s = radio_mm * math.acos(max(-1.0, coseno)) / velocidad_mm_s
+
+        referencia = float(control["obstacle_timeout_reference_pwm"])
+        disponible = float(control["recenter_timeout_s"]) * referencia / float(
+            control["speed_cruise_pwm"]
+        )
+        self.assertLess(
+            arco_s, disponible,
+            "recentrar pide %.2f s de arco y el timeout da %.2f" % (arco_s, disponible),
+        )
+
     def test_recentrado_confirma_con_laterales_aunque_baje_la_calidad(self):
         """Regresion de las corridas 152111 y 152413.
 
