@@ -30,6 +30,64 @@ pwmb.freq(2000)
 
 stby.value(1)
 
+# --- SENSOR DE ULTRASONIDO (HC-SR04 / US-100 en 3.3V) ---
+PIN_TRIG = 14
+PIN_ECHO = 15
+
+class SensorUltrasonido:
+    def __init__(self, pin_trig=PIN_TRIG, pin_echo=PIN_ECHO, max_dist_mm=2500):
+        try:
+            self.trig = Pin(pin_trig, Pin.OUT)
+            self.echo = Pin(pin_echo, Pin.IN)
+            self.trig.value(0)
+            self.disponible = True
+        except Exception:
+            self.disponible = False
+        self.max_dist_mm = max_dist_mm
+        self.ultima_distancia_mm = -1.0
+        self.ultimo_ping_ms = 0
+        self.intervalo_ms = 50
+
+    def medir(self, tiempo_actual_ms):
+        if not self.disponible:
+            return -1.0
+        if time.ticks_diff(tiempo_actual_ms, self.ultimo_ping_ms) < self.intervalo_ms:
+            return self.ultima_distancia_mm
+
+        self.ultimo_ping_ms = tiempo_actual_ms
+        try:
+            self.trig.value(0)
+            time.sleep_us(2)
+            self.trig.value(1)
+            time.sleep_us(10)
+            self.trig.value(0)
+
+            t0 = time.ticks_us()
+            while self.echo.value() == 0:
+                if time.ticks_diff(time.ticks_us(), t0) > 3000:
+                    return self.ultima_distancia_mm
+
+            t_subida = time.ticks_us()
+            while self.echo.value() == 1:
+                if time.ticks_diff(time.ticks_us(), t_subida) > 15000:
+                    break
+
+            t_bajada = time.ticks_us()
+            duracion_us = time.ticks_diff(t_bajada, t_subida)
+            dist_mm = (duracion_us * 0.343) / 2.0
+
+            if 25.0 <= dist_mm <= self.max_dist_mm:
+                if self.ultima_distancia_mm <= 0:
+                    self.ultima_distancia_mm = dist_mm
+                else:
+                    self.ultima_distancia_mm = 0.7 * dist_mm + 0.3 * self.ultima_distancia_mm
+            else:
+                self.ultima_distancia_mm = -1.0
+        except Exception:
+            pass
+
+        return self.ultima_distancia_mm
+
 # Limites de giro del servo calibrados
 CENTRO = 90
 LIMITE_DER = 70    # Maximo giro a la derecha
@@ -181,6 +239,7 @@ class TCS3472:
 try:
     sensor_imu = MPU6050(i2c_imu)
     sensor_color = TCS3472(i2c_tcs)
+    sensor_us = SensorUltrasonido(PIN_TRIG, PIN_ECHO)
     mover_servo(CENTRO) # Arranca alineado al centro calibrado
     controlar_motor(0)
 except Exception as e:
@@ -279,11 +338,13 @@ while True:
         else:
             controlar_motor(velocidad_comandada)
 
-        # 6. Telemetria a la Pi 3B: angulo acumulado + color de piso
+        # 6. Telemetria a la Pi 3B: angulo acumulado + color de piso + ultrasonido + watchdog
         if time.ticks_diff(tiempo_actual, ultimo_envio_telemetria) > 50:
             estado_watchdog = "STOP" if watchdog_activo else "OK"
+            dist_us = sensor_us.medir(tiempo_actual)
+            us_str = f"{dist_us:.1f}" if dist_us > 0 else "SIN_DATO"
             sys.stdout.write(
-                f"IMU:{angulo_acumulado:.2f},COLOR:{color_detectado},WD:{estado_watchdog}\n"
+                f"IMU:{angulo_acumulado:.2f},COLOR:{color_detectado},US:{us_str},WD:{estado_watchdog}\n"
             )
             ultimo_envio_telemetria = tiempo_actual
 

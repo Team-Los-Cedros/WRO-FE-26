@@ -1309,6 +1309,7 @@ class ControlRuta:
         corredor: Corredor,
         hueco: Optional[HuecoParqueo],
         ahora: float,
+        distancia_ultrasonido_mm: Optional[float] = None,
     ) -> Consigna:
         if self._tiempo_estado(ahora) > float(
             self._parking_cfg["total_timeout_s"]
@@ -1346,6 +1347,8 @@ class ControlRuta:
             kwargs["lateral_mm"] = float(lateral)
         if "lateral_valida" in parametros:
             kwargs["lateral_valida"] = bool(lateral_valida)
+        if "distancia_ultrasonido_mm" in parametros:
+            kwargs["distancia_ultrasonido_mm"] = distancia_ultrasonido_mm
         for nombre, valor in (
             ("trasera_izquierda_mm", corredor.trasera_izquierda_mm),
             ("trasera_derecha_mm", corredor.trasera_derecha_mm),
@@ -1510,6 +1513,7 @@ class ControlRuta:
         color_piso: Optional[str],
         hueco: Optional[HuecoParqueo] = None,
         ahora: Optional[float] = None,
+        distancia_ultrasonido_mm: Optional[float] = None,
     ) -> Consigna:
         """Avanza exactamente un ciclo, sin realizar efectos laterales."""
 
@@ -1589,7 +1593,9 @@ class ControlRuta:
             self._entrar("CRUISE", instante)
 
         if self._estado == "PARKING":
-            return self._procesar_estacionamiento(corredor, hueco, instante)
+            return self._procesar_estacionamiento(
+                corredor, hueco, instante, distancia_ultrasonido_mm=distancia_ultrasonido_mm
+            )
 
         # Prioridad global sobre carrera, evasion y giro. RECOVERY conserva
         # su propio mando hasta despejar o fallar; no cuenta una emergencia

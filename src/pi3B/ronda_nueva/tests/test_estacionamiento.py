@@ -408,6 +408,40 @@ class EstacionamientoTests(unittest.TestCase):
         )
         self.assertEqual(recuperado.estado, "ARC_IN")
 
+    def test_ultrasonido_rescata_trasera_ciega_y_maniobra_estacionamiento(self):
+        from src.pi3B.ronda_nueva.estacionamiento import maniobra_estacionamiento
+        import types
+
+        controlador, hueco = self._hasta_arc_in()
+        
+        # En ARC_IN, si LiDAR trasera_valida es False pero hay lectura de ultrasonido valida (600mm)
+        corredor_ciego = types.SimpleNamespace(
+            frontal_mm=500.0,
+            trasera_mm=0.0,
+            trasera_valida=False,
+            cobertura_trasera=0.0,
+            derecha_mm=100.0,
+            derecha_valida=True,
+            trasera_izquierda_mm=650.0,
+            trasera_derecha_mm=650.0,
+            trasera_izquierda_valida=True,
+            trasera_derecha_valida=True,
+            cobertura_trasera_izquierda=1.0,
+            cobertura_trasera_derecha=1.0,
+        )
+
+        res = maniobra_estacionamiento(
+            controlador,
+            corredor_ciego,
+            hueco,
+            heading_deg=0.0,
+            ahora=1.0,
+            distancia_ultrasonido_mm=600.0,
+        )
+        # El ultrasonido rescata la trasera y permite continuar el arco en reversa
+        self.assertLess(res.velocidad, 0)
+        self.assertEqual(res.estado, "ARC_IN")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,7 +24,7 @@ class LidarDriver:
         # al_barrido(scan) se llama una vez por barrido completo, con
         # scan = lista de (angulo_deg, distancia_mm)
         try:
-            self._ser = serial.Serial(self._puerto, baudrate=self._baudrate, timeout=1)
+            self._ser = serial.Serial(self._puerto, baudrate=self._baudrate, timeout=0.1)
             time.sleep(0.5)
             self._ser.write(START_MOTOR_CMD)
             time.sleep(1.5)
@@ -37,37 +37,61 @@ class LidarDriver:
 
             angulo_previo = 0.0
             buffer_barrido = []
+            raw_buf = bytearray()
 
             while obtener_corriendo():
-                b0 = self._ser.read(1)
-                if not b0:
-                    continue
-                byte0 = b0[0]
-                # En un paquete valido el bit de start y su inverso difieren
-                if (byte0 & 0x01) == ((byte0 >> 1) & 0x01):
-                    continue
+                en_espera = self._ser.in_waiting
+                if en_espera > 0:
+                    chunk = self._ser.read(max(en_espera, 500))
+                else:
+                    chunk = self._ser.read(100)
 
-                resto = self._ser.read(4)
-                if len(resto) < 4:
-                    continue
-                byte1, byte2, byte3, byte4 = resto
-
-                if (byte1 & 0x01) != 1:            # check bit del campo angulo
+                if not chunk:
                     continue
 
-                angle       = ((byte2 << 7) | (byte1 >> 1)) / 64.0
-                distance_mm = ((byte4 << 8) | byte3) / 4.0
+                raw_buf.extend(chunk)
 
-                if not (0 < distance_mm < 6000):
-                    continue
-
-                # Wrap-around del angulo = barrido completo listo
-                if angle < angulo_previo and (angulo_previo - angle) > 300.0:
-                    if buffer_barrido:
-                        al_barrido(buffer_barrido)
+                # Si el buffer se atrasa por sobrecarga (> 4000 bytes ~ 2 barridos),
+                # conservar solo el ultimo bloque para evitar latencia acumulada
+                if len(raw_buf) > 4000:
+                    raw_buf = raw_buf[-2000:]
                     buffer_barrido = []
-                angulo_previo = angle
-                buffer_barrido.append((angle, distance_mm))
+
+                idx = 0
+                n = len(raw_buf)
+                while idx + 5 <= n:
+                    b0 = raw_buf[idx]
+                    # En un paquete valido el bit de start y su inverso difieren
+                    if (b0 & 0x01) == ((b0 >> 1) & 0x01):
+                        idx += 1
+                        continue
+
+                    b1 = raw_buf[idx + 1]
+                    # check bit del campo angulo
+                    if (b1 & 0x01) != 1:
+                        idx += 1
+                        continue
+
+                    b2 = raw_buf[idx + 2]
+                    b3 = raw_buf[idx + 3]
+                    b4 = raw_buf[idx + 4]
+
+                    angle = ((b2 << 7) | (b1 >> 1)) / 64.0
+                    distance_mm = ((b4 << 8) | b3) / 4.0
+
+                    idx += 5
+
+                    if 0 < distance_mm < 6000:
+                        # Wrap-around del angulo = barrido completo listo
+                        if angle < angulo_previo and (angulo_previo - angle) > 300.0:
+                            if buffer_barrido:
+                                al_barrido(buffer_barrido)
+                            buffer_barrido = []
+                        angulo_previo = angle
+                        buffer_barrido.append((angle, distance_mm))
+
+                if idx > 0:
+                    del raw_buf[:idx]
 
         except Exception as e:
             if obtener_corriendo():

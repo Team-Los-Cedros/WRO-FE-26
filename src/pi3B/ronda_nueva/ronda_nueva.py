@@ -41,6 +41,7 @@ CAMPOS_TELEMETRIA = (
     "heading",
     "color_piso",
     "watchdog_pico",
+    "ultrasonido_mm",
     "esquinas",
     "frontal",
     "frontal_muro",
@@ -163,6 +164,7 @@ class AplicacionRondaNueva:
             float("inf") if paquete is None else max(0.0, ahora - paquete.timestamp)
         )
         track_activo = self.control.track_activo
+        dist_us = self.enlace.distancia_ultrasonido_mm() if self.enlace is not None else None
         self.registro.registrar(
             {
                 "t": "{:.6f}".format(ahora),
@@ -173,6 +175,7 @@ class AplicacionRondaNueva:
                 "heading": "{:.2f}".format(self.enlace.heading()),
                 "color_piso": self.enlace.color_piso(),
                 "watchdog_pico": self.enlace.estado_watchdog_comando() or "NO_ANUNCIADO",
+                "ultrasonido_mm": "" if dist_us is None else "{:.1f}".format(dist_us),
                 "esquinas": self.control.esquinas,
                 "frontal": "{:.1f}".format(corredor.frontal_mm),
                 "frontal_muro": "{:.1f}".format(corredor.frontal_muro_mm),
@@ -276,6 +279,7 @@ class AplicacionRondaNueva:
                 self.enlace.color_piso(),
                 hueco=resultado.hueco,
                 ahora=ahora,
+                distancia_ultrasonido_mm=self.enlace.distancia_ultrasonido_mm(),
             )
 
             # Ninguna FSM puede autorizar movimiento si un sensor esencial

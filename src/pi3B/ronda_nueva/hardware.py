@@ -22,6 +22,7 @@ class EnlacePicoNuevo:
         self._yaw_crudo = 0.0
         self._cero_yaw = None
         self._color_piso = "DESCONOCIDO"
+        self._distancia_us = None
         self._watchdog_comando = None
         self._t_telemetria = 0.0
         self._corriendo = True
@@ -35,18 +36,19 @@ class EnlacePicoNuevo:
         extendida = EnlacePicoNuevo.parsear_telemetria_extendida(linea)
         if extendida is None:
             return None
-        yaw, color, _watchdog = extendida
+        yaw, color, _watchdog, _distancia_us = extendida
         return yaw, color
 
     @staticmethod
     def parsear_telemetria_extendida(
         linea: str,
-    ) -> Optional[Tuple[float, Optional[str], Optional[str]]]:
-        """Devuelve yaw, color y estado anunciado del watchdog de comandos.
+    ) -> Optional[Tuple[float, Optional[str], Optional[str], Optional[float]]]:
+        """Devuelve yaw, color, estado del watchdog y distancia de ultrasonido en mm.
 
         ``watchdog`` es ``None`` para firmware historico, ``OK``/``STOP`` para
         el firmware seguro e ``INVALIDO`` si la trama anuncia otro valor. Un
         valor invalido no inutiliza la IMU, pero nunca permite armar motores.
+        ``distancia_us`` es float en mm o ``None`` si no hay eco o falta el sensor.
         """
 
         if not linea.startswith("IMU:"):
@@ -54,17 +56,27 @@ class EnlacePicoNuevo:
         yaw = None
         color = None
         watchdog = None
+        distancia_us = None
         for campo in linea.split(","):
             if campo.startswith("IMU:"):
-                yaw = float(campo.split(":", 1)[1])
+                try:
+                    yaw = float(campo.split(":", 1)[1])
+                except (ValueError, IndexError):
+                    pass
             elif campo.startswith("COLOR:"):
                 color = campo.split(":", 1)[1].strip().upper()
+            elif campo.startswith("US:"):
+                val_us = campo.split(":", 1)[1].strip().upper()
+                try:
+                    distancia_us = float(val_us) if val_us != "SIN_DATO" else None
+                except ValueError:
+                    distancia_us = None
             elif campo.startswith("WD:"):
                 anunciado = campo.split(":", 1)[1].strip().upper()
                 watchdog = anunciado if anunciado in ("OK", "STOP") else "INVALIDO"
         if yaw is None:
             return None
-        return yaw, color, watchdog
+        return yaw, color, watchdog, distancia_us
 
     def _leer(self) -> None:
         while self._corriendo:
@@ -75,7 +87,7 @@ class EnlacePicoNuevo:
                 parsed = self.parsear_telemetria_extendida(linea)
                 if parsed is None:
                     continue
-                yaw, color, watchdog = parsed
+                yaw, color, watchdog, distancia_us = parsed
                 ahora = time.monotonic()
                 with self._lock:
                     self._yaw_crudo = yaw
@@ -83,6 +95,8 @@ class EnlacePicoNuevo:
                         self._cero_yaw = yaw
                     if color:
                         self._color_piso = color
+                    if distancia_us is not None:
+                        self._distancia_us = distancia_us
                     if watchdog is not None:
                         self._watchdog_comando = watchdog
                     self._t_telemetria = ahora
@@ -103,6 +117,11 @@ class EnlacePicoNuevo:
     def color_piso(self) -> str:
         with self._lock:
             return self._color_piso
+
+    def distancia_ultrasonido_mm(self) -> Optional[float]:
+        """Ultima distancia valida medida por el sensor de ultrasonido en mm."""
+        with self._lock:
+            return self._distancia_us
 
     def estado_watchdog_comando(self) -> Optional[str]:
         """Estado mas reciente anunciado por la Pico, o ``None`` si no existe."""

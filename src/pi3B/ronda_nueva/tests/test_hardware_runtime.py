@@ -121,21 +121,21 @@ class _EnlacePicoFalso:
 
 class WatchdogPicoTests(unittest.TestCase):
     def test_parser_historico_conserva_retorno_y_extendido_lee_wd(self):
-        linea = "IMU:-12.5,COLOR:azul,WD:OK"
+        linea = "IMU:-12.5,COLOR:azul,US:185.5,WD:OK"
         self.assertEqual(
             EnlacePicoNuevo.parsear_telemetria(linea), (-12.5, "AZUL")
         )
         self.assertEqual(
             EnlacePicoNuevo.parsear_telemetria_extendida(linea),
-            (-12.5, "AZUL", "OK"),
+            (-12.5, "AZUL", "OK", 185.5),
         )
         self.assertEqual(
             EnlacePicoNuevo.parsear_telemetria_extendida("IMU:1.0,WD:otro"),
-            (1.0, None, "INVALIDO"),
+            (1.0, None, "INVALIDO", None),
         )
         self.assertEqual(
             EnlacePicoNuevo.parsear_telemetria_extendida("IMU:1.0"),
-            (1.0, None, None),
+            (1.0, None, None, None),
         )
 
     def test_config_exige_booleano_para_watchdog_autonomo(self):

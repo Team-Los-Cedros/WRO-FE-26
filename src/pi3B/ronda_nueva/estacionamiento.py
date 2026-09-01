@@ -416,6 +416,7 @@ class ControlEstacionamiento:
         trasera_derecha_valida: bool = False,
         cobertura_trasera_izquierda: float = 0.0,
         cobertura_trasera_derecha: float = 0.0,
+        distancia_ultrasonido_mm: Optional[float] = None,
     ) -> ResultadoParqueo:
         """Avanza un ciclo de la FSM y devuelve una orden sin efectos laterales.
 
@@ -423,6 +424,8 @@ class ControlEstacionamiento:
         numero recibido. Un centinela ``SIN_DATO`` o una cobertura insuficiente
         frena el arco y deja correr su timeout; nunca se interpreta como libre.
         ``lateral_mm`` es la distancia LiDAR al muro exterior de la plaza.
+        ``distancia_ultrasonido_mm`` aporta lectura de distancia fisica trasera/lateral
+        complementaria e inmune a las oclusiones del mástil LiDAR.
         """
 
         if ahora is None:
@@ -459,6 +462,16 @@ class ControlEstacionamiento:
                 cobertura_trasera, self._cobertura_trasera_minima
             )
         )
+        us_valido = bool(
+            distancia_ultrasonido_mm is not None
+            and math.isfinite(distancia_ultrasonido_mm)
+            and 20.0 <= float(distancia_ultrasonido_mm) <= 2500.0
+        )
+        if not trasera_disponible and us_valido:
+            trasera_mm = float(distancia_ultrasonido_mm)
+            trasera_disponible = True
+            cobertura_trasera = max(cobertura_trasera, 0.5)
+
         if not trasera_disponible:
             # No sumar una verificacion a ambos lados de una perdida de dato.
             self._verificaciones = 0
@@ -706,3 +719,40 @@ class ControlEstacionamiento:
             )
 
         return self._fallar("estado de estacionamiento desconocido", ahora)
+
+
+def maniobra_estacionamiento(
+    controlador: ControlEstacionamiento,
+    corredor: Any,
+    hueco: Optional[HuecoParqueo],
+    heading_deg: float,
+    ahora: Optional[float] = None,
+    *,
+    distancia_ultrasonido_mm: Optional[float] = None,
+) -> ResultadoParqueo:
+    """Función de alto nivel para ejecutar el paso de estacionamiento asistido por ultrasonido."""
+
+    lateral = getattr(corredor, "derecha_mm", None)
+    lateral_valida = bool(getattr(corredor, "derecha_valida", False))
+
+    return controlador.procesar(
+        hueco=hueco,
+        heading_deg=heading_deg,
+        frontal_mm=float(corredor.frontal_mm),
+        trasera_mm=float(corredor.trasera_mm),
+        ahora=ahora,
+        trasera_valida=bool(getattr(corredor, "trasera_valida", True)),
+        cobertura_trasera=float(getattr(corredor, "cobertura_trasera", 1.0)),
+        lateral_mm=lateral,
+        lateral_valida=lateral_valida,
+        trasera_izquierda_mm=getattr(corredor, "trasera_izquierda_mm", None),
+        trasera_derecha_mm=getattr(corredor, "trasera_derecha_mm", None),
+        trasera_izquierda_valida=bool(getattr(corredor, "trasera_izquierda_valida", False)),
+        trasera_derecha_valida=bool(getattr(corredor, "trasera_derecha_valida", False)),
+        cobertura_trasera_izquierda=float(getattr(corredor, "cobertura_trasera_izquierda", 0.0)),
+        cobertura_trasera_derecha=float(getattr(corredor, "cobertura_trasera_derecha", 0.0)),
+        distancia_ultrasonido_mm=distancia_ultrasonido_mm,
+    )
+
+
+__all__ = ["ControlEstacionamiento", "maniobra_estacionamiento"]
