@@ -186,6 +186,44 @@ class ControlRutaTests(unittest.TestCase):
         alineada = control.procesar(borrosa, (), 0.0, "PISTA", ahora=0.3)
         self.assertAlmostEqual(alineada.angulo, 0.0, places=3)
 
+    def test_la_transicion_pared_rumbo_es_continua(self):
+        """Conmutar de golpe entre los dos controles hace oscilar el timon.
+
+        En el episodio final de la corrida 154617 la calidad del ajuste
+        alternaba entre 0,21 y 0,83 barrido a barrido, y con ella el mando
+        saltaba entre el centrado de pared y el rumbo del carril. El robot
+        se paso el centro dos veces sin confirmarlo: 1 de 65 ciclos bajo de
+        la tolerancia y el recentrado murio por timeout, oscilando
+        alrededor del sitio correcto."""
+
+        self._sin_slew()
+        umbral = float(self.config["control"].get("wall_min_quality", 0.30))
+        descentrado = dict(izquierda=200.0, derecha=800.0, error_rumbo=0.0)
+
+        angulos = []
+        for calidad in (umbral * 0.6, umbral * 0.8, umbral, umbral * 1.4):
+            control = ControlRuta(self.config)
+            control.procesar(corredor(), (), 0.0, "AZUL", ahora=0.0)
+            orden = control.procesar(
+                corredor(calidad=calidad, **descentrado), (), 0.0, "PISTA",
+                ahora=0.1,
+            )
+            angulos.append(orden.angulo)
+
+        # Descentrado a la izquierda, la pared manda girar a la derecha, asi
+        # que el angulo se vuelve mas negativo conforme crece la calidad.
+        # Lo que se comprueba es que esa autoridad aparece de forma gradual
+        # y no de golpe al cruzar el umbral.
+        for previo, siguiente in zip(angulos, angulos[1:]):
+            self.assertGreaterEqual(previo, siguiente - 1e-6)
+        recorrido = abs(angulos[-1] - angulos[0])
+        self.assertGreater(recorrido, 1.0, "la calidad deberia mover el mando")
+        saltos = [abs(b - a) for a, b in zip(angulos, angulos[1:])]
+        self.assertLess(
+            max(saltos), recorrido * 0.9,
+            "ningun paso de calidad debe concentrar casi todo el cambio",
+        )
+
     def test_rumbo_de_carril_avanza_90_grados_por_esquina(self):
         self._sin_slew()
         control = ControlRuta(self.config)

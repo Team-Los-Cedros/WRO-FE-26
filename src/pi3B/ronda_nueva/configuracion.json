@@ -162,7 +162,7 @@
     "emergency_rear_mm": 230.0,
     "recovery_min_s": 0.55,
     "recovery_timeout_s": 5.5,
-    "recovery_exit_front_mm": 310.0,
+    "recovery_exit_front_mm": 250.0,
     "recovery_exit_side_mm": 165.0,
     "recovery_exit_confirm_scans": 3,
     "forced_turn_after_recoveries": 3,

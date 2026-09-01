@@ -320,9 +320,10 @@ class ControlRuta:
         """P filtrado por pared; sin pared confiable, endereza por rumbo."""
 
         calidad_minima = float(self._control.get("wall_min_quality", 0.30))
+        calidad = float(corredor.calidad_pared)
         if (
-            not math.isfinite(float(corredor.calidad_pared))
-            or corredor.calidad_pared < calidad_minima
+            not math.isfinite(calidad)
+            or calidad <= calidad_minima * 0.5
             or not math.isfinite(float(corredor.error_lateral_mm))
             or not math.isfinite(float(corredor.error_rumbo_muro_deg))
         ):
@@ -352,7 +353,29 @@ class ControlRuta:
             - self._error_rumbo_filtrado
             * float(self._control["wall_heading_kp"])
         )
-        return self._acotar_angulo(angulo)
+
+        # Conmutar de golpe entre el centrado de pared y el rumbo del carril
+        # hace oscilar el timon cuando la calidad del ajuste baila alrededor
+        # del umbral, que es justo lo que pasa reincorporandose. En el
+        # episodio final de la corrida 154617 la calidad alternaba entre
+        # 0,21 y 0,83 barrido a barrido y el robot se paso el centro dos
+        # veces sin llegar a confirmarlo: solo 1 de 65 ciclos bajo de la
+        # tolerancia, y el recentrado murio por timeout con el robot
+        # oscilando alrededor del sitio correcto.
+        #
+        # Los dos controles se mezclan en una banda alrededor del umbral en
+        # vez de saltar de uno a otro. Con calidad alta manda la pared, con
+        # calidad baja el rumbo, y en medio hay una transicion continua.
+        peso = _limitar(
+            (calidad - calidad_minima * 0.5) / max(calidad_minima, 1e-6),
+            0.0,
+            1.0,
+        )
+        if peso >= 1.0:
+            return self._acotar_angulo(angulo)
+        return self._acotar_angulo(
+            peso * angulo + (1.0 - peso) * self._angulo_rumbo_carril()
+        )
 
     def _con_guardia_pared(self, deseado: float, corredor: Corredor) -> float:
         """Da autoridad progresiva a la pared mas cercana durante evasion."""
