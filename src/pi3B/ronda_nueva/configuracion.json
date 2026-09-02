@@ -113,6 +113,7 @@
     "steering_max_right_deg": -20.0,
     "steering_slew_deg_per_scan": 6.0,
     "corner_steering_slew_deg_per_scan": 45.0,
+    "avoid_steering_slew_deg_per_scan": 18.0,
     "speed_slew_pwm_per_scan": 10,
     "wall_kp": 0.12,
     "wall_heading_kp": 0.65,
@@ -143,6 +144,9 @@
     "obstacle_lateral_clearance_mm": 179.0,
     "narrowest_gap_wall_to_pillar_mm": 333.0,
     "obstacle_pursuit_kp": 1.0,
+    "obstacle_pursuit_kp_near": 1.6,
+    "obstacle_pursuit_far_mm": 950.0,
+    "obstacle_pursuit_near_mm": 320.0,
     "obstacle_relock_gate_mm": 360.0,
     "obstacle_relock_timeout_s": 0.8,
     "obstacle_color_hold_y_mm": 320.0,
@@ -199,7 +203,10 @@
     "require_lateral_verification": true,
     "center_timeout_s": 5.0,
     "verify_scans": 3,
-    "total_timeout_s": 24.0
+    "total_timeout_s": 24.0,
+    "ultrasound_rear_enabled": true,
+    "ultrasound_rear_min_mm": 20.0,
+    "ultrasound_rear_max_mm": 1200.0
   },
   "hardware": {
     "pico_port": "/dev/ttyACM0",

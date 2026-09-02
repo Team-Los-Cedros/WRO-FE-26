@@ -20,11 +20,12 @@ import math
 import time
 from typing import Any, Dict, Optional, Sequence
 
-from .estacionamiento import ControlEstacionamiento
+from .estacionamiento import ControlEstacionamiento, ejecutar_estacionamiento
 from .modelos import (
     Consigna,
     Corredor,
     HuecoParqueo,
+    MedidasParqueo,
     TrackObstaculo,
 )
 
@@ -111,6 +112,7 @@ class ControlRuta:
         self._error_lateral_filtrado: Optional[float] = None
         self._error_rumbo_filtrado: Optional[float] = None
         self._heading_actual = 0.0
+        self._ultrasonido_mm: Optional[float] = None
         self._heading_referencia: Optional[float] = None
         self._confirmaciones_esquina = 0
         self._confirmaciones_salida_esquina = 0
@@ -462,6 +464,56 @@ class ControlRuta:
             1.0, abs(float(self._control["speed_avoid_pwm"]))
         )
         return base * referencia / velocidad
+
+    def _slew_evasion(self) -> float:
+        """Cuanto puede moverse la direccion por barrido esquivando un pilar.
+
+        El slew de crucero (6 grados/barrido) esta pensado para no serpentear
+        centrando entre paredes, pero a 10 Hz tarda cinco barridos -- medio
+        segundo, y a 40 PWM son 8 cm -- en llegar al tope de direccion. Contra
+        un pilar que aparece a menos de un metro esa rampa se come el margen
+        de maniobra: el robot pide el angulo correcto y llega tarde. En
+        evasion se usa un slew propio, mas suelto que el de carril y mas
+        contenido que el de esquina.
+        """
+
+        return float(
+            self._control.get(
+                "avoid_steering_slew_deg_per_scan",
+                self._control["steering_slew_deg_per_scan"],
+            )
+        )
+
+    def _ganancia_persecucion(self, distancia_mm: float) -> float:
+        """Ganancia de pure-pursuit, mas viva cuanto mas cerca esta el pilar.
+
+        Con ganancia unica hay que elegir: si sirve de lejos, de cerca se
+        queda corta (el bearing crece rapido en los ultimos 30 cm y la
+        direccion no alcanza); si sirve de cerca, de lejos oscila. Se
+        interpola linealmente entre las dos distancias configuradas, que es
+        la anticipacion que pedia el plan sin introducir un termino
+        derivativo nuevo que habria que calibrar aparte.
+        """
+
+        kp_lejos = float(self._control["obstacle_pursuit_kp"])
+        kp_cerca = float(self._control.get("obstacle_pursuit_kp_near", kp_lejos))
+        if kp_cerca <= kp_lejos:
+            return kp_lejos
+        d_lejos = float(
+            self._control.get(
+                "obstacle_pursuit_far_mm", self._control["obstacle_trigger_mm"]
+            )
+        )
+        d_cerca = float(
+            self._control.get(
+                "obstacle_pursuit_near_mm", self._control["near_blind_spot_mm"]
+            )
+        )
+        if not math.isfinite(distancia_mm) or d_cerca >= d_lejos:
+            return kp_lejos
+        proporcion = (d_lejos - float(distancia_mm)) / (d_lejos - d_cerca)
+        proporcion = _limitar(proporcion, 0.0, 1.0)
+        return kp_lejos + proporcion * (kp_cerca - kp_lejos)
 
     def _timeout_recentrado(self) -> float:
         """Conserva la misma distancia disponible al reducir el PWM."""
@@ -888,7 +940,7 @@ class ControlRuta:
         x_objetivo = float(track.x_mm) + desplazamiento
         y_objetivo = max(150.0, float(track.y_mm))
         bearing = math.degrees(math.atan2(x_objetivo, y_objetivo))
-        deseado = -bearing * float(self._control["obstacle_pursuit_kp"])
+        deseado = -bearing * self._ganancia_persecucion(track.distancia_mm)
         deseado = self._con_guardia_pared(deseado, corredor)
         return self._emitir(
             self._con_frenado(
@@ -898,6 +950,7 @@ class ControlRuta:
             "pure-pursuit al punto de paso del pilar {}".format(
                 self._track_id
             ),
+            slew_angulo_deg=self._slew_evasion(),
         )
 
     def _procesar_sobrepaso(
@@ -949,6 +1002,10 @@ class ControlRuta:
         )
         deseado = error_heading * float(self._control["obstacle_pursuit_kp"])
         deseado = self._con_guardia_pared(deseado, corredor)
+        # Aqui la ganancia se deja como estaba: no es persecucion de un punto
+        # sino sostener el rumbo, y subirla endurece el lazo sin ganar nada.
+        # Lo que si hace falta es que la direccion pueda volver rapido si la
+        # guardia de pared corrige, de ahi el slew de evasion.
         return self._emitir(
             self._con_frenado(
                 int(self._control["speed_avoid_pwm"]), corredor.frontal_mm
@@ -957,6 +1014,7 @@ class ControlRuta:
             "manteniendo rumbo mientras pasa el pilar {}".format(
                 self._track_id
             ),
+            slew_angulo_deg=self._slew_evasion(),
         )
 
     def _procesar_recentrado(
@@ -1334,45 +1392,13 @@ class ControlRuta:
             bandera_lateral and _distancia_lidar_real(lateral, sin_dato)
         )
 
-        parametros = self._parametros_estacionamiento
-        kwargs = {"ahora": ahora}
-        if "trasera_valida" in parametros:
-            kwargs["trasera_valida"] = bool(corredor.trasera_valida)
-        if "cobertura_trasera" in parametros:
-            kwargs["cobertura_trasera"] = float(corredor.cobertura_trasera)
-        if "distancia_lateral_mm" in parametros:
-            kwargs["distancia_lateral_mm"] = float(lateral)
-        if "lateral_mm" in parametros:
-            kwargs["lateral_mm"] = float(lateral)
-        if "lateral_valida" in parametros:
-            kwargs["lateral_valida"] = bool(lateral_valida)
-        for nombre, valor in (
-            ("trasera_izquierda_mm", corredor.trasera_izquierda_mm),
-            ("trasera_derecha_mm", corredor.trasera_derecha_mm),
-            (
-                "trasera_izquierda_valida",
-                bool(corredor.trasera_izquierda_valida),
-            ),
-            (
-                "trasera_derecha_valida",
-                bool(corredor.trasera_derecha_valida),
-            ),
-            (
-                "cobertura_trasera_izquierda",
-                corredor.cobertura_trasera_izquierda,
-            ),
-            (
-                "cobertura_trasera_derecha",
-                corredor.cobertura_trasera_derecha,
-            ),
-        ):
-            if nombre in parametros:
-                kwargs[nombre] = valor
-
         # Con la FSM antigua no se deja que el valor centinela de una trasera
         # ciega parezca espacio libre. Una implementacion ampliada recibe la
         # validez explicitamente y puede seguir buscando hacia delante.
-        if not corredor.trasera_valida and "trasera_valida" not in parametros:
+        if (
+            not corredor.trasera_valida
+            and "trasera_valida" not in self._parametros_estacionamiento
+        ):
             return self._emitir(
                 0,
                 0.0,
@@ -1381,12 +1407,30 @@ class ControlRuta:
                 direccion_neutra=True,
             )
 
-        resultado = self._estacionamiento.procesar(
+        # Un solo paquete de medidas en vez de una docena de argumentos
+        # armados a mano: la adaptacion a la firma concreta de la FSM vive
+        # ahora dentro de ejecutar_estacionamiento, junto a la FSM misma.
+        medidas = MedidasParqueo(
+            frontal_mm=corredor.frontal_mm,
+            trasera_mm=corredor.trasera_mm,
+            trasera_valida=bool(corredor.trasera_valida),
+            cobertura_trasera=float(corredor.cobertura_trasera),
+            lateral_mm=float(lateral),
+            lateral_valida=lateral_valida,
+            trasera_izquierda_mm=corredor.trasera_izquierda_mm,
+            trasera_derecha_mm=corredor.trasera_derecha_mm,
+            trasera_izquierda_valida=bool(corredor.trasera_izquierda_valida),
+            trasera_derecha_valida=bool(corredor.trasera_derecha_valida),
+            cobertura_trasera_izquierda=corredor.cobertura_trasera_izquierda,
+            cobertura_trasera_derecha=corredor.cobertura_trasera_derecha,
+            ultrasonido_trasero_mm=self._ultrasonido_mm,
+        )
+        resultado = ejecutar_estacionamiento(
+            self._estacionamiento,
             hueco,
             self._heading_actual,
-            corredor.frontal_mm,
-            corredor.trasera_mm,
-            **kwargs,
+            medidas,
+            ahora,
         )
 
         if resultado.estado == "FAILED":
@@ -1399,14 +1443,31 @@ class ControlRuta:
                 corredor.cobertura_trasera,
                 float(self._parking_cfg["minimum_rear_coverage"]),
             )
+            margen_reversa_mm = float(self._control["emergency_rear_mm"])
             trasera_segura = bool(
                 corredor.trasera_valida
                 and cobertura_axial_ok
                 and _distancia_lidar_real(corredor.trasera_mm, sin_dato)
-                and corredor.trasera_mm
-                > float(self._control["emergency_rear_mm"])
+                and corredor.trasera_mm > margen_reversa_mm
             )
-            if not trasera_segura:
+            # Esta guardia es independiente de la FSM: aunque la maquina de
+            # estados autorice la reversa, aqui se vuelve a exigir evidencia
+            # de que hay sitio detras. El ultrasonido cuenta como esa
+            # evidencia, porque ve precisamente el sector axial que el mastil
+            # le tapa al LiDAR; los limites de plausibilidad son los mismos
+            # que aplica la FSM, no unos propios que pudieran desincronizarse.
+            # Igual que con la firma de procesar, no se da por hecho que la
+            # FSM montada conozca el ultrasonido: si no lo conoce, esta
+            # guardia se queda exactamente como estaba antes.
+            plausible = getattr(
+                self._estacionamiento, "ultrasonido_utilizable", None
+            )
+            ultrasonido_seguro = bool(
+                plausible is not None
+                and plausible(self._ultrasonido_mm)
+                and float(self._ultrasonido_mm) > margen_reversa_mm
+            )
+            if not trasera_segura and not ultrasonido_seguro:
                 return self._fallar(
                     "estacionamiento solicito reversa sin trasera segura", ahora
                 )
@@ -1510,10 +1571,20 @@ class ControlRuta:
         color_piso: Optional[str],
         hueco: Optional[HuecoParqueo] = None,
         ahora: Optional[float] = None,
+        ultrasonido_mm: Optional[float] = None,
     ) -> Consigna:
-        """Avanza exactamente un ciclo, sin realizar efectos laterales."""
+        """Avanza exactamente un ciclo, sin realizar efectos laterales.
+
+        ``ultrasonido_mm`` es la distancia trasera del sensor de ultrasonido, o
+        ``None`` si no hay medida fiable. Solo la usa el estacionamiento: en
+        carrera la geometria util es lateral y frontal, y ahi el LiDAR no tiene
+        el punto ciego que justifica el sensor.
+        """
 
         instante = time.monotonic() if ahora is None else float(ahora)
+        self._ultrasonido_mm = (
+            None if ultrasonido_mm is None else float(ultrasonido_mm)
+        )
         if self._t_inicio is None:
             self._t_inicio = instante
             self._t_estado = instante

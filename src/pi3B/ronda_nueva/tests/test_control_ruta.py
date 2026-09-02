@@ -830,7 +830,15 @@ class ControlRutaTests(unittest.TestCase):
         orden = control.procesar(abierta, (), -124.0, "PISTA", ahora=0.4)
         self.assertEqual(control.esquinas, 1)
         self.assertEqual(control.estado, "PARKING")
-        self.assertEqual(control.lado_parqueo_solicitado, 1)
+        # Se llega aqui con sentido +1 (AZUL = antihorario), asi que el lado
+        # pedido tiene que ser el que la configuracion asocie al giro a la
+        # izquierda. Se lee de la config a proposito: cual de los dos lados
+        # es el bueno es una calibracion de pista que el equipo ha invertido
+        # ya una vez, y lo que esta prueba fija es el MAPEO, no el numero.
+        self.assertEqual(
+            control.lado_parqueo_solicitado,
+            self.config["parking"]["parking_side_for_left_turn"],
+        )
         self.assertEqual(orden.velocidad, 0)
 
     def test_esquina_tiene_prioridad_sobre_pilar_confirmado(self):
