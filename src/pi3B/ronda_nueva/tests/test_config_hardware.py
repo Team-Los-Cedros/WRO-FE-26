@@ -21,7 +21,12 @@ class ConfiguracionTests(unittest.TestCase):
         self.assertEqual(camara["raw_sensor_size"], [2304, 1296])
         self.assertAlmostEqual(camara["hfov_deg"], 68.16865, places=4)
         self.assertAlmostEqual(camara["principal_x_px"], 352.074, places=3)
-        self.assertAlmostEqual(camara["forward_from_lidar_mm"], -99.76, places=2)
+        # Medido con regla el 2026-09-02: la camara del mastil trasero esta a
+        # 80 mm por detras del eje de giro del LiDAR, no a los 99,76 que traia
+        # la fotogrametria. Con ese valor, la guiñada medida contra pilares
+        # baja su dispersion de 0,47 a 0,33 grados entre poses distintas.
+        self.assertAlmostEqual(camara["forward_from_lidar_mm"], -80.0, places=2)
+        self.assertAlmostEqual(camara["yaw_from_lidar_deg"], 3.57, places=2)
         # El 2026-08-31 el arranque se nego a armar por "estructura fuera de
         # la mascara en 192". Midiendo el barrido crudo, el eco del mastil
         # llega hasta 193 grados (110 y 112 mm en 192 y 193, dentro del
