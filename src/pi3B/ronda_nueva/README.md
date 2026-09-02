@@ -926,6 +926,30 @@ hacia atras y no ve las esquinas, asi que esas siguen saliendo del LiDAR y
 su ausencia sigue frenando el arco. La comprobacion de cobertura, que es una
 metrica del LiDAR, se omite solo cuando el numero lo puso el ultrasonido.
 
+#### Como probar el parqueo aislado: `--solo-parqueo`
+
+El unico acceso normal al estacionamiento esta **despues de verificar una
+esquina** (`_procesar_giro`, justo tras incrementar el contador). Como
+completar una esquina es precisamente lo que bloquea el radio de giro, sin
+una puerta directa la FSM de parqueo no se puede ejercitar en pista.
+
+`--solo-parqueo` pone `corners_before_parking` a 0, y con ese valor la FSM
+entra a buscar la bahia en cuanto conoce el sentido de carrera. Omite ademas
+la calibracion `parking_ready`, que es justo lo que la prueba viene a
+producir; **el resto de calibraciones y `motion_enabled` se siguen
+exigiendo**. Lo anuncia por consola al arrancar.
+
+Esa puerta **solo la puede abrir el flag**: `validar_configuracion` rechaza
+`corners_before_parking < 1`, asi que ningun JSON la activa por su cuenta.
+Es excluyente con `--sin-parqueo`, que pide lo contrario.
+
+Dos avisos de uso:
+
+- Con `turn_direction: AUTO` el robot nunca entra al parqueo si arranca
+  dentro de la bahia, porque no cruza ninguna linea de sentido y sin sentido
+  no hay lado de bahia. Para esta prueba hay que fijar `LEFT` o `RIGHT`.
+- Es opcion de banco, como `--arranque-inmediato`. La ronda oficial no la usa.
+
 Claves nuevas en `configuracion.json` (`parking`):
 `ultrasound_rear_enabled`, `ultrasound_rear_min_mm`, `ultrasound_rear_max_mm`.
 Poniendo la primera en `false` se vuelve al comportamiento anterior sin

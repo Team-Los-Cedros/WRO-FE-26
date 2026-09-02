@@ -595,10 +595,22 @@ def _argumentos(argv=None):
         action="store_true",
         help="valida y muestra pendientes sin abrir hardware",
     )
-    parser.add_argument(
+    # Las dos son excluyentes: piden lo contrario la una de la otra, y
+    # dejarlas convivir escondia cual de las dos ganaba.
+    alcance = parser.add_mutually_exclusive_group()
+    alcance.add_argument(
         "--sin-parqueo",
         action="store_true",
         help="prueba de recorrido: no entra a parqueo ni exige su calibracion",
+    )
+    alcance.add_argument(
+        "--solo-parqueo",
+        action="store_true",
+        help=(
+            "banco de pruebas del parqueo: entra a buscar la bahia sin dar la "
+            "vuelta antes y omite la calibracion parking_ready; "
+            "la ronda oficial no usa esta opcion"
+        ),
     )
     parser.add_argument(
         "--arranque-inmediato",
@@ -615,9 +627,13 @@ def main(argv=None) -> int:
     args = _argumentos(argv)
     try:
         config = cargar_configuracion(args.config)
+        # --solo-parqueo existe para poder calibrar el parqueo: exigirle la
+        # calibracion que viene a producir lo haria inservible. Se omite igual
+        # que --sin-parqueo, pero solo esa; el resto se sigue exigiendo.
+        incluir_estacionamiento = not (args.sin_parqueo or args.solo_parqueo)
         if args.validar_config:
             pendientes = calibraciones_pendientes(
-                config, incluir_estacionamiento=not args.sin_parqueo
+                config, incluir_estacionamiento=incluir_estacionamiento
             )
             print("Configuracion valida: {}".format(config["_ruta"]))
             print("Calibraciones pendientes: {}".format(
@@ -629,11 +645,21 @@ def main(argv=None) -> int:
             return 0
 
         exigir_listo_para_mover(
-            config, incluir_estacionamiento=not args.sin_parqueo
+            config, incluir_estacionamiento=incluir_estacionamiento
         )
         if args.sin_parqueo:
             config = copy.deepcopy(config)
             config["control"]["corners_before_parking"] = 1_000_000
+        if args.solo_parqueo:
+            # Se anuncia en voz alta: es una opcion de banco, no de carrera,
+            # y quien lea el log tiene que saber que se salto una salvaguarda.
+            print(
+                "[!] --solo-parqueo: banco de pruebas. Se omite la calibracion "
+                "parking_ready y se entra al parqueo sin recorrer la pista. "
+                "La ronda oficial no usa esta opcion."
+            )
+            config = copy.deepcopy(config)
+            config["control"]["corners_before_parking"] = 0
         aplicacion = AplicacionRondaNueva(
             config,
             permitir_parqueo=not args.sin_parqueo,

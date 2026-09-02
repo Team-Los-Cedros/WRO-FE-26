@@ -1657,6 +1657,17 @@ class ControlRuta:
             # El heading del arranque define el rumbo del primer tramo; las
             # esquinas contadas le suman 90 grados por sentido de vuelta.
             self._heading_referencia = self._heading_actual
+            # Banco de pruebas del parqueo: con cero esquinas exigidas se
+            # entra a buscar la bahia en cuanto se conoce el sentido, sin dar
+            # la vuelta antes. El unico acceso normal al parqueo esta despues
+            # de verificar una esquina (ver _procesar_giro), y completar una
+            # esquina es precisamente lo que bloquea el radio de giro, asi que
+            # sin esta puerta la FSM de estacionamiento no se puede ejercitar
+            # en pista. Solo la abre --solo-parqueo: validar_configuracion
+            # rechaza corners_before_parking < 1, de modo que ningun JSON
+            # puede activar este camino por si solo.
+            if int(self._control["corners_before_parking"]) <= 0:
+                return self._iniciar_parqueo(instante)
             self._entrar("CRUISE", instante)
 
         if self._estado == "PARKING":
