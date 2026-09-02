@@ -811,3 +811,141 @@ Para las tres vueltas faltan 6 esquinas sobre la mediana, y el ritmo de
 ~21 s por esquina las situa en 250-270 s contra los 180 del limite. No es
 cuestion de estabilidad: hace falta velocidad, y subirla choca con el
 pilar que aparece tras la esquina.
+
+## Latencia del LiDAR, ultrasonido trasero y parqueo modular
+
+Tres cambios que van juntos porque los tres atacan lo mismo: el control
+estaba decidiendo con informacion que ya no describia la pista.
+
+### El retraso del LiDAR era de adquisicion, no de proceso
+
+`comun/lidar_driver.py` leia el puerto **byte a byte**: un `read(1)` para el
+byte de cabecera y un `read(4)` para el resto, por cada muestra. A 460800
+bps el C1 entrega ~9200 paquetes/s, o sea **~18400 llamadas de sistema por
+segundo** solo para recibir. Y el callback del hilo de lectura era el ciclo
+de decision completo (geometria, fusion, vision, control, metricas): 15-30
+ms en los que el kernel seguia acumulando bytes. Al volver a leer, el driver
+procesaba paquetes viejos, y el retraso **crecia solo**, porque cada barrido
+atrasado tardaba lo mismo en procesarse que uno fresco.
+
+Lo que se hizo:
+
+- **Lectura en bloques.** Cada vuelta del hilo drena con una sola llamada
+  todo lo pendiente (`read(in_waiting)`) y decodifica el lote entero de una
+  vez, vectorizado con numpy (hay una rama pura equivalente si numpy falta).
+  El `read(1)` bloqueante se conserva solo como espera pasiva cuando el
+  LiDAR calla, para no quemar CPU girando en vacio.
+- **Sincronizacion explicita.** El parser exige una racha de 12 paquetes
+  coherentes antes de fiarse de una alineacion; los dos check bits del
+  protocolo dejan pasar 1 de cada 4 posiciones al azar, asi que un solo
+  paquete no basta. Ante un byte corrupto se resincroniza y cuenta el
+  episodio (`driver.resincronizaciones`).
+- **Filtro de angulo imposible.** El campo trae 15 bits, hasta 511,98
+  grados. Un paquete corrupto que superara los check bits terminaba aliasado
+  dentro de `construir_perfil_360` (`indice % 360`) inventando un obstaculo
+  en un sector que nadie miraba. Ahora se descarta.
+- **Buzon de un solo hueco.** `BuzonBarridosLidar` no es una cola: el
+  barrido nuevo pisa al que no llego a consumirse. Encolar habria sido peor
+  que descartar, porque el robot acabaria esquivando donde el pilar *estaba*.
+- **El bucle principal es el bucle de control.** El hilo del LiDAR solo
+  publica; el ciclo de decision corre en el hilo principal, que ya hacia los
+  watchdogs. Perception, fusion y FSM usan el **timestamp de captura**, no el
+  de proceso: eso ademas alinea de verdad la fusion con la camara, que
+  siempre uso su instante de captura.
+
+Los watchdogs siguen midiendo contra la hora real (`time.monotonic()`), no
+contra la del dato: usarla los haria mas indulgentes justo cuanto mas
+atrasado fuera el sistema.
+
+Dos columnas nuevas en el CSV para comprobarlo en pista:
+
+- `lidar_edad_ms`: edad del barrido en el instante de emitir la consigna.
+  **Tiene que quedarse plana, no crecer.** Si sube monotonamente durante la
+  corrida, el buffer se esta volviendo a acumular.
+- `barridos_descartados`: cuantas veces un barrido quedo obsoleto sin
+  consumirse. Un numero pequeno y estable es normal; uno que crece rapido
+  dice que el ciclo de decision no llega a 10 Hz.
+
+### Ultrasonido trasero (HC-SR04 / US-100)
+
+**Cableado: Trigger en GP14, Echo en GP15.** Son los pines libres mas
+comodos: GP12 es el servo, GP16-GP19 los dos buses I2C, GP22 el PWM del
+motor y GP26-GP28 el TB6612FNG.
+
+> **Aviso.** El Echo del HC-SR04 sale a 5 V y los GPIO de la Pico **no**
+> toleran 5 V. Hay que bajarlo con un divisor (1 k en serie desde Echo, 2 k
+> a GND) o usar un US-100 alimentado a 3,3 V. Sin eso se dana la entrada.
+
+El firmware **no** usa `machine.time_pulse_us`: esa llamada bloquea hasta 30
+ms esperando el eco, y el bucle de la Pico corre cada 5 ms sosteniendo el
+servo, el motor y el watchdog de comandos. En su lugar se lanza el pulso
+(10 us de bloqueo) y se cronometra el flanco por **interrupcion**, de modo
+que el control sigue corriendo mientras el sonido viaja. Periodo de disparo:
+60 ms, que es lo que el HC-SR04 pide para no arrastrar ecos fantasma.
+
+La conversion y el filtrado viven en `src/pico/ultrasonido.py`, sin importar
+`machine`, para poder probarlos en CPython igual que `protocolo_seguro.py`.
+El filtro publica la **mediana de tres** muestras y caduca la medida tras
+tres intentos sin eco: lo peor que puede hacer un sensor de distancia es
+seguir publicando la ultima lectura buena cuando ya no ve nada.
+
+> **Al desplegar hay que copiar `ultrasonido.py` a la Pico junto a
+> `main.py`.** Si falta, el firmware arranca igual y manda `US:-1`; no se
+> cae, pero tampoco hay sensor.
+
+Trama de telemetria: `IMU:...,COLOR:...,US:185,WD:OK`. El campo va antes de
+`WD` y los parsers recorren campos por nombre, asi que el firmware anterior
+y `comun/enlace_pico.py` (que corta por la primera coma) siguen funcionando.
+`US:-1` significa *sin medida*, nunca *libre*.
+
+### Parqueo: una sola entrada y trasera fusionada
+
+`ejecutar_estacionamiento(controlador, hueco, heading, medidas, ahora)` es
+ahora el unico punto de entrada. Las medidas viajan en un `MedidasParqueo`
+en vez de una docena de argumentos sueltos, y la tolerancia a que la FSM
+cambie de firma se movio de `control_ruta` a `estacionamiento.py`, junto a
+la FSM que la necesita.
+
+**Regla de fusion de la trasera: se toma la MENOR de las dos fuentes.** El
+razonamiento es asimetrico a proposito. Los dos modos de fallo conocidos del
+LiDAR aqui —el sector ciego del mastil (163-195 grados) y el eco de la
+propia rueda— hacen que informe de *mas* espacio del que hay, o de ninguno;
+nunca de menos. Quedarse con la menor significa que:
+
+- el ultrasonido manda justo cuando ve algo que el LiDAR no vio, que es para
+  lo que se monto;
+- nunca puede autorizar una reversa que el LiDAR ya considera peligrosa.
+
+Con el robot en angulo dentro del arco, el sensor puede estar midiendo el
+separador y no la pared del fondo. Sigue siendo el numero seguro, y la
+comprobacion de que `frontal + trasera` equivale al largo del hueco impide
+cerrar el centrado con esa medida.
+
+Lo que el ultrasonido **no** sustituye: las diagonales traseras. Mira recto
+hacia atras y no ve las esquinas, asi que esas siguen saliendo del LiDAR y
+su ausencia sigue frenando el arco. La comprobacion de cobertura, que es una
+metrica del LiDAR, se omite solo cuando el numero lo puso el ultrasonido.
+
+Claves nuevas en `configuracion.json` (`parking`):
+`ultrasound_rear_enabled`, `ultrasound_rear_min_mm`, `ultrasound_rear_max_mm`.
+Poniendo la primera en `false` se vuelve al comportamiento anterior sin
+tocar codigo, que es lo que hace falta para comparar dos corridas.
+
+### Reactividad de la evasion
+
+Dos claves nuevas en `control`, ambas con respaldo al valor historico si no
+estan:
+
+- `avoid_steering_slew_deg_per_scan` (18,0). El slew de crucero son 6
+  grados/barrido; a 10 Hz eso son cinco barridos —medio segundo, 8 cm a 40
+  PWM— para llegar al tope de direccion. Contra un pilar a menos de un metro
+  esa rampa se comia el margen: el robot pedia el angulo correcto y llegaba
+  tarde.
+- `obstacle_pursuit_kp_near` (1,6) entre `obstacle_pursuit_far_mm` (950) y
+  `obstacle_pursuit_near_mm` (320). Con ganancia unica hay que elegir: si
+  sirve de lejos, de cerca se queda corta porque el bearing crece rapido en
+  los ultimos 30 cm; si sirve de cerca, de lejos oscila. Se interpola
+  linealmente y satura en los dos extremos.
+
+**Los cuatro valores son puntos de partida razonados, no calibraciones.**
+Hay que medirlos en pista antes de darlos por buenos.
