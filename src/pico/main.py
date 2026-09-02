@@ -5,6 +5,15 @@ import time
 
 from protocolo_seguro import parsear_consigna, watchdog_vencido
 
+# El ultrasonido es una ayuda, no un requisito de seguridad: si el modulo no
+# se copio a la Pico el robot tiene que seguir corriendo la ronda. Se anuncia
+# la ausencia por telemetria (US:-1), que es la senal que la Pi ya sabe leer.
+try:
+    from ultrasonido import SIN_MEDIDA, FiltroUltrasonido
+except ImportError:
+    SIN_MEDIDA = -1
+    FiltroUltrasonido = None
+
 # Configurar el Poller para lectura serial asincrona desde la Pi 3B
 poller = select.poll()
 poller.register(sys.stdin, select.POLLIN)
@@ -29,6 +38,101 @@ pwmb = PWM(Pin(22))
 pwmb.freq(2000)
 
 stby.value(1)
+
+# --- ULTRASONIDO TRASERO (HC-SR04 / US-100) ---
+# Trigger en GP14, Echo en GP15. Van libres: GP12 es el servo, GP16-GP19 los
+# dos buses I2C, GP22 el PWM del motor y GP26-GP28 el TB6612FNG.
+#
+# AVISO DE CABLEADO: el Echo del HC-SR04 sale a 5 V y los GPIO de la Pico NO
+# toleran 5 V. Hay que bajarlo con un divisor (1 k en serie desde Echo y 2 k
+# a GND da 3,3 V) o usar un US-100 alimentado a 3,3 V. Sin eso se dana la
+# entrada de la Pico.
+#
+# POR QUE NO SE USA machine.time_pulse_us: esa llamada bloquea hasta que
+# vuelve el eco, hasta 30 ms con el timeout tipico. Este bucle corre cada
+# 5 ms y es el que sostiene el servo, el motor y el watchdog de comandos:
+# pararlo 30 ms de cada 60 seria peor que no tener sensor. En su lugar se
+# lanza el pulso y se cronometra el flanco del eco por interrupcion, de modo
+# que el control sigue corriendo mientras el sonido viaja.
+US_PIN_TRIGGER = 14
+US_PIN_ECHO = 15
+US_PERIODO_MS = 60      # el HC-SR04 pide >=60 ms entre disparos (ecos fantasma)
+US_ESPERA_MAX_MS = 40   # sin eco en este plazo se da el disparo por perdido
+US_MINIMA_MM = 20       # por debajo de su zona muerta la lectura no significa nada
+US_MAXIMA_MM = 4000
+
+
+class SensorUltrasonido:
+    """Disparo periodico y medida del eco por interrupcion, sin bloquear."""
+
+    def __init__(self, pin_trigger, pin_echo, filtro):
+        self._trigger = Pin(pin_trigger, Pin.OUT, value=0)
+        self._echo = Pin(pin_echo, Pin.IN)
+        self._filtro = filtro
+        self._ancho_us = 0
+        self._t_subida = 0
+        self._midiendo = False
+        self._listo = False
+        self._esperando = False
+        self._t_disparo = time.ticks_ms()
+        self.distancia_mm = SIN_MEDIDA
+        self._echo.irq(
+            handler=self._al_flanco,
+            trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING,
+        )
+
+    def _al_flanco(self, pin):
+        # Rutina de interrupcion: solo enteros y booleanos sobre atributos que
+        # ya existen. Nada que reserve memoria (ni floats, ni listas, ni
+        # formateo), porque en MicroPython eso puede fallar dentro de una ISR.
+        if pin.value():
+            self._t_subida = time.ticks_us()
+            self._midiendo = True
+        elif self._midiendo:
+            self._ancho_us = time.ticks_diff(time.ticks_us(), self._t_subida)
+            self._midiendo = False
+            self._listo = True
+
+    def _disparar(self, ahora_ms):
+        self._t_disparo = ahora_ms
+        self._esperando = True
+        self._midiendo = False
+        self._trigger.value(0)
+        time.sleep_us(2)
+        self._trigger.value(1)
+        time.sleep_us(10)       # el unico bloqueo: 10 us, no 30 ms
+        self._trigger.value(0)
+
+    def actualizar(self, ahora_ms):
+        """Se llama en cada vuelta del bucle; devuelve la distancia vigente."""
+
+        if self._listo:
+            self._listo = False
+            self._esperando = False
+            self.distancia_mm = self._filtro.actualizar(self._ancho_us)
+        elif self._esperando and time.ticks_diff(
+            ahora_ms, self._t_disparo
+        ) > US_ESPERA_MAX_MS:
+            # Sin eco: pared oblicua, fuera de alcance o sensor desconectado.
+            # Cuenta como fallo para que la medida caduque en vez de quedarse
+            # congelada en el ultimo valor bueno.
+            self._esperando = False
+            self.distancia_mm = self._filtro.actualizar(0)
+
+        if not self._esperando and time.ticks_diff(
+            ahora_ms, self._t_disparo
+        ) >= US_PERIODO_MS:
+            self._disparar(ahora_ms)
+        return self.distancia_mm
+
+    def apagar(self):
+        """Desarma la interrupcion y deja el trigger en reposo."""
+
+        self._echo.irq(handler=None)
+        self._trigger.value(0)
+        self._esperando = False
+        self._midiendo = False
+
 
 # Limites de giro del servo calibrados
 CENTRO = 90
@@ -186,6 +290,21 @@ try:
 except Exception as e:
     pass
 
+# El ultrasonido se monta aparte: si no esta cableado o falta el modulo, el
+# resto del firmware arranca igual y la trama sale con US:-1.
+sensor_ultrasonido = None
+if FiltroUltrasonido is not None:
+    try:
+        sensor_ultrasonido = SensorUltrasonido(
+            US_PIN_TRIGGER,
+            US_PIN_ECHO,
+            FiltroUltrasonido(
+                ventana=3, minima_mm=US_MINIMA_MM, maxima_mm=US_MAXIMA_MM
+            ),
+        )
+    except Exception:
+        sensor_ultrasonido = None
+
 # Calibracion del giroscopio
 giro_z_offset = 0.0
 for _ in range(100):
@@ -205,6 +324,7 @@ angulo_acumulado = 0.0
 angulo_objetivo = 0.0
 velocidad_comandada = 0
 color_detectado = "PISTA"
+distancia_ultrasonido = SIN_MEDIDA
 
 # Constante de Amortiguacion: Evita que el coche devane o curve de golpe
 KD_ESTABILIDAD = 0.12
@@ -247,6 +367,14 @@ while True:
         # 2. Lectura del sensor de color (TCS3472 con filtro HSV)
         color_detectado = sensor_color.obtener_color()
 
+        # 2b. Ultrasonido trasero. No bloquea: dispara como mucho una vez cada
+        # US_PERIODO_MS y recoge lo que la interrupcion haya dejado listo.
+        if sensor_ultrasonido is not None:
+            try:
+                distancia_ultrasonido = sensor_ultrasonido.actualizar(tiempo_actual)
+            except:
+                distancia_ultrasonido = SIN_MEDIDA
+
         # 3. Lectura de comandos desde la Pi 3B
         if poller.poll(0):
             linea = sys.stdin.readline().strip()
@@ -279,11 +407,15 @@ while True:
         else:
             controlar_motor(velocidad_comandada)
 
-        # 6. Telemetria a la Pi 3B: angulo acumulado + color de piso
+        # 6. Telemetria a la Pi 3B: angulo, color de piso y ultrasonido.
+        # El campo US va antes de WD para no alterar el orden que ya leia el
+        # firmware anterior; los parsers de la Pi recorren campos por nombre,
+        # asi que anadirlo no rompe a quien no lo espera.
         if time.ticks_diff(tiempo_actual, ultimo_envio_telemetria) > 50:
             estado_watchdog = "STOP" if watchdog_activo else "OK"
             sys.stdout.write(
-                f"IMU:{angulo_acumulado:.2f},COLOR:{color_detectado},WD:{estado_watchdog}\n"
+                f"IMU:{angulo_acumulado:.2f},COLOR:{color_detectado},"
+                f"US:{distancia_ultrasonido},WD:{estado_watchdog}\n"
             )
             ultimo_envio_telemetria = tiempo_actual
 
@@ -293,4 +425,11 @@ while True:
         controlar_motor(0)
         stby.value(0)
         mover_servo(CENTRO)
+        # Desarmar el eco: si no, la interrupcion sigue viva despues de que
+        # el bucle termine y dispara sobre un objeto que ya nadie consulta.
+        if sensor_ultrasonido is not None:
+            try:
+                sensor_ultrasonido.apagar()
+            except:
+                pass
         break
