@@ -64,6 +64,8 @@ CAMPOS_TELEMETRIA = (
     "track_activo_y",
     "track_activo_edad",
     "track_activo_observado",
+    "pilar_estimado_x",
+    "pilar_estimado_y",
     "distancia_sobrepaso",
     "hueco_confianza",
     "vision_edad_ms",
@@ -177,6 +179,7 @@ class AplicacionRondaNueva:
             float("inf") if paquete is None else max(0.0, ahora - paquete.timestamp)
         )
         track_activo = self.control.track_activo
+        pilar_estimado = self.control.pilar_estimado
         self.registro.registrar(
             {
                 "t": "{:.6f}".format(ahora),
@@ -235,6 +238,16 @@ class AplicacionRondaNueva:
                 ),
                 "track_activo_observado": int(
                     self.control.track_activo_observado
+                ),
+                # Pose propagada con el movimiento propio: es la que decide
+                # la salida del sobrepaso cuando el LiDAR ya no ve el pilar.
+                "pilar_estimado_x": (
+                    "" if pilar_estimado is None
+                    else "{:.1f}".format(pilar_estimado[0])
+                ),
+                "pilar_estimado_y": (
+                    "" if pilar_estimado is None
+                    else "{:.1f}".format(pilar_estimado[1])
                 ),
                 "distancia_sobrepaso": "{:.1f}".format(
                     self.control.distancia_sobrepaso_mm
