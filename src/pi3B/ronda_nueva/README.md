@@ -211,6 +211,14 @@ No realizarla mientras se modifica el chasis.
 
 ## Sesión de pista 2026-08-31: el radio de giro es el bloqueante
 
+> **AVISO (2026-09-02): las conclusiones sobre el radio de esta sección son
+> falsas.** El radio no se midió, se dedujo dividiendo una velocidad de recta
+> entre una velocidad angular de giro, y salió inflado casi al doble. El radio
+> real es 228 mm a la izquierda y 260 a la derecha, y la rueda gira más de lo
+> comandado, no la mitad. La sección se conserva porque el resto (fallback de
+> rumbo, `WD:OK`, latencia de visión) sigue siendo válido y porque el error de
+> método merece quedar registrado. Ver «Sesión 2026-09-02» al final.
+
 Tres corridas con motores (`--sin-parqueo`, 25 PWM) sobre la pista con los
 ocho pilares montados. Los CSV están en el `logs_prueba_*` de cada
 despliegue y el video cenital en `video/video-drafts/`.
@@ -973,3 +981,171 @@ estan:
 
 **Los cuatro valores son puntos de partida razonados, no calibraciones.**
 Hay que medirlos en pista antes de darlos por buenos.
+
+## Sesión 2026-09-02: el radio de giro se midió, y el bloqueante no existía
+
+La bitácora del 31-08 (sección «el radio de giro es el bloqueante») daba por
+medido un **radio mínimo de ~600 mm en ambos sentidos**, concluía que la rueda
+solo alcanzaba 12,7° cuando se le mandaban 20-25°, señalaba la relación
+varilla/horn como culpable y recomendaba trabajo mecánico. **Nada de eso era
+cierto.** Esta sección lo corrige con la medida directa y deja el método por
+escrito, porque el error es fácil de repetir.
+
+### El error: dividir dos medidas que no son de la misma maniobra
+
+Aquel radio no se midió, se dedujo como `r = v / ω`, con:
+
+- `v = 150 mm/s`, medida **en recta** por el cierre contra un muro con el LiDAR;
+- `ω = 14,4 °/s`, medida **en giro** con el servo al tope.
+
+El robot pierde el **47 % de su velocidad al girar a tope**: girando avanza a
+unos 79 mm/s, no a 150. El rozamiento de arrastre de las ruedas delanteras a
+27-31° no es despreciable en un chasis LEGO. Al usar la `v` de la recta, el
+radio salía inflado casi al doble. La lección es la de siempre en este
+proyecto: *medir la magnitud que interesa, no una combinación de otras dos.*
+
+### La medida directa, por dos métodos independientes
+
+Herramienta nueva: `src/pi3B/herramientas/medir_radio_giro.py`. Manda el servo
+al tope y traza círculos completos a 22 PWM (el PWM del parqueo). Dos detalles
+que la hacen válida:
+
+- **`kd = 0` obligatorio.** El firmware resta al servo un término de
+  amortiguación por giroscopio (`angulo_servo = CENTRO + angulo -
+  velocidad_z * KD_ESTABILIDAD * kd_activo`). En un giro sostenido `velocidad_z`
+  no es cero, así que con `kd = 1` la rueda **no** está en el ángulo comandado y
+  se mediría el radio del lazo de estabilidad. Se usa la trama de tres campos
+  `velocidad,angulo,kd`. Verificado contra la placa: 58 líneas de telemetría con
+  0 `WD:STOP` aceptando la trama, y una trama con `kd = 9,99` (fuera del rango
+  legal) rechazada con el watchdog disparado, como debe.
+- **Media vuelta mide mejor que la vuelta entera.** Con `--grados 180` la
+  distancia en línea recta entre la marca inicial y la final *es* el diámetro:
+  medir una recta entre dos puntos es más preciso que estimar el diámetro de una
+  curva dibujada. La vuelta entera sirve para comprobar que cierra.
+
+**Método 1 — círculo dibujado.** Un marcador en el chasis traza el círculo y se
+mide con cinta. Costó tres intentos: un trozo de tirro en el suelo atascó al
+robot 6,4 s en una corrida (rumbo congelado en −253°, tasa por debajo de
+6 °/s), y el marcador falló dos veces por no llegar al suelo con presión.
+
+**Método 2 — sinusoide sobre el LiDAR, sin tocar el suelo** (`--con-lidar`).
+Girando en círculo, si se compensa el rumbo con la IMU y se mira siempre hacia
+la misma dirección **del mundo**, la distancia a una pared plana recorre una
+sinusoide `d(ψ) = A − (r / cos α)·cos(ψ − fase)`, donde α es el ángulo entre el
+rayo y la normal de la pared. La amplitud es mínima, y vale exactamente `r`,
+cuando el rayo apunta perpendicular. No hace falta saber dónde está la pared:
+se ajusta `d = A + B·cos ψ + C·sin ψ` en las 360 direcciones y se toma la
+amplitud menor entre los ajustes buenos. Validado antes de usarlo contra datos
+sintéticos de radio conocido (200-600 mm, ruido de 8 mm): error por debajo del
+0,6 %. En el robot dio **3,0 mm de residuo** y direcciones vecinas coherentes.
+
+**Ojo: el LiDAR no está en el eje trasero.** El método mide el círculo del
+sensor, que es `R_lidar = sqrt(d² + r_eje²)` con `d` la distancia del eje
+trasero al eje de giro del LiDAR. Hay que despejar `r_eje`.
+
+### Resultado
+
+| Lado | Mando al servo | `R_lidar` | **`r` del eje trasero** | Rueda real | Factor |
+| --- | --- | --- | --- | --- | --- |
+| Izquierda | +25° | 264 mm | **228 mm** | 30,8° | 1,23× |
+| Derecha | −20° | 292 mm | **260 mm** | 27,6° | 1,38× |
+
+Los dos métodos coinciden: con el marcador en el morro (162 mm del eje), el
+LiDAR predice un círculo de 613 mm y la cinta midió 633 — un 3 % sobre un
+círculo dibujado a mano que además no cerraba (22 mm de error de cierre).
+
+**La rueda gira MÁS de lo que se le manda**, entre 1,23× y 1,38×, no la mitad.
+Los ángulos de `steering_max_*_deg` son grados de **servo**, no de rueda; la
+relación del varillaje amplifica. No hay nada que arreglar en el horn.
+
+### Qué cambia
+
+1. **Las esquinas no están limitadas por la geometría.** Una esquina de 90° en
+   un carril de 1000 mm pide 400-500 mm de radio y el chasis da 228-260. Si el
+   robot no las cierra, la causa está en el control —el handoff, los timeouts,
+   el K-turn—, no en el chasis. La conclusión del 31-08 de que «la siguiente
+   mejora real es mecánica» queda **refutada**.
+2. **`lidar_forward_from_rear_axle_mm` estaba mal: decía 162, el real es 133**
+   (regla, al eje de giro del LiDAR). Corregido en `configuracion.json`. El
+   valor fija dónde para `ALIGN` (`−123 mm`, antes `−152`) y el objetivo de
+   centrado (`trasera − frontal = 164 mm`, antes `222`): 29 mm de desvío sobre
+   una holgura de 55 mm por punta. *Este valor ya había cambiado dos veces
+   (128 por fotogrametría, luego 162 «por regla»); los 29 mm de diferencia con
+   los 162 son compatibles con haber medido hasta la carcasa en vez de hasta el
+   eje de giro. **Conviene reconfirmarlo con regla antes de competir.***
+3. **El parqueo de dos arcos no cierra, pero por poco.** Simulado contra la
+   geometría real de la bahía —333 × 200 mm, delimitadores de 200 × 20 mm según
+   la regla 13.7— con los dos radios reales y asimétricos, la maniobra se pasa
+   **9 mm** sobre un delimitador en el mejor caso, y da igual por qué lado
+   entre: el corrimiento lateral depende de `r_entrada + r_salida`, que es
+   simétrico. Con el radio falso de 600 mm la interferencia era de **468 mm**,
+   y eso sí era concluyente; 9 mm está dentro del error del modelo (el robot
+   como rectángulo perfecto de 222 × 125, arcos ideales, sin contar con lo que
+   `CENTER` pueda corregir). **No se puede afirmar que sea imposible: hay que
+   probarlo en pista con `--solo-parqueo`.** Si de verdad no cierra, la salida
+   es una maniobra en varios tiempos, la misma idea del K-turn de las esquinas,
+   que el reglamento no prohíbe.
+
+`parking_ready` sigue en `false`. De los tres datos que esperaba —radio, signo
+y posición final— ya hay dos: el radio, medido por los dos lados, y el signo
+(**izquierda = rumbo positivo, derecha = negativo**, confirmado en las trazas).
+Falta la posición final verificada dentro de las barreras.
+
+### Extrínseca cámara–LiDAR: la guiñada estaba a 0 y son 3,57°
+
+`camera_lidar_extrinsics_ready` estaba en `true` y `yaw_from_lidar_deg` en
+`0.0`. Medido el 02-09 contra pilares reales: la guiñada es **+3,57°**.
+
+**Método** (`herramientas/capturar_extrinseca.py` y `analizar_extrinseca.py`).
+Un pilar visto por los dos sensores da dos bearings, y la diferencia es el
+error de montaje. Tiene dos trampas, y las dos importan:
+
+- **Asociar por distancia, nunca por bearing.** El bearing es la magnitud que
+  se está midiendo; emparejar por él daría por bueno lo que se quiere
+  comprobar. La cámara estima la distancia por la altura del blob (el pilar
+  mide 100 mm) y con eso se empareja. Cuando las dos distancias no cuadran, la
+  pareja se cae sola.
+- **Los pilares cercanos no valen.** Por debajo de ~600 mm un pilar subtiende
+  varios grados: el LiDAR ve solo la cara frontal y la cámara la silueta
+  frontal más la lateral, así que sus centroides no son el mismo punto. En las
+  capturas, los dos pilares a menos de 550 mm fallaron la distancia por un 20 %
+  y dieron desacuerdos de −4,00 y −4,66 frente a los −3,5 de los lejanos: el
+  criterio de distancia los descarta sin que haya que decírselo.
+
+**Guiñada o punto principal.** Un error de guiñada desplaza todos los bearings
+por igual; uno de punto principal escala con `cos²` y se nota más en los
+bordes. Cuatro parejas fiables, en dos poses y con bearings de −13,8° a +7,3°:
+
+| Captura | Bearing en cámara | Desacuerdo |
+| --- | --- | --- |
+| 02 | −3,27° | −3,45° |
+| 02 | −13,79° | −3,54° |
+| 03 | +7,28° | −3,52° |
+| 03 | −11,14° | −3,77° |
+
+Media **−3,57°**, dispersión 0,33°. Constante en todo el campo ⇒ guiñada. Las
+dos poses por separado dan −3,50 y −3,64: 0,14° entre poses, así que el número
+es del montaje y no de dónde esté el robot.
+
+**`forward_from_lidar_mm` también estaba mal: −99,76, y medido con regla son
+−80.** La cámara va en el mástil trasero. Corregirlo baja la dispersión de la
+guiñada de 0,47° a 0,33°, que es evidencia indirecta de que el valor nuevo es
+mejor. Es el tercer valor de montaje que aparece desviado, tras los 162→133 del
+LiDAR al eje trasero: **conviene repasar el bloque entero con regla.**
+
+Dos cosas que quedan anotadas y sin sitio en la configuración: la **altura del
+lente sobre el piso, 180 mm** (el bloque `camera` guarda `forward`, `right` y
+`yaw`, pero no altura; hoy no hace falta porque el soporte de suelo trabaja con
+`roi_*_ratio`, pero cualquier estimación por la base del blob la necesitaría), y
+que **capturar en el modo de sensor equivocado invalida la comparación**: un
+`create_still_configuration` a 1536×864 es un recorte y deja fuera un tercio del
+campo. Un pilar que el LiDAR ve a 29° puede no aparecer siquiera en la imagen.
+`capturar_extrinseca.py` fuerza el mismo modo que la ronda (640×360 sobre
+2304×1296) justo por eso.
+
+**Qué cambia en carrera.** `camera_lidar_gate_deg` vale 10°, así que un sesgo
+fijo de 3,57° gastaba **el 36 % de la puerta de asociación** antes de que
+entrara ningún ruido real. No rompía la fusión por sí solo, pero le dejaba un
+tercio menos de margen. *No* explica el caso abierto de los tracks que se
+pierden lejos: la puerta es angular, así que un sesgo constante en grados
+afecta igual a todas las distancias.
