@@ -14,6 +14,20 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 BBox = Tuple[int, int, int, int]
 Point2D = Tuple[float, float]
+MuestraLidar = Tuple[float, float]      # (angulo_deg, distancia_mm)
+
+
+@dataclass(frozen=True)
+class BarridoLidar:
+    """Barrido crudo con el instante real en que se termino de recibir.
+
+    El timestamp lo pone el driver al leer del puerto, no el consumidor: es lo
+    unico que permite saber si el control esta decidiendo sobre una foto
+    reciente de la pista o sobre una que ya envejecio en una cola.
+    """
+
+    timestamp: float
+    muestras: Sequence[MuestraLidar]
 
 
 @dataclass(frozen=True)
@@ -95,6 +109,37 @@ class HuecoParqueo:
     separacion_mm: float
     distancia_lateral_mm: float
     confianza: float
+
+
+@dataclass(frozen=True)
+class MedidasParqueo:
+    """Todo lo que la FSM de parqueo necesita medir, en un solo paquete.
+
+    Antes estos valores viajaban como una docena de argumentos sueltos que
+    ``control_ruta`` armaba a mano barrido a barrido. Agruparlos permite que
+    ``ejecutar_estacionamiento`` sea la unica frontera entre el robot y la
+    maquina de estados, y que anadir una fuente nueva (el ultrasonido) no
+    obligue a tocar la firma de nadie mas.
+
+    Cada distancia viaja con su bandera de validez porque un numero solo no
+    dice si se midio algo: el centinela SIN_DATO del LiDAR y una lectura real
+    de 8 m son el mismo float.
+    """
+
+    frontal_mm: float
+    trasera_mm: float
+    trasera_valida: bool = False
+    cobertura_trasera: float = 0.0
+    lateral_mm: Optional[float] = None
+    lateral_valida: bool = False
+    trasera_izquierda_mm: Optional[float] = None
+    trasera_derecha_mm: Optional[float] = None
+    trasera_izquierda_valida: bool = False
+    trasera_derecha_valida: bool = False
+    cobertura_trasera_izquierda: float = 0.0
+    cobertura_trasera_derecha: float = 0.0
+    # None significa "sin evidencia", nunca "libre". Ver EnlacePicoNuevo.
+    ultrasonido_trasero_mm: Optional[float] = None
 
 
 @dataclass(frozen=True)

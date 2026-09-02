@@ -11,17 +11,74 @@ estado hasta recuperar la medida o agotar el timeout. ``DONE`` solo se alcanza
 despues de varios barridos geometricamente consistentes.
 """
 
+import inspect
 import math
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
-from .modelos import HuecoParqueo, ResultadoParqueo
+from .modelos import HuecoParqueo, MedidasParqueo, ResultadoParqueo
 
 
 def _diferencia_angular(actual: float, referencia: float) -> float:
     """Diferencia firmada en grados, acotada a [-180, 180)."""
 
     return (actual - referencia + 180.0) % 360.0 - 180.0
+
+
+def ejecutar_estacionamiento(
+    controlador: "ControlEstacionamiento",
+    hueco: Optional[HuecoParqueo],
+    heading_deg: float,
+    medidas: MedidasParqueo,
+    ahora: Optional[float] = None,
+) -> ResultadoParqueo:
+    """Unico punto de entrada del estacionamiento para el resto del robot.
+
+    Traduce el paquete de medidas al contrato de
+    :meth:`ControlEstacionamiento.procesar` y solo pasa los argumentos que esa
+    version de la FSM declara. Esa tolerancia vivia antes en ``control_ruta``,
+    que tenia que conocer los detalles internos de la maquina de estados para
+    poder llamarla; aqui queda junto a la FSM que la necesita, que es donde se
+    puede mantener cuando la firma cambie.
+
+    No abre puertos ni guarda estado propio: el estado vive en el controlador,
+    igual que antes.
+    """
+
+    parametros = getattr(controlador, "parametros_procesar", None)
+    if parametros is None:
+        parametros = frozenset(
+            inspect.signature(controlador.procesar).parameters
+        )
+
+    opcionales = {
+        "trasera_valida": bool(medidas.trasera_valida),
+        "cobertura_trasera": float(medidas.cobertura_trasera),
+        "lateral_mm": medidas.lateral_mm,
+        # Nombre historico del mismo dato en versiones anteriores de la FSM.
+        "distancia_lateral_mm": medidas.lateral_mm,
+        "lateral_valida": bool(medidas.lateral_valida),
+        "trasera_izquierda_mm": medidas.trasera_izquierda_mm,
+        "trasera_derecha_mm": medidas.trasera_derecha_mm,
+        "trasera_izquierda_valida": bool(medidas.trasera_izquierda_valida),
+        "trasera_derecha_valida": bool(medidas.trasera_derecha_valida),
+        "cobertura_trasera_izquierda": float(medidas.cobertura_trasera_izquierda),
+        "cobertura_trasera_derecha": float(medidas.cobertura_trasera_derecha),
+        "ultrasonido_trasero_mm": medidas.ultrasonido_trasero_mm,
+    }
+    kwargs = {
+        nombre: valor
+        for nombre, valor in opcionales.items()
+        if nombre in parametros
+    }
+    return controlador.procesar(
+        hueco,
+        heading_deg,
+        float(medidas.frontal_mm),
+        float(medidas.trasera_mm),
+        ahora=ahora,
+        **kwargs,
+    )
 
 
 class ControlEstacionamiento:
@@ -127,7 +184,89 @@ class ControlEstacionamiento:
         self._despeje_lateral_minimo_mm = float(
             self._parking["minimum_lateral_clearance_mm"]
         )
+
+        # Ultrasonido trasero. Se puede desactivar por configuracion para
+        # volver al comportamiento anterior sin tocar codigo (util al comparar
+        # dos corridas en pista).
+        self._ultrasonido_activo = bool(
+            self._parking.get("ultrasound_rear_enabled", True)
+        )
+        self._ultrasonido_min_mm = float(
+            self._parking.get("ultrasound_rear_min_mm", 20.0)
+        )
+        self._ultrasonido_max_mm = float(
+            self._parking.get("ultrasound_rear_max_mm", 1200.0)
+        )
+        # Ultima fuente que decidio la distancia trasera; util en telemetria
+        # para saber si el parqueo se apoyo en el LiDAR o en el ultrasonido.
+        self.fuente_trasera = "NINGUNA"
+
         self.reiniciar()
+
+    # Firma declarada por esta version de la FSM. La lee
+    # ``ejecutar_estacionamiento`` para no pasar argumentos que no existan.
+    @property
+    def parametros_procesar(self) -> frozenset:
+        return frozenset(inspect.signature(self.procesar).parameters)
+
+    def ultrasonido_utilizable(self, ultrasonido_mm: Any) -> bool:
+        """Descarta ecos imposibles antes de dejarles decidir nada.
+
+        Un HC-SR04 devuelve basura con superficies oblicuas y con la pared
+        demasiado lejos. El tope no es el alcance del sensor sino el de la
+        plaza: mas alla de esa distancia el eco no puede ser la pared que le
+        importa al parqueo y no aporta informacion util.
+        """
+
+        if not self._ultrasonido_activo or ultrasonido_mm is None:
+            return False
+        try:
+            medida = float(ultrasonido_mm)
+        except (TypeError, ValueError):
+            return False
+        return bool(
+            math.isfinite(medida)
+            and self._ultrasonido_min_mm <= medida <= self._ultrasonido_max_mm
+        )
+
+    def _fusionar_trasera(
+        self,
+        trasera_mm: Any,
+        lidar_disponible: bool,
+        ultrasonido_mm: Optional[float],
+    ) -> Tuple[float, bool, bool]:
+        """Combina la trasera del LiDAR con la del ultrasonido.
+
+        Devuelve ``(distancia, disponible, medida_por_ultrasonido)``.
+
+        La regla cuando ambas fuentes son validas es quedarse con la MENOR, no
+        promediar ni preferir una fija. El razonamiento es asimetrico a
+        proposito: los dos modos de fallo conocidos aqui -- el sector ciego del
+        mastil y el eco de la propia rueda -- hacen que el LiDAR informe de mas
+        espacio del que hay o de ninguno, nunca de menos. Quedarse con la menor
+        significa que el ultrasonido manda justo cuando ve algo que el LiDAR no
+        vio, y que nunca puede autorizar una reversa que el LiDAR ya considera
+        peligrosa. Con el sensor apuntando hacia atras y el robot en angulo
+        dentro del arco, esa menor puede ser el separador y no la pared: sigue
+        siendo el numero seguro, y la comprobacion de que frontal + trasera
+        equivale al largo del hueco impide cerrar el centrado con esa medida.
+        """
+
+        util = self.ultrasonido_utilizable(ultrasonido_mm)
+        if lidar_disponible and util:
+            assert ultrasonido_mm is not None
+            distancia = min(float(trasera_mm), float(ultrasonido_mm))
+            self.fuente_trasera = "LIDAR+US"
+            return distancia, True, float(ultrasonido_mm) <= float(trasera_mm)
+        if util:
+            assert ultrasonido_mm is not None
+            self.fuente_trasera = "US"
+            return float(ultrasonido_mm), True, True
+        if lidar_disponible:
+            self.fuente_trasera = "LIDAR"
+            return float(trasera_mm), True, False
+        self.fuente_trasera = "NINGUNA"
+        return 0.0, False, False
 
     def _calcular_objetivo_alineacion(self) -> float:
         """Posicion del borde delantero al alinear el eje trasero.
@@ -262,6 +401,7 @@ class ControlEstacionamiento:
         trasera_derecha_valida: bool = False,
         cobertura_trasera_izquierda: float = 0.0,
         cobertura_trasera_derecha: float = 0.0,
+        trasera_por_ultrasonido: bool = False,
         exigir_lateral: bool = False,
         exigir_diagonales: bool = False,
     ) -> Optional[ResultadoParqueo]:
@@ -280,12 +420,20 @@ class ControlEstacionamiento:
                 )
 
         if velocidad < 0:
+            # La cobertura es una metrica del LiDAR: cuenta que fraccion del
+            # sector trasero devolvio eco. Cuando el numero lo puso el
+            # ultrasonido esa comprobacion no aplica -- exigirla anularia
+            # justo el caso que el sensor viene a cubrir, el sector ciego del
+            # mastil. Las diagonales siguen siendo obligatorias y siguen
+            # saliendo del LiDAR: el ultrasonido mira recto hacia atras y no
+            # ve las esquinas traseras.
+            cobertura_ok = trasera_por_ultrasonido or self._cobertura_valida(
+                cobertura_trasera, self._cobertura_trasera_minima
+            )
             trasera_observable = bool(
                 trasera_valida
                 and self._distancia_valida(trasera_mm)
-                and self._cobertura_valida(
-                    cobertura_trasera, self._cobertura_trasera_minima
-                )
+                and cobertura_ok
             )
             if not trasera_observable:
                 return self._resultado(
@@ -416,6 +564,7 @@ class ControlEstacionamiento:
         trasera_derecha_valida: bool = False,
         cobertura_trasera_izquierda: float = 0.0,
         cobertura_trasera_derecha: float = 0.0,
+        ultrasonido_trasero_mm: Optional[float] = None,
     ) -> ResultadoParqueo:
         """Avanza un ciclo de la FSM y devuelve una orden sin efectos laterales.
 
@@ -423,6 +572,11 @@ class ControlEstacionamiento:
         numero recibido. Un centinela ``SIN_DATO`` o una cobertura insuficiente
         frena el arco y deja correr su timeout; nunca se interpreta como libre.
         ``lateral_mm`` es la distancia LiDAR al muro exterior de la plaza.
+
+        ``ultrasonido_trasero_mm`` es la medida del sensor trasero (``None`` si
+        no hay). Se fusiona con la trasera del LiDAR segun la regla explicada
+        en :meth:`_fusionar_trasera`, y es lo que permite seguir maniobrando
+        cuando el mastil deja ciego el sector axial de atras.
         """
 
         if ahora is None:
@@ -452,29 +606,37 @@ class ControlEstacionamiento:
         if razon_timeout is not None:
             return self._fallar(razon_timeout, ahora)
 
-        trasera_disponible = bool(
+        trasera_lidar_disponible = bool(
             trasera_valida
             and self._distancia_valida(trasera_mm)
             and self._cobertura_valida(
                 cobertura_trasera, self._cobertura_trasera_minima
             )
         )
-        if not trasera_disponible:
-            # No sumar una verificacion a ambos lados de una perdida de dato.
-            self._verificaciones = 0
-            self._ultimo_barrido_verificacion = None
         frontal_mm = float(frontal_mm)
         # El numero no se usa para autorizar reversa cuando la bandera es
         # falsa. Mantener un valor finito permite seguir BUSCANDO hacia
         # delante; la ausencia de eco trasero no debe inmovilizar una fase
         # que no retrocede.
-        trasera_mm = (
+        trasera_lidar_mm = (
             float(trasera_mm) if self._distancia_valida(trasera_mm) else 0.0
         )
+        trasera_mm, trasera_disponible, trasera_por_ultrasonido = (
+            self._fusionar_trasera(
+                trasera_lidar_mm,
+                trasera_lidar_disponible,
+                ultrasonido_trasero_mm,
+            )
+        )
+        if not trasera_disponible:
+            # No sumar una verificacion a ambos lados de una perdida de dato.
+            self._verificaciones = 0
+            self._ultimo_barrido_verificacion = None
 
         argumentos_guardia = {
             "trasera_valida": trasera_disponible,
             "cobertura_trasera": cobertura_trasera,
+            "trasera_por_ultrasonido": trasera_por_ultrasonido,
             "lateral_mm": lateral_mm,
             "lateral_valida": lateral_valida,
             "trasera_izquierda_mm": trasera_izquierda_mm,
