@@ -970,6 +970,109 @@ class ControlRutaTests(unittest.TestCase):
         self.assertAlmostEqual(control.distancia_sobrepaso_mm, 200.0)
         self.assertIn("200 mm", orden.razon)
 
+    def test_la_pose_del_pilar_se_propaga_cuando_el_lidar_lo_pierde(self):
+        """La ultima observacion se congela; la estimacion no puede.
+
+        Medido en la corrida 125223 (t=7032,4 a 7034,3): 19 ciclos seguidos
+        con la misma x, la misma y y hasta la misma edad, porque el pilar
+        deja de pasar el filtro de cluster por debajo de unos 250 mm.
+        Cualquier criterio geometrico sobre esa pose es una afirmacion
+        sobre el pasado, asi que la pose se propaga con el movimiento
+        propio.
+        """
+
+        self._sin_slew()
+        self.config["control"]["speed_avoid_pwm"] = 25
+        self.config["control"]["obstacle_pass_distance_mm"] = 5000.0
+        pista = corredor()
+        control = ControlRuta(self.config)
+
+        control.procesar(
+            pista, (track(2, "ROJO", x=-100.0, y=200.0),),
+            0.0, "NARANJA", ahora=0.0,
+        )
+        self.assertEqual(control.estado, "AVOID_PASS")
+        self.assertEqual(control.pilar_estimado, (-100.0, 200.0))
+
+        for paso in range(1, 6):
+            control.procesar(pista, (), 0.0, "PISTA", ahora=0.1 * paso)
+
+        self.assertFalse(control.track_activo_observado)
+        # La ultima observacion sigue donde estaba...
+        self.assertAlmostEqual(control.track_activo.y_mm, 200.0)
+        # ...pero la pose estimada avanzo: 25 PWM * 4 mm/s/PWM * 0,5 s.
+        x_estimada, y_estimada = control.pilar_estimado
+        self.assertAlmostEqual(x_estimada, -100.0, delta=0.1)
+        self.assertAlmostEqual(y_estimada, 150.0, delta=1.0)
+
+    def test_el_sobrepaso_termina_con_el_pilar_detras_sin_volver_a_verlo(self):
+        """`obstacle_cleared_y_mm` tiene que ser alcanzable.
+
+        En las corridas del 01-09 no disparo ni una vez en 74 sobrepasos:
+        pide ver el pilar 280 mm POR DETRAS del LiDAR, y ahi ya no hay
+        cluster que valga -queda dentro del radio donde el poste deja de
+        reconocerse y encima cae en la mascara del mastil. Con la pose
+        propagada el criterio vuelve a decidir de verdad.
+        """
+
+        self._sin_slew()
+        self.config["control"]["speed_avoid_pwm"] = 25
+        # La red de seguridad no debe poder ganar en esta prueba.
+        self.config["control"]["obstacle_pass_distance_mm"] = 5000.0
+        pista = corredor()
+        control = ControlRuta(self.config)
+
+        control.procesar(
+            pista, (track(2, "ROJO", x=-120.0, y=200.0),),
+            0.0, "NARANJA", ahora=0.0,
+        )
+        self.assertEqual(control.estado, "AVOID_PASS")
+
+        orden = None
+        for paso in range(1, 80):
+            orden = control.procesar(pista, (), 0.0, "PISTA", ahora=0.1 * paso)
+            if control.estado != "AVOID_PASS":
+                break
+
+        self.assertEqual(control.estado, "RECENTER")
+        self.assertIn("detras", orden.razon)
+        self.assertLessEqual(
+            control.pilar_estimado[1],
+            float(self.config["control"]["obstacle_cleared_y_mm"]),
+        )
+
+    def test_el_sobrepaso_no_persigue_un_pilar_que_ya_quedo_de_lado(self):
+        """Un pilar rebasado de lado no se puede alcanzar reincorporandose.
+
+        En la corrida 125223 el rojo del segundo 6995,9 entro al sobrepaso
+        ya a x=-393, y=87 -o sea al costado del robot- y se le dedicaron
+        3,4 s de crucero a ciegas.
+        """
+
+        self._sin_slew()
+        self.config["control"]["speed_avoid_pwm"] = 25
+        pista = corredor()
+        control = ControlRuta(self.config)
+
+        # Lejos de lado pero todavia por delante: no se puede soltar.
+        control.procesar(
+            pista, (track(2, "ROJO", x=-400.0, y=200.0),),
+            0.0, "NARANJA", ahora=0.0,
+        )
+        self.assertEqual(control.estado, "AVOID_PASS")
+
+        # A la altura del LiDAR y a 400 mm de lado: no queda nada que rodear.
+        orden = control.procesar(
+            pista, (track(2, "ROJO", x=-400.0, y=-10.0),),
+            0.0, "PISTA", ahora=0.1,
+        )
+        self.assertEqual(control.estado, "RECENTER")
+        self.assertIn("de lado", orden.razon)
+        self.assertLess(
+            control.distancia_sobrepaso_mm,
+            float(self.config["control"]["obstacle_pass_distance_mm"]),
+        )
+
     def test_timeout_recentrado_se_escala_con_pwm_reducido(self):
         self._sin_slew()
         self.config["control"]["speed_avoid_pwm"] = 25

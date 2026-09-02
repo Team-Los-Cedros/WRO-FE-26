@@ -18,7 +18,7 @@ Convenciones importantes:
 import inspect
 import math
 import time
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 from .estacionamiento import ControlEstacionamiento, ejecutar_estacionamiento
 from .modelos import (
@@ -131,6 +131,10 @@ class ControlRuta:
         self._color_heredado = False
         self._distancia_sobrepaso_mm = 0.0
         self._t_ultimo_sobrepaso: Optional[float] = None
+        self._pilar_x_mm: Optional[float] = None
+        self._pilar_y_mm: Optional[float] = None
+        self._t_pilar: Optional[float] = None
+        self._heading_pilar: Optional[float] = None
         self._confirmaciones_recentrado = 0
 
         self._recuperaciones = []
@@ -186,6 +190,20 @@ class ControlRuta:
     @property
     def distancia_sobrepaso_mm(self) -> float:
         return self._distancia_sobrepaso_mm
+
+    @property
+    def pilar_estimado(self) -> Optional[Tuple[float, float]]:
+        """Pose (x, y) del pilar activo, observada o estimada.
+
+        A diferencia de ``track_activo``, que devuelve la ultima observacion
+        tal cual llego, esta pose se propaga con el movimiento propio cuando
+        el LiDAR deja de ver el pilar. Es la que gobierna la salida del
+        sobrepaso, asi que es la que hay que registrar para poder auditarla.
+        """
+
+        if self._pilar_x_mm is None or self._pilar_y_mm is None:
+            return None
+        return (self._pilar_x_mm, self._pilar_y_mm)
 
     def _entrar(self, estado: str, ahora: float) -> None:
         if estado not in self.ESTADOS:
@@ -579,10 +597,7 @@ class ControlRuta:
         self._forzar_al_salir = len(self._recuperaciones) >= int(
             self._control["forced_turn_after_recoveries"]
         )
-        self._track_id = None
-        self._track_color = None
-        self._ultimo_track = None
-        self._track_observado = False
+        self._olvidar_pilar()
         self._confirmaciones_recentrado = 0
         self._confirmaciones_recuperacion_despejada = 0
 
@@ -765,6 +780,73 @@ class ControlRuta:
             ),
         )
 
+    def _olvidar_pilar(self) -> None:
+        """Suelta el pilar activo con toda su estimacion."""
+
+        self._track_id = None
+        self._track_color = None
+        self._ultimo_track = None
+        self._track_observado = False
+        self._pilar_x_mm = None
+        self._pilar_y_mm = None
+        self._t_pilar = None
+        self._heading_pilar = None
+
+    def _actualizar_pose_pilar(
+        self, track: Optional[TrackObstaculo], ahora: float
+    ) -> None:
+        """Mantiene viva la pose del pilar aunque el LiDAR deje de verlo.
+
+        Por debajo de unos 250 mm el pilar deja de existir para la
+        percepcion: ``es_cluster_obstaculo`` acota el arco del cluster a 15
+        grados y a 30 puntos, y un poste de 100 mm ya ocupa 23 grados a 250
+        mm y 33 a 175. Medido sobre las 143 perdidas de track de las
+        corridas del 01-09: mediana 216 mm, p75 249 mm. O sea que el pilar
+        se apaga justo cuando hay que rodearlo -es el ``near_blind_spot_mm``
+        del JSON, que hasta ahora solo documentaba el fenomeno- y
+        ``_ultimo_track`` se queda congelado repitiendo la ultima
+        observacion: en la corrida 125223, entre t=7032,4 y t=7034,3, 19
+        ciclos seguidos con la misma x, la misma y y hasta la misma edad.
+
+        Con la pose congelada cualquier criterio geometrico de salida es
+        inalcanzable por construccion. Aqui se propaga con el movimiento
+        propio -el mismo modelo de prediccion que usa ``FusionLigera``- para
+        que la geometria vuelva a ser una afirmacion sobre donde esta el
+        pilar y no sobre donde se le vio por ultima vez.
+        """
+
+        if track is not None:
+            self._pilar_x_mm = float(track.x_mm)
+            self._pilar_y_mm = float(track.y_mm)
+            self._t_pilar = float(ahora)
+            self._heading_pilar = self._heading_actual
+            return
+
+        if (
+            self._pilar_x_mm is None
+            or self._pilar_y_mm is None
+            or self._t_pilar is None
+            or self._heading_pilar is None
+        ):
+            return
+
+        dt = max(0.0, float(ahora) - self._t_pilar)
+        delta = math.radians(
+            _diferencia_angular(self._heading_actual, self._heading_pilar)
+        )
+        coseno = math.cos(-delta)
+        seno = math.sin(-delta)
+        avance = (
+            max(0, int(self._ultima_velocidad))
+            * float(self._config["fusion"]["mm_s_per_pwm"])
+            * dt
+        )
+        x_anterior, y_anterior = self._pilar_x_mm, self._pilar_y_mm
+        self._pilar_x_mm = x_anterior * coseno - y_anterior * seno
+        self._pilar_y_mm = x_anterior * seno + y_anterior * coseno - avance
+        self._t_pilar = float(ahora)
+        self._heading_pilar = self._heading_actual
+
     @staticmethod
     def _normalizar_color_pilar(color: Optional[str]) -> Optional[str]:
         valor = str(color or "").strip().upper()
@@ -886,6 +968,7 @@ class ControlRuta:
             return self._fallar("timeout aproximandose al pilar", ahora)
 
         track = self._track_bloqueado(tracks)
+        self._actualizar_pose_pilar(track, ahora)
         observado = track is not None
         if track is None:
             # Pararse a esperar es un punto muerto cuando el pilar se
@@ -909,10 +992,7 @@ class ControlRuta:
                     detener_inmediato=True,
                     direccion_neutra=True,
                 )
-            self._track_id = None
-            self._track_color = None
-            self._ultimo_track = None
-            self._track_observado = False
+            self._olvidar_pilar()
             self._t_track_perdido = None
             self._entrar("CRUISE", ahora)
             return self._emitir(
@@ -972,30 +1052,75 @@ class ControlRuta:
         )
 
         track = self._track_bloqueado(tracks)
-        superado_por_lidar = bool(
-            track is not None
-            and track.y_mm <= float(self._control["obstacle_cleared_y_mm"])
+        self._actualizar_pose_pilar(track, ahora)
+
+        # Los dos criterios geometricos trabajan sobre la pose estimada, no
+        # sobre la ultima observacion: el pilar deja de verse a ~250 mm (ver
+        # _actualizar_pose_pilar) y exigir verlo a 280 mm POR DETRAS del
+        # LiDAR es pedir algo que la geometria del sensor prohibe -queda
+        # dentro del radio donde el cluster ya no pasa el filtro y ademas
+        # cae en la mascara del mastil (163-195 grados). Medido sobre 74
+        # sobrepasos de las corridas del 01-09: `obstacle_cleared_y_mm` no
+        # disparo NI UNA vez; las 74 salieron por la distancia muerta, o sea
+        # que el sobrepaso era un cronometro de 3,28 s de media.
+        x_pilar = self._pilar_x_mm
+        y_pilar = self._pilar_y_mm
+        pose_valida = x_pilar is not None and y_pilar is not None
+
+        # Detras: el pilar ya paso la culata (el LiDAR va 133 mm delante del
+        # eje trasero y la culata 60 mm detras de el, asi que el borde del
+        # pilar cruza el parachoques hacia y = -243).
+        superado_detras = bool(
+            pose_valida
+            and y_pilar <= float(self._control["obstacle_cleared_y_mm"])
         )
+        # De lado: un pilar que quedo a mas de un tercio de metro del eje y
+        # ya no esta por delante no se puede alcanzar reincorporandose, asi
+        # que sostener el rumbo mas tiempo solo gasta segundos. Es el caso
+        # de los pilares que aparecen ya rebasados: en la corrida 125223 el
+        # rojo del segundo 6995,9 entro al sobrepaso a x=-393, y=87 y aun
+        # asi se le dedicaron 3,4 s.
+        superado_de_lado = bool(
+            pose_valida
+            and abs(x_pilar)
+            >= float(self._control.get("obstacle_side_clear_mm", 350.0))
+            and y_pilar
+            <= float(self._control.get("obstacle_side_clear_y_mm", 0.0))
+        )
+        # Red de seguridad, no camino normal: solo manda si la pose no sirve.
         superado_por_distancia = (
             self._distancia_sobrepaso_mm
             >= float(self._control.get("obstacle_pass_distance_mm", 200.0))
         )
-        if superado_por_lidar or superado_por_distancia:
+        if superado_detras or superado_de_lado or superado_por_distancia:
             self._confirmaciones_recentrado = 0
             self._entrar("RECENTER", ahora)
             orden = self._procesar_recentrado(corredor, ahora)
-            if superado_por_distancia and not superado_por_lidar:
-                orden = Consigna(
-                    velocidad=orden.velocidad,
-                    angulo=orden.angulo,
-                    estado=orden.estado,
-                    razon="reincorporacion tras {:.0f} mm de sobrepaso estimado".format(
-                        self._distancia_sobrepaso_mm
-                    ),
-                    terminado=orden.terminado,
-                    verificado=orden.verificado,
+            # Si el recentrado ya entrego el mando (esquina confirmada o
+            # centrado verificado en el mismo ciclo) su razon dice mas que
+            # la del sobrepaso y se respeta.
+            if orden.estado != "RECENTER":
+                return orden
+            if superado_detras:
+                razon = "reincorporacion con el pilar {:.0f} mm detras".format(
+                    -float(y_pilar)
                 )
-            return orden
+            elif superado_de_lado:
+                razon = "reincorporacion con el pilar despejado a {:.0f} mm de lado".format(
+                    abs(float(x_pilar))
+                )
+            else:
+                razon = "reincorporacion tras {:.0f} mm de sobrepaso estimado".format(
+                    self._distancia_sobrepaso_mm
+                )
+            return Consigna(
+                velocidad=orden.velocidad,
+                angulo=orden.angulo,
+                estado=orden.estado,
+                razon=razon,
+                terminado=orden.terminado,
+                verificado=orden.verificado,
+            )
 
         error_heading = _diferencia_angular(
             self._heading_sobrepaso, self._heading_actual
@@ -1048,10 +1173,7 @@ class ControlRuta:
         if self._confirmaciones_esquina >= int(
             self._control["corner_confirm_scans"]
         ):
-            self._track_id = None
-            self._track_color = None
-            self._ultimo_track = None
-            self._track_observado = False
+            self._olvidar_pilar()
             self._confirmaciones_recentrado = 0
             self._heading_inicio_giro = self._heading_actual
             self._confirmaciones_salida_esquina = 0
@@ -1088,10 +1210,7 @@ class ControlRuta:
         if self._confirmaciones_recentrado >= int(
             self._control["recenter_confirm_scans"]
         ):
-            self._track_id = None
-            self._track_color = None
-            self._ultimo_track = None
-            self._track_observado = False
+            self._olvidar_pilar()
             self._confirmaciones_esquina = 0
             self._entrar("CRUISE", ahora)
             return self._emitir(
