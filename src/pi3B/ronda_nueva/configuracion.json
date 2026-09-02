@@ -134,6 +134,7 @@
     "corner_confirm_scans": 2,
     "corner_refractory_s": 1.0,
     "post_corner_slow_s": 1.5,
+    "direction_search_avoid_mm": 400.0,
     "direction_timeout_s": 12.0,
     "direction_search_moving": true,
     "obstacle_trigger_mm": 950.0,

@@ -280,6 +280,62 @@ class ControlRutaTests(unittest.TestCase):
         control.procesar(despejado, (), 0.0, "NARANJA", ahora=instante + 0.2)
         self.assertEqual(control.sentido, -1)
 
+    def test_buscando_el_sentido_rodea_el_frente_por_el_lado_despejado(self):
+        """Insistir de frente era un punto muerto medido.
+
+        `emergency_front_mm` 140 contra `recovery_exit_front_mm` 250 deja 110
+        mm de histeresis: la recuperacion devolvia el robot justo delante de
+        lo mismo. En la corrida 191636 fueron tres ciclos identicos y la
+        ronda murio por timeout de sentido sin ver AZUL ni NARANJA.
+        """
+
+        self._sin_slew()
+        self.config["control"]["turn_direction"] = "AUTO"
+        control = ControlRuta(self.config)
+
+        # Lejos no toca nada: sigue mandando el centrado por paredes.
+        lejos = corredor(frontal=1200.0, izquierda=700.0, derecha=300.0)
+        orden = control.procesar(lejos, (), 0.0, "PISTA", ahora=0.0)
+        self.assertEqual(control.estado, "WAIT_DIRECTION")
+        self.assertAlmostEqual(orden.angulo, control._angulo_pared(lejos), places=6)
+
+        # Cerca se aparta hacia donde hay hueco: la izquierda.
+        cerca = corredor(frontal=270.0, izquierda=700.0, derecha=300.0)
+        orden = control.procesar(cerca, (), 0.0, "PISTA", ahora=0.1)
+        self.assertEqual(control.estado, "WAIT_DIRECTION")
+        self.assertGreater(orden.angulo, 0.0)
+
+        # Y hacia la derecha cuando el hueco esta al otro lado.
+        control = ControlRuta(self.config)
+        cerca_derecha = corredor(frontal=270.0, izquierda=300.0, derecha=700.0)
+        control.procesar(
+            corredor(frontal=1200.0), (), 0.0, "PISTA", ahora=0.0
+        )
+        orden = control.procesar(cerca_derecha, (), 0.0, "PISTA", ahora=0.1)
+        self.assertLess(orden.angulo, 0.0)
+
+    def test_la_salida_lateral_crece_al_acercarse_el_frente(self):
+        """Lejos no debe dar tirones; encima del limite, tope de direccion."""
+
+        self._sin_slew()
+        self.config["control"]["turn_direction"] = "AUTO"
+        control = ControlRuta(self.config)
+        umbral = float(
+            self.config["control"].get("direction_search_avoid_mm", 400.0)
+        )
+        limite = float(self.config["control"]["emergency_front_mm"])
+        tope = float(self.config["control"]["steering_max_left_deg"])
+
+        medio = control._angulo_busqueda_sentido(
+            corredor(frontal=(umbral + limite) / 2.0, izquierda=700.0, derecha=300.0)
+        )
+        pegado = control._angulo_busqueda_sentido(
+            corredor(frontal=limite, izquierda=700.0, derecha=300.0)
+        )
+        self.assertAlmostEqual(medio, tope * 0.5, places=6)
+        self.assertAlmostEqual(pegado, tope, places=6)
+        self.assertGreater(pegado, medio)
+
     def test_rumbo_de_carril_avanza_90_grados_por_esquina(self):
         self._sin_slew()
         control = ControlRuta(self.config)

@@ -326,6 +326,56 @@ class ControlRuta:
         kp = float(self._control.get("heading_fallback_kp", 0.5))
         return self._acotar_angulo(error * kp)
 
+    def _angulo_busqueda_sentido(self, corredor: Corredor) -> float:
+        """Rodea el frente mientras se busca la linea de sentido.
+
+        Insistir de frente es un punto muerto medido. `emergency_front_mm`
+        vale 140 y `recovery_exit_front_mm` 250: la recuperacion retrocede
+        solo hasta tener 250 mm libres y vuelve a avanzar contra lo mismo,
+        que sigue a ~150. Son 110 mm de histeresis y ninguna salida lateral,
+        porque aqui el mando es el centrado por paredes, que manda seguir
+        recto. En la corrida 191636 fueron tres ciclos identicos -emergencia
+        a 135, 139 y 131 mm- y la ronda murio por `timeout esperando color
+        de sentido` sin haber visto AZUL ni NARANJA en 138 barridos.
+
+        La salida es girar hacia el lado con mas hueco, con fuerza
+        proporcional a lo cerca que este el frente: lejos no toca nada y el
+        centrado de pared sigue mandando; cerca llega al tope de direccion.
+        No se elige sentido de pista con esto -eso lo sigue haciendo el
+        color del piso-, solo se despeja el camino para poder encontrarlo.
+        """
+
+        umbral = float(
+            self._control.get("direction_search_avoid_mm", 400.0)
+        )
+        frontal = corredor.frontal_mm
+        if not _finito_no_negativo(frontal) or frontal >= umbral:
+            return self._angulo_pared(corredor)
+
+        izquierda_ok = bool(corredor.izquierda_valida) and _finito_no_negativo(
+            corredor.izquierda_mm
+        )
+        derecha_ok = bool(corredor.derecha_valida) and _finito_no_negativo(
+            corredor.derecha_mm
+        )
+        if izquierda_ok and derecha_ok:
+            hacia_izquierda = corredor.izquierda_mm >= corredor.derecha_mm
+        elif izquierda_ok:
+            hacia_izquierda = True
+        elif derecha_ok:
+            hacia_izquierda = False
+        else:
+            # Sin laterales fiables no hay a donde apartarse; que decida la
+            # pared y, si no da, la emergencia frenara igual.
+            return self._angulo_pared(corredor)
+
+        limite = float(self._control["emergency_front_mm"])
+        proporcion = _limitar(
+            (umbral - frontal) / max(umbral - limite, 1.0), 0.0, 1.0
+        )
+        tope = self._angulo_izquierda if hacia_izquierda else self._angulo_derecha
+        return self._acotar_angulo(tope * proporcion)
+
     def _buscar_sentido_avanzando(self) -> bool:
         """Solo en AUTO: con el sentido ya escrito no hay nada que buscar."""
 
@@ -1792,7 +1842,7 @@ class ControlRuta:
                             int(self._control["speed_cruise_pwm"]),
                             corredor.frontal_mm,
                         ),
-                        self._angulo_pared(corredor),
+                        self._angulo_busqueda_sentido(corredor),
                         "buscando la linea de sentido",
                     )
                 return self._emitir(

@@ -1312,6 +1312,42 @@ mitad del tapete eso no lo mantiene en su lado. Ahora al menos frena antes de
 llegar. Y sigue gastando 11 s en encontrar el sentido con `turn_direction:
 AUTO`, más de la mitad de lo que duraba cada corrida.
 
+### El bucle que esto destapó, y su salida
+
+La corrida siguiente (`191636`) confirmó el arreglo —mínimo de `frontal` de
+**125 mm** frente a los 18–29 mm de antes, o sea que ya no llega a tocar el
+pilar— y a la vez dejó ver el problema que tapaba: el robot se quedó en bucle
+y murió por `timeout esperando color de sentido` a los 13,6 s, con `color_piso`
+en `PISTA` durante los 138 barridos.
+
+| t | Qué pasa | `frontal` |
+| --- | --- | --- |
+| 0,00 | avanza buscando la línea | 667 mm |
+| 5,03 | emergencia → retrocede | 135 mm |
+| 6,52 | despejado → vuelve a buscar | 276 mm |
+| 8,42 | emergencia → retrocede | 139 mm |
+| 9,92 | despejado → vuelve a buscar | 286 mm |
+| 12,01 | emergencia → retrocede | 131 mm |
+| 13,61 | **FALLO**: timeout de sentido | 288 mm |
+
+La causa es aritmética: `emergency_front_mm` vale 140 y
+`recovery_exit_front_mm` 250, así que la recuperación retrocede sólo hasta
+tener 250 mm libres y vuelve a avanzar contra lo mismo, que sigue a ~150. Son
+110 mm de histéresis y ninguna salida lateral, porque el mando en ese estado es
+el centrado por paredes, que manda seguir recto.
+
+`_angulo_busqueda_sentido` da esa salida: con el frente por debajo de
+`direction_search_avoid_mm` (400 mm) el robot gira hacia el lado con más hueco,
+con fuerza proporcional a lo cerca que esté el frente —lejos no toca nada y
+sigue mandando la pared; pegado al límite de emergencia llega al tope de
+dirección—. No elige sentido de pista con eso: eso lo sigue decidiendo el color
+del piso. Sólo despeja el camino para poder encontrarlo.
+
+*Nota de método:* el vídeo de esa corrida se perdió. Al acabar la ronda antes
+de tiempo hubo que cortar `ffmpeg`, y un MP4 normal escribe su índice (`moov`)
+sólo al cerrarse: quedaron 26 MB de datos ilegibles. Se graba desde entonces en
+MP4 fragmentado, comprobado truncando un fichero a la mitad a propósito.
+
 *Método:* esto salió del vídeo, no del CSV. El CSV decía «`frontal` = 22 mm» y
 eso admitía varias lecturas —eco de la rueda, mástil, cable—; el vídeo mostraba
 un pilar rojo desplazándose por el tapete. Desde ahora toda prueba se graba con
