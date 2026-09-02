@@ -1268,3 +1268,51 @@ usa `es_objeto_estrecho`, pero ese módulo lo comparten `ronda_cerrada` y
 propia sesión. Y aun arreglado **no salvaría el criterio viejo**: el pilar
 rebasado cae en la máscara del mástil. Lo que sí mejoraría es la aproximación,
 donde `AVOID_APPROACH` llega a gastar 8,5 s en un solo pilar.
+
+### Buscar la línea de sentido se hacía a ciegas
+
+Tres corridas seguidas del 02-09 por la tarde murieron sin llegar a medir nada
+del sobrepaso, y las tres por la misma causa. El vídeo cenital de la corrida
+`190712` la muestra entera: el robot cruza la recta inferior **en diagonal**,
+llega a un pilar rojo, lo empuja y lo **desplaza casi dos anchos de robot**
+fuera de su sitio. En competencia eso no es un roce: es un obstáculo movido.
+
+El CSV explica por qué nadie lo frenó. El bloque de `WAIT_DIRECTION` en
+`procesar` sale con `return` propio, y la prioridad global de emergencia estaba
+**por debajo** de él. Mientras el robot avanza buscando el AZUL/NARANJA no hay
+ni emergencia ni evasión: solo centrado por paredes.
+
+| | Corrida 1 | Corrida 2 | Corrida 3 |
+| --- | --- | --- | --- |
+| Tiempo en `WAIT_DIRECTION` | 11,7 s | 6,6 s | 11,3 s |
+| Primer `frontal` < 150 mm | 4,70 s | 4,72 s | ~4,7 s |
+| Mínimo de `frontal` | 18,8 mm | 29,5 mm | 22,2 mm |
+| Emergencia | a los 11,9 s | nunca | a los 11,35 s |
+
+Los 4,7 s idénticos son la misma colocación contra el mismo bloque. Y 18,8 mm
+está **por dentro del perímetro del propio robot** (45–61 mm): no es un eco
+espurio ni la rueda propia, es el LiDAR pegado al pilar. La percepción lo veía
+perfectamente; la máquina de estados no estaba mirando.
+
+Para comparar, la corrida `141225` de esa misma mañana —misma configuración,
+misma percepción— tuvo el 2,9 % de lecturas por debajo de 150 mm y un mínimo de
+117 mm. La diferencia no es el robot: es dónde arranca y contra qué.
+
+**El arreglo, en dos piezas.** La comprobación de emergencia pasa a ejecutarse
+**antes** de avanzar buscando la línea. Y como una recuperación termina en
+`CRUISE`, hizo falta la segunda pieza: si el sentido todavía no está fijado, la
+recuperación vuelve a `WAIT_DIRECTION` en vez de entrar a crucero —entrar sin
+sentido dejaría la ronda sin saber hacia dónde gira la pista, que es lo que
+gobierna el conteo de esquinas y el lado del parqueo—. Por lo mismo, el giro
+forzado no se dispara sin sentido: su signo cae en `self._sentido`, que vale 0.
+
+*Lo que esto no arregla:* el robot sigue cruzando el carril en diagonal
+mientras busca la línea, porque ahí el mando es el centrado por paredes y en
+mitad del tapete eso no lo mantiene en su lado. Ahora al menos frena antes de
+llegar. Y sigue gastando 11 s en encontrar el sentido con `turn_direction:
+AUTO`, más de la mitad de lo que duraba cada corrida.
+
+*Método:* esto salió del vídeo, no del CSV. El CSV decía «`frontal` = 22 mm» y
+eso admitía varias lecturas —eco de la rueda, mástil, cable—; el vídeo mostraba
+un pilar rojo desplazándose por el tapete. Desde ahora toda prueba se graba con
+la cenital y se analizan las dos cosas juntas.
