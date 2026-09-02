@@ -657,7 +657,9 @@ class ControlRuta:
             and self._confirmaciones_recuperacion_despejada
             >= confirmaciones_salida
         ):
-            if self._forzar_al_salir:
+            # Sin sentido fijado no hay giro forzado posible: su signo
+            # cae en `self._sentido`, que todavia vale 0.
+            if self._forzar_al_salir and self._sentido != 0:
                 self._signo_giro_forzado = (
                     -self._lado_emergencia
                     if self._lado_emergencia != 0
@@ -667,6 +669,19 @@ class ControlRuta:
                 self._entrar("FORCED_TURN", ahora)
                 return self._procesar_giro_forzado(corredor, ahora)
             self._lado_emergencia = 0
+            if self._sentido == 0:
+                # La emergencia interrumpio la busqueda del sentido. Entrar a
+                # crucero aqui dejaria la ronda sin saber hacia donde gira la
+                # pista, que es lo que gobierna el conteo de esquinas y el
+                # lado del parqueo. Se vuelve a buscar la linea.
+                self._entrar("WAIT_DIRECTION", ahora)
+                return self._emitir(
+                    0,
+                    0.0,
+                    "recuperacion despejada; vuelve a buscar el sentido",
+                    detener_inmediato=True,
+                    direccion_neutra=True,
+                )
             self._entrar("CRUISE", ahora)
             return self._emitir(
                 self._con_frenado(
@@ -1741,6 +1756,20 @@ class ControlRuta:
         self._heading_actual = float(heading_deg)
 
         if self._estado == "WAIT_DIRECTION":
+            # Buscar la linea de sentido NO puede hacerse a ciegas. Hasta el
+            # 02-09 la prioridad global de emergencia vivia por debajo de
+            # este bloque, que sale con return propio, asi que mientras el
+            # robot avanzaba buscando el AZUL/NARANJA no habia ni emergencia
+            # ni evasion: solo centrado por paredes. En la corrida 190712 se
+            # llevo por delante un pilar rojo y lo DESPLAZO del tapete -que
+            # en competencia es un obstaculo fuera de su sitio, no un roce-,
+            # y la emergencia solo desperto a los 11,35 s, ya con el pilar
+            # movido. Se repitio identico en las tres corridas del dia: el
+            # primer frontal por debajo de 150 mm llegaba siempre a los
+            # ~4,7 s, con el mismo minimo imposible de 18-29 mm.
+            if self._hay_emergencia(corredor):
+                self._iniciar_recuperacion(corredor, instante)
+                return self._procesar_recuperacion(corredor, instante)
             if not self._resolver_sentido(color_piso):
                 if instante - self._t_inicio > float(
                     self._control["direction_timeout_s"]

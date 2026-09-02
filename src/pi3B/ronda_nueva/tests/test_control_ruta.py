@@ -224,6 +224,62 @@ class ControlRutaTests(unittest.TestCase):
             "ningun paso de calidad debe concentrar casi todo el cambio",
         )
 
+    def test_buscando_el_sentido_frena_ante_un_obstaculo(self):
+        """Avanzar buscando la linea no puede hacerse sin mirar al frente.
+
+        La prioridad global de emergencia vivia por debajo del bloque de
+        WAIT_DIRECTION, que sale con return propio. En la corrida 190712 el
+        robot recorrio 11,3 s en ese estado, se llevo por delante un pilar
+        rojo y lo desplazo del tapete; la emergencia solo desperto despues
+        del contacto.
+        """
+
+        self._sin_slew()
+        control = ControlRuta(self.config)
+        limite = float(self.config["control"]["emergency_front_mm"])
+
+        # Sin obstaculo avanza a buscar la linea, como siempre.
+        orden = control.procesar(
+            corredor(frontal=1400.0), (), 0.0, "PISTA", ahora=0.0
+        )
+        self.assertEqual(control.estado, "WAIT_DIRECTION")
+        self.assertGreater(orden.velocidad, 0)
+
+        # Con un pilar encima no sigue de frente: retrocede.
+        orden = control.procesar(
+            corredor(frontal=limite - 20.0), (), 0.0, "PISTA", ahora=0.1
+        )
+        self.assertEqual(control.estado, "RECOVERY")
+        self.assertLessEqual(orden.velocidad, 0)
+
+    def test_la_recuperacion_sin_sentido_vuelve_a_buscar_la_linea(self):
+        """Salir a crucero sin sentido dejaria la ronda sin contar esquinas."""
+
+        self._sin_slew()
+        control = ControlRuta(self.config)
+        limite = float(self.config["control"]["emergency_front_mm"])
+
+        control.procesar(corredor(frontal=1400.0), (), 0.0, "PISTA", ahora=0.0)
+        control.procesar(
+            corredor(frontal=limite - 20.0), (), 0.0, "PISTA", ahora=0.1
+        )
+        self.assertEqual(control.estado, "RECOVERY")
+        self.assertEqual(control.sentido, 0)
+
+        # Despejado y con las confirmaciones que pide la salida.
+        despejado = corredor(frontal=1400.0, izquierda=500.0, derecha=500.0)
+        instante = 0.1
+        for _ in range(6):
+            instante += 0.2
+            control.procesar(despejado, (), 0.0, "PISTA", ahora=instante)
+
+        self.assertEqual(control.estado, "WAIT_DIRECTION")
+        self.assertEqual(control.sentido, 0)
+
+        # Y desde ahi sigue pudiendo fijar el sentido con la linea.
+        control.procesar(despejado, (), 0.0, "NARANJA", ahora=instante + 0.2)
+        self.assertEqual(control.sentido, -1)
+
     def test_rumbo_de_carril_avanza_90_grados_por_esquina(self):
         self._sin_slew()
         control = ControlRuta(self.config)
