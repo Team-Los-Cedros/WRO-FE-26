@@ -84,7 +84,10 @@ a bordo, por lo que no calibra HSV, ROI ni latencia.
 4. cuenta la esquina únicamente tras cambio de heading y reapertura frontal;
 5. asocia cada color con un cluster corrigiendo el paralaje de la cámara;
 6. para verde pasa por la izquierda y para rojo por la derecha, conserva el
-   rumbo durante el sobrepaso y vuelve al centro por posición;
+   rumbo durante el sobrepaso y lo suelta cuando el pilar queda detrás o
+   despejado de lado —sobre una pose que se propaga con el movimiento propio,
+   porque el LiDAR deja de ver el poste por debajo de ~250 mm—, y vuelve al
+   centro por posición;
 7. una emergencia intenta una reversa corta solo con cobertura trasera real.
 
 El *slew limiter* se aplica a velocidad y dirección, salvo que detenerse sea
@@ -1149,3 +1152,119 @@ entrara ningún ruido real. No rompía la fusión por sí solo, pero le dejaba u
 tercio menos de margen. *No* explica el caso abierto de los tracks que se
 pierden lejos: la puerta es angular, así que un sesgo constante en grados
 afecta igual a todas las distancias.
+
+## Sesión 2026-09-02 (tarde): el sobrepaso no era un lazo cerrado, era un cronómetro
+
+El pendiente venía escrito como «el primer pilar rojo cuesta 6,7 s». Al medirlo
+sobre los CSV resultó ser un caso particular de algo más general y bastante peor.
+
+### La medida: `obstacle_cleared_y_mm` no ha disparado nunca
+
+Recorriendo los 74 episodios de `AVOID_PASS` de las ocho corridas del 01-09
+(`125223`, `144939`, `151356`, `152424`, `185017`, `111701`, `112827` y las
+cinco de `serie5`), **el criterio de salida por LiDAR no decidió ni una sola
+vez**. Las 74 salidas dicen `reincorporacion tras ~32X mm de sobrepaso
+estimado`, o sea la red de seguridad por distancia muerta. Y como esa red es
+`obstacle_pass_distance_mm / (speed_avoid_pwm · mm_s_per_pwm)`, el sobrepaso
+dura **siempre lo mismo**: 3,28 s de media, con muy poca dispersión, sin
+importar el color del pilar, su geometría ni si el LiDAR lo estaba viendo.
+
+Lo que eso cuesta, en reparto de tiempo por estado:
+
+| Corrida | Duración | Esquinas | `AVOID_PASS` | `AVOID_APPROACH` | `TURN` |
+| --- | --- | --- | --- | --- | --- |
+| `125223` | 143,7 s | 5 | 45,1 s (31 %) | 26,4 s (18 %) | 40,6 s (28 %) |
+| `185017` | 171,7 s | 6 | 37,6 s (22 %) | 43,9 s (26 %) | 45,5 s (27 %) |
+| `serie5 run3` | 176,9 s | 8 | 41,7 s (24 %) | 48,0 s (27 %) | 37,3 s (21 %) |
+
+**Evadir pilares se lleva entre el 45 % y el 52 % de la ronda**, más que girar
+esquinas. Es la partida más grande del presupuesto de 180 s, y hasta ahora la
+mitad de esa partida era un cronómetro a ciegas.
+
+### Por qué el criterio es inalcanzable
+
+El pilar deja de existir para la percepción mucho antes de lo que supone
+`obstacle_cleared_y_mm = -280`. Midiendo las **143 pérdidas de track** de esas
+mismas corridas —el ciclo en que `track_activo_observado` pasa de 1 a 0— la
+distancia a la que se apaga es:
+
+| | mín | p25 | mediana | p75 | p90 |
+| --- | --- | --- | --- | --- | --- |
+| distancia al perder el pilar | 145 mm | 201 mm | **216 mm** | 249 mm | 407 mm |
+
+El 75 % de las pérdidas ocurre por debajo de 250 mm, que es justo el
+`near_blind_spot_mm = 251` que ya estaba anotado en el JSON —y que hasta hoy
+no gobernaba nada, solo documentaba el fenómeno—. La causa está en
+`comun/lidar_geometria.py`: `es_cluster_obstaculo` exige `ext_ang < 15°` y
+`n ≤ 30` puntos, y un poste de 100 mm subtiende 15° a 383 mm, 23° a 250 mm y
+33° a 175 mm. El propio comentario de `es_objeto_estrecho` ya lo avisaba:
+*«el poste deja de reconocerse justo cuando está encima»*. Para la pared se
+resolvió con un filtro por ancho físico; para el obstáculo se dejó la puerta
+angular.
+
+Con eso, pedir «ver el pilar 280 mm **por detrás** del LiDAR» es pedir algo que
+la geometría del sensor prohíbe dos veces: queda dentro del radio donde el
+cluster ya no pasa el filtro, y además cae en la máscara del mástil (163–195°).
+
+Y al perderse, `_ultimo_track` se queda congelado. En la corrida `125223`,
+entre t=7032,4 y t=7034,3, hay **19 ciclos seguidos con la misma x, la misma y
+y hasta la misma edad** (`-96,8 / 143,1 / 0,400`): 1,9 s decidiendo sobre una
+foto vieja.
+
+### El arreglo: la pose del pilar se propaga, y la salida es geométrica
+
+`_actualizar_pose_pilar` mantiene una pose `(x, y)` del pilar activo que se fija
+con cada observación y, cuando no la hay, se propaga con el movimiento propio
+—el mismo modelo de predicción que ya usa `FusionLigera`: rotación por el cambio
+de rumbo del IMU y avance por `velocidad · mm_s_per_pwm · dt`—. Sobre esa pose,
+`_procesar_sobrepaso` sale por dos criterios geométricos:
+
+- **detrás**: `y ≤ obstacle_cleared_y_mm` (−280 mm). Ahora sí es alcanzable,
+  porque no exige volver a ver el pilar.
+- **de lado**: `|x| ≥ obstacle_side_clear_mm` (350 mm) **y** `y ≤ 0`. Un pilar
+  que quedó a más de un tercio de metro del eje y ya no está por delante no se
+  puede alcanzar reincorporándose, así que sostener el rumbo solo gasta
+  segundos. Es el caso de los pilares que entran al sobrepaso ya rebasados: en
+  `125223`, el rojo del segundo 6995,9 entró a `x = −393, y = 87` —al costado
+  del robot— y se le dedicaron 3,4 s.
+
+La red de seguridad por distancia **se conserva tal cual**, así que el cambio
+solo puede acortar un sobrepaso, nunca alargarlo. Reproduciendo los criterios
+sobre los CSV de las mismas ocho corridas: 9 de los 74 sobrepasos salen antes
+por «de lado», **−15,3 s en total (−6,3 %)**, con ahorros de hasta 3,1 s en un
+solo pilar y ningún episodio más largo que hoy.
+
+También se registran dos columnas nuevas, `pilar_estimado_x` y
+`pilar_estimado_y`, y la razón de salida dice ahora **cuál** de los tres
+criterios decidió. Sin eso la próxima corrida no puede auditar esta decisión.
+
+### Lo que queda abierto (y no se tocó a propósito)
+
+**1. El sobrepaso termina antes de que el pilar esté realmente rebasado.** Con
+el LiDAR a 133 mm por delante del eje trasero y la culata 60 mm por detrás de
+él, el parachoques trasero está en `y = −193`. La red de distancia recorre 320 mm
+desde `obstacle_pass_y_mm = 280`, o sea que suelta el pilar cerca de `y ≈ −40`:
+todavía al costado de la mitad trasera del robot, justo cuando `RECENTER` empieza
+a girar el volante **hacia ese lado**. La prueba de `test_el_sobrepaso_arranca_antes_del_punto_ciego`
+comprueba que `paso − recorrido < 0`, pero eso es «detrás del LiDAR», no «detrás
+del robot». Corregirlo es subir `obstacle_pass_distance_mm`, lo que hace al robot
+**más lento**, así que es exactamente el tipo de cambio que exige las tres
+corridas por configuración; no se hace a ciegas.
+
+**2. La velocidad del modelo y la velocidad de la bitácora no coinciden.**
+`fusion.mm_s_per_pwm = 4,0` y la tabla de «Datos ya medidos del chasis nuevo»
+dice 150 mm/s a 22–23 PWM, que son 6,7 mm/s por PWM: **discrepan 1,6×**. Hoy esa
+constante *es* la geometría de la evasión, porque es lo único que termina un
+sobrepaso, y también es lo que propaga la pose nueva. Estimarla desde los CSV por
+el cierre del frontal da ~3,8 mm/s por PWM, pero ese estimador es una cota
+inferior (mide `v·cos θ`) y se contamina cuando un pilar entra al sector, así que
+**no sirve para cerrar el asunto**: hace falta la medida directa, en recta y con
+las ruedas rectas, como se hizo con el radio de giro.
+
+**3. La puerta angular de 15° sigue apagando pilares a 250 mm.** Se puede
+arreglar en `es_cluster_obstaculo` con el mismo criterio de ancho físico que ya
+usa `es_objeto_estrecho`, pero ese módulo lo comparten `ronda_cerrada` y
+`ronda_camara`, así que es un cambio con radio de acción propio y merece su
+propia sesión. Y aun arreglado **no salvaría el criterio viejo**: el pilar
+rebasado cae en la máscara del mástil. Lo que sí mejoraría es la aproximación,
+donde `AVOID_APPROACH` llega a gastar 8,5 s en un solo pilar.
