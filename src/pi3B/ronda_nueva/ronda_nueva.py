@@ -27,7 +27,7 @@ from .control_ruta import ControlRuta
 from .fusion import FusionLigera
 from .hardware import EnlacePicoNuevo, FuenteCamara
 from .percepcion_lidar import PercepcionLidar
-from .sincronizacion import BuzonVision
+from .sincronizacion import BuzonBarridosLidar, BuzonVision
 from .telemetria import TelemetriaAsincrona
 from .vision_ligera import VisionLigera
 
@@ -67,6 +67,9 @@ CAMPOS_TELEMETRIA = (
     "distancia_sobrepaso",
     "hueco_confianza",
     "vision_edad_ms",
+    "lidar_edad_ms",
+    "barridos_descartados",
+    "ultrasonido_mm",
 )
 
 
@@ -102,6 +105,7 @@ class AplicacionRondaNueva:
 
         self.vision = VisionLigera(config)
         self.buzon_vision = BuzonVision(4)
+        self.buzon_barridos = BuzonBarridosLidar()
         self.percepcion = PercepcionLidar(config)
         self.fusion = FusionLigera(config)
         self.control = ControlRuta(config)
@@ -156,7 +160,17 @@ class AplicacionRondaNueva:
         if self._oclusion_ok_consecutivos >= requeridos:
             self._oclusion_validada.set()
 
-    def _registrar(self, ahora, corredor, tracks, hueco, consigna, paquete) -> None:
+    def _registrar(
+        self,
+        ahora,
+        corredor,
+        tracks,
+        hueco,
+        consigna,
+        paquete,
+        edad_lidar_s=0.0,
+        ultrasonido_mm=None,
+    ) -> None:
         if self.registro is None or self.enlace is None:
             return
         edad_vision = (
@@ -229,15 +243,43 @@ class AplicacionRondaNueva:
                 "vision_edad_ms": (
                     "" if paquete is None else "{:.1f}".format(1000.0 * edad_vision)
                 ),
+                # Edad del barrido en el instante en que se emitio la consigna.
+                # Es la medida directa del retraso que se estaba acumulando en
+                # el buffer del puerto; en pista debe quedarse plana, no crecer.
+                "lidar_edad_ms": "{:.1f}".format(1000.0 * edad_lidar_s),
+                "barridos_descartados": self.buzon_barridos.descartados,
+                # Vacio significa "sin medida fiable"; nunca se registra un
+                # numero grande para representar la ausencia de eco.
+                "ultrasonido_mm": (
+                    "" if ultrasonido_mm is None
+                    else "{:.1f}".format(ultrasonido_mm)
+                ),
             }
         )
 
-    def _al_barrido(self, scan) -> None:
-        """Un ciclo completo de decision; corre dentro del hilo LiDAR."""
+    def _al_barrido(self, scan, timestamp: float) -> None:
+        """Corre en el hilo del LiDAR: publica y vuelve a leer, nada mas.
+
+        Antes este callback contenia el ciclo de decision completo (geometria,
+        fusion, vision, control y escritura de metricas). Mientras duraba, el
+        puerto USB seguia acumulando bytes y el driver los procesaba tarde. Con
+        el buzon, el hilo de lectura nunca se bloquea y el control siempre
+        arranca sobre el barrido mas reciente.
+        """
+
+        self.buzon_barridos.publicar(scan, timestamp)
+
+    def _procesar_barrido(self, barrido) -> None:
+        """Un ciclo completo de decision sobre el barrido mas reciente."""
 
         if not self.corriendo or self.enlace is None or self.lidar_geo is None:
             return
-        ahora = time.monotonic()
+        # El instante de CAPTURA, no el de proceso: la fusion con la camara,
+        # el TTL de los tracks y los timeouts de la FSM tienen que datar del
+        # momento en que el LiDAR vio la pista, no de cuando le toco el turno.
+        ahora = barrido.timestamp
+        scan = barrido.muestras
+        self._ultimo_barrido = ahora
         try:
             medicion = self.lidar_geo.procesar(scan)
             lado_parqueo = (
@@ -251,7 +293,6 @@ class AplicacionRondaNueva:
                 timestamp=ahora,
                 lado_parqueo=lado_parqueo,
             )
-            self._ultimo_barrido = ahora
             self._barrido_recibido.set()
 
             if not self._armado.is_set():
@@ -269,6 +310,7 @@ class AplicacionRondaNueva:
                 self._ultima_velocidad,
                 timestamp=ahora,
             )
+            ultrasonido_mm = self.enlace.distancia_ultrasonido_mm()
             consigna = self.control.procesar(
                 resultado.corredor,
                 tracks,
@@ -276,16 +318,21 @@ class AplicacionRondaNueva:
                 self.enlace.color_piso(),
                 hueco=resultado.hueco,
                 ahora=ahora,
+                ultrasonido_mm=ultrasonido_mm,
             )
 
             # Ninguna FSM puede autorizar movimiento si un sensor esencial
-            # caduco entre dos callbacks.
-            if not self.enlace.telemetria_valida(ahora):
+            # caduco mientras se decidia. Los watchdogs se miden contra la
+            # hora real, no contra la del barrido: usar la del dato los haria
+            # justo mas indulgentes cuanto mas atrasado va el sistema.
+            instante_real = time.monotonic()
+            edad_lidar = max(0.0, instante_real - ahora)
+            if not self.enlace.telemetria_valida(instante_real):
                 self._detener_por_fallo("watchdog IMU/Pico vencido")
                 return
             if not self._comprobar_watchdog_pico_en_ejecucion():
                 return
-            if self.buzon_vision.edad_ultimo(ahora) > float(
+            if self.buzon_vision.edad_ultimo(instante_real) > float(
                 self.config["hardware"]["camera_watchdog_s"]
             ):
                 self._detener_por_fallo("watchdog de camara vencido")
@@ -296,7 +343,14 @@ class AplicacionRondaNueva:
                 return
             self._ultima_velocidad = consigna.velocidad
             self._registrar(
-                ahora, resultado.corredor, tracks, resultado.hueco, consigna, paquete
+                ahora,
+                resultado.corredor,
+                tracks,
+                resultado.hueco,
+                consigna,
+                paquete,
+                edad_lidar_s=edad_lidar,
+                ultrasonido_mm=ultrasonido_mm,
             )
 
             if consigna.terminado:
@@ -474,12 +528,23 @@ class AplicacionRondaNueva:
                     "no se valido la mascara del mastil: " + detalle
                 )
                 return False
-            time.sleep(0.05)
+            barrido = self.buzon_barridos.tomar(0.05)
+            if barrido is not None:
+                self._procesar_barrido(barrido)
 
         print("[OK] Mascara trasera validada; traccion armada.")
         self._armado.set()
 
+        # Bucle de control. Se despierta en cuanto el hilo del LiDAR publica y
+        # siempre trabaja sobre el barrido mas reciente: lo que se acumulo
+        # mientras decidia ya lo descarto el buzon. La espera corta conserva la
+        # cadencia de los watchdogs aunque el LiDAR se quede mudo.
         while self.corriendo:
+            barrido = self.buzon_barridos.tomar(0.05)
+            if barrido is not None:
+                self._procesar_barrido(barrido)
+                if not self.corriendo:
+                    break
             ahora = time.monotonic()
             edad_lidar = ahora - self._ultimo_barrido
             if edad_lidar > float(hardware["lidar_watchdog_s"]):
@@ -497,7 +562,6 @@ class AplicacionRondaNueva:
             ):
                 self._detener_por_fallo("watchdog de camara vencido")
                 break
-            time.sleep(0.05)
         return self._terminado_verificado
 
     def cerrar(self) -> None:
