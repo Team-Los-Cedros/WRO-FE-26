@@ -4,13 +4,23 @@ Los imports dependientes de Raspberry se hacen al instanciar/arrancar cada
 driver, por lo que importar este modulo en Windows sigue siendo seguro.
 """
 
+import math
 import threading
 import time
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, NamedTuple, Optional, Tuple
+
+
+class TramaPico(NamedTuple):
+    """Trama de telemetria completa tal y como la emite la Pico 2."""
+
+    yaw: float
+    color: Optional[str]
+    watchdog: Optional[str]
+    ultrasonido_mm: Optional[float]
 
 
 class EnlacePicoNuevo:
-    """USB CDC con heading, color de piso y edad de telemetria."""
+    """USB CDC con heading, color de piso, ultrasonido y edad de telemetria."""
 
     def __init__(self, puerto: str, baudrate: int = 115200, timeout_s: float = 0.5):
         import serial
@@ -22,6 +32,7 @@ class EnlacePicoNuevo:
         self._yaw_crudo = 0.0
         self._cero_yaw = None
         self._color_piso = "DESCONOCIDO"
+        self._ultrasonido_mm: Optional[float] = None
         self._watchdog_comando = None
         self._t_telemetria = 0.0
         self._corriendo = True
@@ -47,6 +58,29 @@ class EnlacePicoNuevo:
         ``watchdog`` es ``None`` para firmware historico, ``OK``/``STOP`` para
         el firmware seguro e ``INVALIDO`` si la trama anuncia otro valor. Un
         valor invalido no inutiliza la IMU, pero nunca permite armar motores.
+
+        Conserva a proposito la tupla de tres campos: es el contrato que ya
+        usan las pruebas y el resto del arranque. El campo nuevo del
+        ultrasonido se lee en :meth:`parsear_telemetria_completa`.
+        """
+
+        trama = EnlacePicoNuevo.parsear_telemetria_completa(linea)
+        if trama is None:
+            return None
+        return trama.yaw, trama.color, trama.watchdog
+
+    @staticmethod
+    def parsear_telemetria_completa(linea: str) -> Optional[TramaPico]:
+        """Lee la trama entera, incluido el ultrasonido trasero (``US:``).
+
+        ``ultrasonido_mm`` es ``None`` cuando el firmware no anuncia el campo
+        (version anterior), cuando el sensor no vio eco (la Pico manda -1) o
+        cuando el numero llega corrupto. Un valor ausente NUNCA se confunde
+        con "camino libre": quien lo consume debe tratar ``None`` como falta
+        de evidencia, no como distancia grande.
+
+        Un ``US:`` ilegible no invalida la trama: la IMU y el watchdog son
+        criticos para la ronda y el ultrasonido solo es una ayuda.
         """
 
         if not linea.startswith("IMU:"):
@@ -54,6 +88,7 @@ class EnlacePicoNuevo:
         yaw = None
         color = None
         watchdog = None
+        ultrasonido = None
         for campo in linea.split(","):
             if campo.startswith("IMU:"):
                 yaw = float(campo.split(":", 1)[1])
@@ -62,9 +97,16 @@ class EnlacePicoNuevo:
             elif campo.startswith("WD:"):
                 anunciado = campo.split(":", 1)[1].strip().upper()
                 watchdog = anunciado if anunciado in ("OK", "STOP") else "INVALIDO"
+            elif campo.startswith("US:"):
+                try:
+                    medida = float(campo.split(":", 1)[1])
+                except (TypeError, ValueError):
+                    medida = None
+                if medida is not None and math.isfinite(medida) and medida > 0.0:
+                    ultrasonido = medida
         if yaw is None:
             return None
-        return yaw, color, watchdog
+        return TramaPico(yaw, color, watchdog, ultrasonido)
 
     def _leer(self) -> None:
         while self._corriendo:
@@ -72,19 +114,21 @@ class EnlacePicoNuevo:
                 linea = self._ser.readline().decode("utf-8", errors="ignore").strip()
                 if not linea:
                     continue
-                parsed = self.parsear_telemetria_extendida(linea)
-                if parsed is None:
+                trama = self.parsear_telemetria_completa(linea)
+                if trama is None:
                     continue
-                yaw, color, watchdog = parsed
                 ahora = time.monotonic()
                 with self._lock:
-                    self._yaw_crudo = yaw
+                    self._yaw_crudo = trama.yaw
                     if self._cero_yaw is None:
-                        self._cero_yaw = yaw
-                    if color:
-                        self._color_piso = color
-                    if watchdog is not None:
-                        self._watchdog_comando = watchdog
+                        self._cero_yaw = trama.yaw
+                    if trama.color:
+                        self._color_piso = trama.color
+                    if trama.watchdog is not None:
+                        self._watchdog_comando = trama.watchdog
+                    # Se guarda tal cual, incluido el None: una trama sin eco
+                    # tiene que borrar la medida anterior, no dejarla vigente.
+                    self._ultrasonido_mm = trama.ultrasonido_mm
                     self._t_telemetria = ahora
             except (ValueError, IndexError):
                 continue
@@ -103,6 +147,27 @@ class EnlacePicoNuevo:
     def color_piso(self) -> str:
         with self._lock:
             return self._color_piso
+
+    def distancia_ultrasonido_mm(
+        self, ahora: Optional[float] = None
+    ) -> Optional[float]:
+        """Distancia trasera medida por ultrasonido, o ``None``.
+
+        Devuelve ``None`` en los tres casos que significan lo mismo -- no hay
+        evidencia -- para que ningun consumidor tenga que distinguirlos: el
+        firmware no anuncia el campo, el sensor no vio eco, o la telemetria
+        entera caduco. La caducidad se comparte con el resto de la trama
+        porque la Pico manda el ultrasonido en cada envio: si la trama esta
+        fresca, la medida tambien.
+        """
+
+        instante = time.monotonic() if ahora is None else float(ahora)
+        with self._lock:
+            if self._t_telemetria <= 0.0:
+                return None
+            if (instante - self._t_telemetria) > self._timeout_s:
+                return None
+            return self._ultrasonido_mm
 
     def estado_watchdog_comando(self) -> Optional[str]:
         """Estado mas reciente anunciado por la Pico, o ``None`` si no existe."""
