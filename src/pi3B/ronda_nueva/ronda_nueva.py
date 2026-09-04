@@ -27,6 +27,7 @@ from .control_ruta import ControlRuta
 from .fusion import FusionLigera
 from .hardware import EnlacePicoNuevo, FuenteCamara
 from .percepcion_lidar import PercepcionLidar
+from .servidor_web import EstadoRobot, ServidorPanel
 from .sincronizacion import BuzonBarridosLidar, BuzonVision
 from .telemetria import TelemetriaAsincrona
 from .vision_ligera import VisionLigera
@@ -95,10 +96,17 @@ class AplicacionRondaNueva:
         config: Dict[str, Any],
         permitir_parqueo: bool = True,
         esperar_boton: bool = True,
+        puerto_panel: Optional[int] = None,
     ):
         self.config = config
         self.permitir_parqueo = bool(permitir_parqueo)
         self.esperar_boton = bool(esperar_boton)
+        # El panel es opcional y vive en hilos aparte: si no se pide, el ciclo
+        # de control no paga absolutamente nada por el.
+        self.estado_panel = EstadoRobot() if puerto_panel else None
+        self.panel = (
+            ServidorPanel(self.estado_panel, puerto_panel) if puerto_panel else None
+        )
         self._seguir = threading.Event()
         self._seguir.set()
         self._armado = threading.Event()
@@ -143,6 +151,8 @@ class AplicacionRondaNueva:
     def _al_frame(self, frame, timestamp: float) -> None:
         try:
             self.buzon_vision.publicar(self.vision.procesar(frame, timestamp))
+            if self.estado_panel is not None:
+                self.estado_panel.publicar_frame(frame)
         except Exception as exc:
             self._detener_por_fallo("fallo procesando camara: {}".format(exc))
 
@@ -270,6 +280,41 @@ class AplicacionRondaNueva:
             }
         )
 
+        if self.estado_panel is None:
+            return
+        # El panel recibe numeros, no las cadenas ya formateadas del CSV: es
+        # el navegador quien decide como mostrarlos.
+        self.estado_panel.publicar(
+            t=ahora,
+            estado=consigna.estado,
+            razon=consigna.razon,
+            velocidad=consigna.velocidad,
+            angulo=round(consigna.angulo, 2),
+            heading=round(self.enlace.heading(), 2),
+            color_piso=self.enlace.color_piso(),
+            watchdog_pico=self.enlace.estado_watchdog_comando() or "NO_ANUNCIADO",
+            esquinas=self.control.esquinas,
+            frontal=round(corredor.frontal_mm, 1),
+            izquierda=round(corredor.izquierda_mm, 1),
+            derecha=round(corredor.derecha_mm, 1),
+            trasera=round(corredor.trasera_mm, 1),
+            calidad_pared=round(corredor.calidad_pared, 3),
+            tracks=len(tracks),
+            track_activo_color=self.control.track_activo_color or None,
+            hueco_confianza=(None if hueco is None else round(hueco.confianza, 3)),
+            hueco_separacion_mm=(
+                None if hueco is None else round(hueco.separacion_mm, 1)
+            ),
+            lidar_edad_ms=round(1000.0 * edad_lidar_s, 2),
+            vision_edad_ms=(
+                None if paquete is None else round(1000.0 * edad_vision, 1)
+            ),
+            barridos_descartados=self.buzon_barridos.descartados,
+            ultrasonido_mm=(
+                None if ultrasonido_mm is None else round(ultrasonido_mm, 1)
+            ),
+        )
+
     def _al_barrido(self, scan, timestamp: float) -> None:
         """Corre en el hilo del LiDAR: publica y vuelve a leer, nada mas.
 
@@ -295,6 +340,8 @@ class AplicacionRondaNueva:
         self._ultimo_barrido = ahora
         try:
             medicion = self.lidar_geo.procesar(scan)
+            if self.estado_panel is not None:
+                self.estado_panel.publicar_barrido(scan)
             lado_parqueo = (
                 self.control.lado_parqueo_solicitado
                 if self._armado.is_set() and self.permitir_parqueo
@@ -580,6 +627,10 @@ class AplicacionRondaNueva:
     def cerrar(self) -> None:
         self._seguir.clear()
         self._armado.clear()
+        # El panel se cierra primero: es lo unico que puede tener sockets
+        # abiertos de fuera de la maquina.
+        if self.panel is not None:
+            self.panel.detener()
         if self.enlace is not None:
             self.enlace.detener()
         if self.lidar_driver is not None:
@@ -633,6 +684,18 @@ def _argumentos(argv=None):
             "la ronda oficial no usa esta opcion"
         ),
     )
+    parser.add_argument(
+        "--panel-web",
+        nargs="?",
+        type=int,
+        const=8080,
+        default=None,
+        metavar="PUERTO",
+        help=(
+            "sirve un panel en vivo (estado, distancias, camara y LiDAR en "
+            "planta) en el puerto indicado, 8080 por defecto"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -677,7 +740,16 @@ def main(argv=None) -> int:
             config,
             permitir_parqueo=not args.sin_parqueo,
             esperar_boton=not args.arranque_inmediato,
+            puerto_panel=args.panel_web,
         )
+        if aplicacion.panel is not None:
+            if aplicacion.panel.arrancar():
+                print("[i] panel web en http://<ip-de-la-pi>:%d/"
+                      % aplicacion.panel.puerto)
+            else:
+                # Que no haya panel no es motivo para no correr la ronda.
+                print("[!] no se pudo abrir el panel web: %s"
+                      % aplicacion.panel.error)
 
         def solicitar_cierre(_sig, _frame):
             aplicacion._motivo_fin = "interrupcion solicitada"
