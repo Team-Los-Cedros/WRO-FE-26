@@ -622,6 +622,64 @@ class PercepcionLidar:
             puntos=n,
         )
 
+    def _partir_en_rectas(
+        self,
+        cluster: Sequence[PuntoPolar],
+        max_desvio_mm: float,
+        min_puntos: int,
+        profundidad: int = 0,
+    ) -> List[Sequence[PuntoPolar]]:
+        """Parte un cluster por donde deja de ser una recta.
+
+        Un separador de parqueo y el muro que tiene detras llegan fundidos en
+        un unico cluster: entre la punta del separador y la pared no hay salto
+        radial, sino una rampa continua que el ABD no puede cortar. Medido en
+        pista el 03-09, con el robot quieto al lado del hueco, el detector
+        aislaba UN separador en 3 de 12 barridos y los dos a la vez en
+        NINGUNO; el otro salia como un segmento en L de 348-464 mm con
+        residuo 40-51 mm. Partiendo por la desviacion maxima al segmento
+        extremo-extremo (iterative end-point fit) los dos aparecen limpios en
+        11 de 12, con residuo 1-2 mm y separacion estable de 389 mm.
+
+        Se aplica solo aqui, no en la segmentacion general: los pilares y la
+        evasion dependen de clusters sin partir y no tienen este problema.
+        """
+
+        if len(cluster) < 2 * min_puntos or profundidad >= 4:
+            return [cluster]
+
+        inicio = _polar_a_xy(*cluster[0])
+        fin = _polar_a_xy(*cluster[-1])
+        dx = fin[0] - inicio[0]
+        dy = fin[1] - inicio[1]
+        largo = math.hypot(dx, dy)
+        if largo < 1.0:
+            return [cluster]
+        ux, uy = dx / largo, dy / largo
+
+        peor_indice = -1
+        peor_desvio = 0.0
+        for indice in range(1, len(cluster) - 1):
+            x, y = _polar_a_xy(*cluster[indice])
+            desvio = abs(-(x - inicio[0]) * uy + (y - inicio[1]) * ux)
+            if desvio > peor_desvio:
+                peor_desvio = desvio
+                peor_indice = indice
+
+        if peor_indice < 0 or peor_desvio <= max_desvio_mm:
+            return [cluster]
+
+        izquierda = cluster[: peor_indice + 1]
+        derecha = cluster[peor_indice:]
+        if len(izquierda) < min_puntos or len(derecha) < min_puntos:
+            return [cluster]
+
+        return self._partir_en_rectas(
+            izquierda, max_desvio_mm, min_puntos, profundidad + 1
+        ) + self._partir_en_rectas(
+            derecha, max_desvio_mm, min_puntos, profundidad + 1
+        )
+
     def _buscar_hueco(
         self, clusters: Sequence[Sequence[PuntoPolar]], lado: int
     ) -> Optional[_CandidatoHueco]:
@@ -636,8 +694,19 @@ class PercepcionLidar:
         cos_max_desvio = math.cos(math.radians(25.0))
         max_residuo = min(55.0, float(self._cfg("wall_max_residual_mm", 75.0)))
 
-        segmentos: List[_SegmentoLateral] = []
+        max_desvio = float(self._cfg("bay_split_max_deviation_mm", 30.0))
+
+        partidos: List[Sequence[PuntoPolar]] = []
         for cluster in clusters:
+            if max_desvio > 0.0:
+                partidos.extend(
+                    self._partir_en_rectas(cluster, max_desvio, min_puntos)
+                )
+            else:
+                partidos.append(cluster)
+
+        segmentos: List[_SegmentoLateral] = []
+        for cluster in partidos:
             if len(cluster) < min_puntos:
                 continue
             segmento = self._segmento_pca(cluster)

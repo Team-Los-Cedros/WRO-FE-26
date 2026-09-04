@@ -1,3 +1,5 @@
+import copy
+import json
 import math
 import sys
 import unittest
@@ -119,6 +121,48 @@ class PercepcionLidarTests(unittest.TestCase):
         self.assertIsNone(
             percepcion.procesar(scan, crear_medicion(scan, timestamp=33.0), lado_parqueo=-1).hueco
         )
+
+    def test_separador_fundido_con_el_muro_se_parte_y_el_hueco_se_confirma(self):
+        # Barridos reales del 03-09, robot quieto al lado de la bahia. Sin
+        # partir los clusters el detector aislaba UN separador en 3 de 12
+        # barridos y los dos a la vez en ninguno: el de atras llegaba fundido
+        # con el muro en un segmento en L de 348-464 mm. La FSM de parqueo no
+        # podia arrancar.
+        ruta = Path(__file__).resolve().parent / "datos" / "barridos_bahia_20260903.json"
+        with open(ruta, "r", encoding="utf-8") as archivo:
+            datos = json.load(archivo)
+        barridos = [[(a, d) for a, d in barrido] for barrido in datos["barridos"]]
+        self.assertEqual(datos["lado"], 1)
+
+        percepcion = PercepcionLidar(self.config)
+        confirmados = []
+        for indice, scan in enumerate(barridos):
+            medicion = crear_medicion(scan, timestamp=100.0 + indice)
+            hueco = percepcion.procesar(
+                scan, medicion, timestamp=100.0 + indice, lado_parqueo=1
+            ).hueco
+            if hueco is not None:
+                confirmados.append(hueco)
+
+        self.assertGreaterEqual(len(confirmados), 6)
+        hueco = confirmados[0]
+        self.assertEqual(hueco.lado, 1)
+        # Los dos separadores estan a 389-390 mm medidos, no a los 353
+        # nominales; entra en la ventana de tolerancia de 105 mm.
+        self.assertAlmostEqual(hueco.separacion_mm, 389.0, delta=15.0)
+        self.assertGreater(hueco.confianza, 0.55)
+
+        # Y la regresion al reves: con el split desactivado vuelve el fallo.
+        config_sin_split = copy.deepcopy(self.config)
+        config_sin_split["lidar"]["bay_split_max_deviation_mm"] = 0.0
+        sin_split = PercepcionLidar(config_sin_split)
+        for indice, scan in enumerate(barridos):
+            medicion = crear_medicion(scan, timestamp=200.0 + indice)
+            self.assertIsNone(
+                sin_split.procesar(
+                    scan, medicion, timestamp=200.0 + indice, lado_parqueo=1
+                ).hueco
+            )
 
     def test_mastil_no_contamina_reversa_y_sin_eco_no_es_via_libre(self):
         scan = [(float(a), 92.0) for a in range(163, 192)]

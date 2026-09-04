@@ -77,6 +77,7 @@
     "bay_lateral_min_mm": 140.0,
     "bay_lateral_max_mm": 900.0,
     "bay_max_longitudinal_mm": 1100.0,
+    "bay_split_max_deviation_mm": 30.0,
     "bay_confirm_scans": 3,
     "blind_sectors_deg": [[163.0, 195.0]],
     "rear_axis_deg": 180.0,
