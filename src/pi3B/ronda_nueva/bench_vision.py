@@ -6,19 +6,23 @@ import copy
 import json
 import sys
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
 
-sys.path.insert(0, "/home/pi/wro_nueva_20260831_1435_fix_rumbo")
+# El despliegue vive fuera de git y cambia de nombre cada sesion: la raiz se
+# deduce de este mismo fichero en vez de fijarla, que es lo que dejo el script
+# inservible en cuanto caduco el despliegue de agosto.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ronda_nueva.config import cargar_configuracion
 from ronda_nueva.vision_ligera import VisionLigera
 
+if len(sys.argv) < 2:
+    raise SystemExit("uso: bench_vision.py <frame.jpg> [configuracion.json]")
 RUTA_FRAME = sys.argv[1]
-base = cargar_configuracion(
-    "/home/pi/wro_nueva_20260831_1435_fix_rumbo/ronda_nueva/"
-    "configuracion_prueba_pista_1435_fix_rumbo.json"
-)
+RUTA_CONFIG = sys.argv[2] if len(sys.argv) > 2 else None
+base = cargar_configuracion(RUTA_CONFIG) if RUTA_CONFIG else cargar_configuracion()
 frame0 = cv2.imread(RUTA_FRAME)
 if frame0 is None:
     raise SystemExit("no se pudo leer %s" % RUTA_FRAME)

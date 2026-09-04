@@ -15,12 +15,21 @@ class ConfiguracionTests(unittest.TestCase):
     def test_config_porta_las_mediciones_del_mastil(self):
         config = cargar_configuracion()
         camara = config["camera"]
-        self.assertEqual((camara["width"], camara["height"]), (640, 360))
         self.assertEqual(camara["picamera_format"], "RGB888")
         self.assertEqual(camara["array_color_order"], "BGR")
+        # El modo de sensor es lo que fija el CAMPO: 2304x1296 usa el area
+        # completa, mientras 1536x864 recorta a 3072x1728 y tira un tercio.
+        # La resolucion de salida puede subir -en la Pi 5 se paso a 1280x720-
+        # pero este modo no, o dejan de valer HFOV, focal y centro optico.
         self.assertEqual(camara["raw_sensor_size"], [2304, 1296])
+        self.assertEqual(camara["width"] * 9, camara["height"] * 16)
         self.assertAlmostEqual(camara["hfov_deg"], 68.16865, places=4)
-        self.assertAlmostEqual(camara["principal_x_px"], 352.074, places=3)
+        # El centro optico se midio en pixeles sobre 640 de ancho. Al cambiar
+        # la resolucion hay que escalarlo, asi que lo que se fija aqui es la
+        # fraccion, que es la magnitud que de verdad describe a la optica.
+        self.assertAlmostEqual(
+            camara["principal_x_px"] / camara["width"], 352.074 / 640.0, places=5
+        )
         # Medido con regla el 2026-09-02: la camara del mastil trasero esta a
         # 80 mm por detras del eje de giro del LiDAR, no a los 99,76 que traia
         # la fotogrametria. Con ese valor, la guiñada medida contra pilares
