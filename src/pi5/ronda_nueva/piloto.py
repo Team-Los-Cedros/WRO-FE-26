@@ -569,8 +569,24 @@ class Piloto:
         ronda se da por terminada en 75 s en vez de 131, a mitad de recorrido.
         `frontal_min` no distingue "el muro que cierra esta recta" de "un muro
         que se ve de frente"; el avance del localizador, con lo malo que es,
-        al menos sabe en que recta va.  La solucion es arreglar el avance, no
-        rodearlo.
+        al menos sabe en que recta va.
+
+        SEGUNDO INTENTO, TAMBIEN DESCARTADO (05-09): la idea del 1.er puesto de
+        2025 (`ejm22`), disparar por la DERIVADA -- muro frontal cerca Y
+        acercandose de forma sostenida 120 mm en 0,6 s.  Con el localizador
+        sano da **3 esquinas y 57 retrocesos** contra 12 y 0.  Peor que la
+        version ingenua, y la razon es de ARQUITECTURA, no de umbrales:
+
+        `ejm22` no tiene odometria ni marco de recta.  Su detector de esquina
+        puede equivocarse porque debajo no hay nada que corromper: son
+        reactivos de arriba abajo.  Aqui, contar una esquina gira el rumbo
+        cardinal y reinicia el marco a 3000 mm, asi que UNA esquina disparada
+        de mas deja el marco desplazado 90 grados para el resto de la vuelta.
+        Por eso 3 esquinas y 57 retrocesos: no dispara de mas muchas veces,
+        basta con una.
+
+        Su deteccion de esquina no es portable sin su arquitectura.  El valor
+        de su enfoque esta en la AUSENCIA del marco, no en el detector.
 
         Depende del PRIMER pilar de la recta siguiente, que ya esta en el mapa
         aunque todavia no se vea: si toca salir pegado al muro exterior, el
