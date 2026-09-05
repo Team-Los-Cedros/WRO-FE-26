@@ -162,6 +162,86 @@ class PruebaPuntosSobreLaPista(unittest.TestCase):
         self.assertAlmostEqual(offset, 650.0, delta=70.0)
 
 
+class PruebaAvanceTrasEsquina(unittest.TestCase):
+    """El salto de avance que aparece 0,3-0,4 s DESPUES de contar la esquina.
+
+    Medido en las corridas 7, 8 y 9 del 05-09: seis o siete por corrida, todos
+    en esa ventana.  El mecanismo, leido en el codigo:
+
+    1. `anotar_esquina` pone `_avance_mm = 3000` (el marco de la recta nueva).
+    2. El robot sigue CRUZADO, asi que la pared que el LiDAR ajusta por delante
+       no es la que cierra la recta nueva: esta a 800 mm.
+    3. El filtro rechaza esa medida por salto imposible... tres veces, que a
+       10 Hz son 0,3 s exactos.
+    4. Y entonces salta la resincronizacion de `_mezclar`, que ADOPTA la medida
+       entera. El avance se va a 800 mm en medio de una recta de 3000.
+
+    Esa pose mala es la que alimenta el disparo de esquina, y por eso el giro
+    se dispara a 448 mm de mediana contra un diseño de 680-1050.
+    """
+
+    def _paredes(self, frontal_mm, t):
+        return MapaParedes(
+            timestamp=t,
+            frontal=Recta(frontal_mm, 0.0, 1.0, 30, 1.0),
+            izquierda=Recta(400.0, -90.0, 1.0, 40, 1.0),
+            derecha=Recta(600.0, 90.0, 1.0, 40, 1.0),
+            frontal_min_mm=frontal_mm,
+            izquierda_min_mm=400.0,
+            derecha_min_mm=600.0,
+            corredor_mm=frontal_mm,
+        )
+
+    def _tras_la_esquina(self, rumbo_error_deg, ciclos=8):
+        """Recien contada la esquina, con el robot cruzado `rumbo_error` grados
+        y una pared espuria a 800 mm por delante."""
+
+        loc = Localizador(config_minima())
+        loc.reiniciar()
+        # OJO con el reloj: `primera` se detecta con `_ultimo_t <= 0`, asi que
+        # sembrar en t=0 deja el filtro en "primer ciclo" para siempre y adopta
+        # cualquier medida.  En el robot `time.monotonic()` es grande y no
+        # pasa, pero aqui hay que arrancar por encima de cero.
+        loc.actualizar(self._paredes(2900.0, 10.0), 0.0, 1, 25.0, 10.0)
+        loc.anotar_esquina(1)
+        avances = []
+        for i in range(ciclos):
+            t = 10.0 + 0.1 * (i + 1)
+            pose = loc.actualizar(
+                self._paredes(800.0, t),
+                # El rumbo de la IMU no ha alcanzado aun el cardinal nuevo.
+                loc.rumbo_cardinal_deg + rumbo_error_deg,
+                1,
+                25.0,
+                t,
+            )
+            avances.append(pose.avance_mm)
+        return avances
+
+    def test_cruzado_no_adopta_la_pared_espuria(self):
+        avances = self._tras_la_esquina(rumbo_error_deg=40.0)
+        self.assertGreater(
+            min(avances),
+            2000.0,
+            "con el robot cruzado 40 grados, la pared de delante no es la que "
+            "cierra la recta: adoptarla manda el avance de 3000 a 800",
+        )
+
+    def test_ya_encarado_si_se_resincroniza(self):
+        """La resincronizacion tiene que seguir existiendo.
+
+        Es lo que arregla un choque o que alguien mueva el robot; solo se le
+        exige estar encarado a la recta que dice medir.
+        """
+
+        avances = self._tras_la_esquina(rumbo_error_deg=3.0)
+        self.assertLess(
+            min(avances),
+            1200.0,
+            "encarado a la recta, la medida manda y el filtro debe adoptarla",
+        )
+
+
 class PruebaMapaPista(unittest.TestCase):
     def setUp(self):
         self.mapa = MapaPista(config_minima())

@@ -54,6 +54,12 @@ class Localizador:
         self.alfa = float(control.get("pose_filter_alpha", 0.55))
         self.salto_max_mm = float(control.get("pose_max_jump_mm", 260.0))
         self.mm_por_pwm = float(control.get("mm_s_per_pwm", 4.0))
+        # Para RESINCRONIZAR el avance hay que estar encarado a la recta que
+        # se dice medir.  Ver `_mezclar`.
+        self.rumbo_max_resync_deg = float(
+            control.get("pose_resync_max_heading_deg", 25.0)
+        )
+        self.ciclos_ciego_max = int(control.get("pose_resync_blind_cycles", 25))
 
         self.segmento = 0
         self.rumbo_cardinal_deg = 0.0
@@ -157,13 +163,26 @@ class Localizador:
         # un error sutil: bastaba con que el avance siguiera valido para que el
         # offset no llegara nunca a los tres rechazos y se quedara propagando
         # a ciegas para siempre.
+        # Estando CRUZADO, la pared que el LiDAR ajusta por delante no es la
+        # que cierra la recta: es el bloque interior o un muro de refilon.  Sin
+        # esta condicion, el filtro rechazaba esa medida tres veces (0,3 s a
+        # 10 Hz) y a la cuarta la ADOPTABA entera, mandando el avance de 3000 a
+        # ~800 mm en mitad de una recta.  Es el salto de avance que aparecia
+        # 0,3-0,4 s despues de cada esquina, seis o siete veces por corrida, y
+        # de el cuelga el disparo tardio del giro.
+        alineado = abs(rumbo_error) <= self.rumbo_max_resync_deg
         (
             self._avance_mm,
             avance_valido,
             fuente_avance,
             self._rechazos_avance,
         ) = self._mezclar(
-            medido_avance, prediccion_avance, primera, self._rechazos_avance
+            medido_avance,
+            prediccion_avance,
+            primera,
+            self._rechazos_avance,
+            puede_resincronizar=alineado
+            or self._rechazos_avance >= self.ciclos_ciego_max,
         )
         (
             self._offset_mm,
@@ -190,12 +209,19 @@ class Localizador:
             fuente_offset=fuente_offset,
         )
 
-    def _mezclar(self, medido, prediccion, primera, rechazos):
+    def _mezclar(self, medido, prediccion, primera, rechazos, puede_resincronizar=True):
         """Funde medida y prediccion, o admite que va a ciegas.
 
         Un rechazo aislado es ruido y se ignora; tres seguidos significan que
         la prediccion es la que esta mal -- el robot choco, alguien lo movio,
         la esquina cambio de recta -- y entonces manda la medida.
+
+        ``puede_resincronizar`` es la condicion que faltaba: adoptar la medida
+        entera solo tiene sentido si esa medida es de lo que se cree que es.
+        Con el robot cruzado saliendo de una esquina no lo es, y adoptarla
+        rompia la pose justo cuando mas falta hacia.  El que llama decide; aqui
+        se respeta.  Si se niega demasiado tiempo, quien llama debe permitirlo
+        igualmente: quedarse propagando a ciegas para siempre es peor.
         """
 
         if medido is None:
@@ -204,7 +230,7 @@ class Localizador:
         creible = abs(valor - prediccion) <= self.salto_max_mm
         if creible:
             return self.alfa * valor + (1.0 - self.alfa) * prediccion, True, fuente, 0
-        if primera or rechazos >= 3:
+        if primera or (rechazos >= 3 and puede_resincronizar):
             # Resincronizacion: se ADOPTA la medida entera, no se mezcla.
             # Mezclando, la estimacion se queda a medio camino, el ciclo
             # siguiente vuelve a parecer un salto imposible y el filtro entra

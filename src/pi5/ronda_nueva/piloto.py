@@ -554,6 +554,24 @@ class Piloto:
     def _disparo_de_giro_mm(self) -> float:
         """A que distancia del muro de enfrente empezar a girar.
 
+        PROBADO Y DESCARTADO (05-09): disparar TAMBIEN cuando el muro frontal
+        ajustado baja del umbral, como red de seguridad frente a un `avance`
+        estimado poco fiable.  Barrido determinista sobre la vuelta de ocho
+        pilares, inyectando saltos en el avance con probabilidad ``p``::
+
+            p       solo avance        + muro medido
+            0,00    0 retrocesos       14 retrocesos, 16 giros para 12 esquinas
+            0,10    8-10               6-7
+            0,25    8-10               6-7
+
+        Ayuda cuando el localizador esta roto y ARRUINA el caso sano: dispara
+        esquinas que no existen -- 16 entradas en GIRO para 12 esquinas -- y la
+        ronda se da por terminada en 75 s en vez de 131, a mitad de recorrido.
+        `frontal_min` no distingue "el muro que cierra esta recta" de "un muro
+        que se ve de frente"; el avance del localizador, con lo malo que es,
+        al menos sabe en que recta va.  La solucion es arreglar el avance, no
+        rodearlo.
+
         Depende del PRIMER pilar de la recta siguiente, que ya esta en el mapa
         aunque todavia no se vea: si toca salir pegado al muro exterior, el
         giro tiene que cerrarse antes; si toca salir por dentro, se abre.  Es
