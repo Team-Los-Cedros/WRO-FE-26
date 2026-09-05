@@ -481,6 +481,18 @@ class Piloto:
             # ruta con un obstaculo que el robot no tiene delante.
             if not self.mapa.pertenece_a_esta_recta(avance, offset):
                 continue
+            # Si la deteccion viva perdio el color, se HEREDA el de la casilla
+            # del mapa donde cae.  De cerca la camara deja de clasificar (13 %
+            # de los ciclos por debajo de 250 mm, contra 73-75 % entre 0,75 y
+            # 1,25 m), y como la deteccion viva manda sobre el mapa, un poste
+            # perfectamente identificado a un metro llegaba al rebase sin
+            # color: el planificador elegia lado por el hueco mayor en vez de
+            # por la regla.  Medido el 05-09: de 12 rebases, 4 por el lado
+            # equivocado, uno con el poste a 6 mm del eje, o sea de frente.
+            color = pilar.color
+            if not color and self.pose is not None:
+                color = self.mapa.color_recordado(self.pose.segmento, avance, offset) or ""
+
             # Un objeto SIN COLOR lejano no mueve el carril: puede aparecer su
             # color antes de llegar, y desviarse por un bulto sin identificar
             # tiene su propio riesgo.  Pero de cerca hay que esquivarlo igual.
@@ -488,11 +500,11 @@ class Piloto:
             # las corridas 3, 4 y 5 del 04/05-09 acumularon 24 retrocesos,
             # casi todos contra un bulto de 55 mm a 150 mm del morro.  El
             # planificador ya sabe rodear sin color, por el hueco mayor.
-            if not pilar.color and not self.plan_con_sin_color:
+            if not color and not self.plan_con_sin_color:
                 distancia = math.hypot(pilar.x_mm, pilar.y_mm)
                 if distancia > self.sin_color_cerca_mm:
                     continue
-            salida.append((avance, offset, pilar.color))
+            salida.append((avance, offset, color))
             vivos.append((avance, offset))
 
         if self.pose is None:

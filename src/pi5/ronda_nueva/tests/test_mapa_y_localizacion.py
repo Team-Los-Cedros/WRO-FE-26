@@ -175,6 +175,39 @@ class PruebaMapaPista(unittest.TestCase):
         casilla = self.mapa.observar(self._pilar(), 0, 1000.0, 380.0)
         self.assertEqual(casilla.indice, 2)
 
+    def test_el_mapa_presta_el_color_a_una_deteccion_que_lo_perdio(self):
+        """De cerca la camara deja de clasificar, y ahi es donde se decide.
+
+        Medido el 05-09 sobre tres corridas: la tasa de color del poste que usa
+        el planificador es 73-75 % entre 0,75 y 1,25 m y cae al **13 %** por
+        debajo de 250 mm.  Sin color no se aplica la regla de WRO y el lado se
+        elige por el hueco mayor: 4 de 12 rebases salieron por el lado
+        equivocado, uno con el poste a 6 mm del eje.
+        """
+
+        self.mapa.observar(self._pilar("VERDE"), 0, 1500.0, 574.0)
+        self.assertEqual(
+            self.mapa.color_recordado(0, 1500.0, 574.0),
+            "VERDE",
+            "la casilla observada tiene que prestar su color",
+        )
+
+    def test_no_presta_el_color_de_la_otra_fila(self):
+        """Las dos filas del sorteo estan a 380 y 574 mm del muro exterior.
+
+        Prestar el color entre filas mandaria el robot por el lado contrario,
+        que es peor que no saber el color.
+        """
+
+        self.mapa.observar(self._pilar("ROJO"), 0, 1500.0, 380.0)
+        self.assertIsNone(
+            self.mapa.color_recordado(0, 1500.0, 574.0 + 250.0),
+            "un poste lejos de la casilla no puede heredar su color",
+        )
+
+    def test_una_casilla_nunca_vista_no_presta_nada(self):
+        self.assertIsNone(self.mapa.color_recordado(0, 1500.0, 380.0))
+
     def test_fuera_de_banda_no_se_memoriza(self):
         """1250 mm no es ninguna posicion del sorteo: no ensucia el mapa.
 

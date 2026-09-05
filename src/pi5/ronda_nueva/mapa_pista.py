@@ -172,6 +172,48 @@ class MapaPista:
     def entrada(self, segmento: int, indice: int) -> Optional[EntradaMapa]:
         return self.entradas.get((segmento % 4, indice))
 
+    def color_recordado(
+        self,
+        segmento: int,
+        avance_mm: float,
+        offset_mm: float,
+        tolerancia_offset_mm: float = 220.0,
+    ) -> Optional[str]:
+        """El color que el mapa ya sabe de la casilla donde cae este punto.
+
+        Existe porque la camara clasifica bien de LEJOS y deja de hacerlo justo
+        cuando hace falta.  Medido sobre las tres corridas del 05-09, la tasa
+        de color del poste que usa el planificador::
+
+            0-250 mm     13 %   <-- aqui es donde se decide el lado
+            250-500 mm   62 %
+            750-1000 mm  75 %
+            1000-1250 mm 73 %
+
+        Sin color, el planificador no aplica la regla (rojo por la derecha,
+        verde por la izquierda): elige lado por el hueco mayor.  Y como el
+        color aparece y desaparece ciclo a ciclo, el carril objetivo oscila --
+        medidos saltos de mas de 100 mm entre ciclos consecutivos, hasta 500,
+        con 9 a 27 idas y vueltas por corrida.
+
+        El robot averigua el color a tiempo y lo tira a la basura justo antes
+        de usarlo.  Esto lo recupera.
+        """
+
+        indice = self._indice_por_avance(avance_mm)
+        if indice is None:
+            return None
+        entrada = self.entrada(segmento, indice)
+        if entrada is None or entrada.observaciones == 0:
+            return None
+        # La casilla tiene dos filas (380 y 574 mm del muro exterior).  Sin
+        # esta comprobacion, un poste de la fila interior heredaria el color
+        # del exterior de la misma banda longitudinal, que es justo el error
+        # que mandaria al robot por el lado contrario.
+        if abs(entrada.offset_mm - offset_mm) > tolerancia_offset_mm:
+            return None
+        return entrada.color
+
     def pilares_del_segmento(
         self, segmento: int, con_color: bool = True
     ) -> List[Tuple[Casilla, EntradaMapa]]:
