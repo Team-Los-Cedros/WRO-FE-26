@@ -134,6 +134,7 @@ class Localizador:
         sentido: int,
         velocidad_pwm: float = 0.0,
         timestamp: Optional[float] = None,
+        maniobrando: bool = False,
     ) -> PoseCarril:
         ahora = float(paredes.timestamp if timestamp is None else timestamp)
         # En el primer ciclo no hay prediccion que valga: los valores semilla
@@ -170,7 +171,13 @@ class Localizador:
         # ~800 mm en mitad de una recta.  Es el salto de avance que aparecia
         # 0,3-0,4 s despues de cada esquina, seis o siete veces por corrida, y
         # de el cuelga el disparo tardio del giro.
-        alineado = abs(rumbo_error) <= self.rumbo_max_resync_deg
+        # `maniobrando` = el piloto esta en GIRO o RETROCESO.  Ahi el robot
+        # esta fisicamente atravesado aunque el rumbo contra el cardinal
+        # parezca pequeño, y el muro que ve por delante no es el que cierra la
+        # recta.  Medido en la corrida del 05-09 16:55, ya con la guarda de
+        # rumbo puesta: de los 7 saltos que quedaban, CUATRO ocurrieron en
+        # RETROCESO o GIRO.
+        alineado = abs(rumbo_error) <= self.rumbo_max_resync_deg and not maniobrando
         (
             self._avance_mm,
             avance_valido,

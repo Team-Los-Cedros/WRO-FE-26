@@ -227,6 +227,38 @@ class PruebaAvanceTrasEsquina(unittest.TestCase):
             "cierra la recta: adoptarla manda el avance de 3000 a 800",
         )
 
+    def test_maniobrando_tampoco_se_resincroniza(self):
+        """En GIRO o RETROCESO el robot esta atravesado aunque el rumbo cuadre.
+
+        Con la guarda de rumbo ya puesta, la corrida del 05-09 16:55 aun tenia
+        7 saltos de avance, y CUATRO de ellos ocurrieron en RETROCESO o GIRO:
+        el rumbo contra el cardinal era pequeño, pero el muro de delante seguia
+        sin ser el que cierra la recta.
+        """
+
+        loc = Localizador(config_minima())
+        loc.reiniciar()
+        loc.actualizar(self._paredes(2900.0, 10.0), 0.0, 1, 25.0, 10.0)
+        loc.anotar_esquina(1)
+        avances = []
+        for i in range(8):
+            t = 10.0 + 0.1 * (i + 1)
+            pose = loc.actualizar(
+                self._paredes(800.0, t),
+                # Rumbo YA encarado: sin `maniobrando` esto resincronizaria.
+                loc.rumbo_cardinal_deg + 3.0,
+                1,
+                25.0,
+                t,
+                maniobrando=True,
+            )
+            avances.append(pose.avance_mm)
+        self.assertGreater(
+            min(avances),
+            2000.0,
+            "maniobrando no se adopta la medida, aunque el rumbo cuadre",
+        )
+
     def test_ya_encarado_si_se_resincroniza(self):
         """La resincronizacion tiene que seguir existiendo.
 

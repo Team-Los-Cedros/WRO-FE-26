@@ -651,7 +651,12 @@ class Piloto:
 
         self._rumbo_absoluto = float(rumbo_deg)
         self.pose = self.localizador.actualizar(
-            paredes, rumbo_deg, self.sentido, self._ultima_velocidad, ahora
+            paredes,
+            rumbo_deg,
+            self.sentido,
+            self._ultima_velocidad,
+            ahora,
+            maniobrando=self.estado in (GIRO, RETROCESO),
         )
         self._memorizar(pilares, paredes)
 
