@@ -75,6 +75,11 @@ CAMPOS_TELEMETRIA = (
     "casillas",
     "retrocesos",
     "atascos",
+    # Que abre cada esquina. `linea_lista` se registra aunque mande el avance,
+    # asi una corrida sirve para comparar las dos fuentes sin correr dos veces.
+    "giro_fuente",
+    "linea_lista",
+    "recortes_linea",
     "frontal_min",
     "izquierda_min",
     "derecha_min",

@@ -111,6 +111,48 @@ class Piloto:
         self.giro_salida_mm = float(control.get("corner_exit_front_mm", 700.0))
         self.giro_rumbo_max_deg = float(control.get("corner_max_heading_deg", 105.0))
 
+        # DISPARO DEL GIRO POR LINEA DE PISO.
+        #
+        # El disparo historico usa `avance`, la distancia que el LOCALIZADOR
+        # cree que queda de recta.  La linea pintada de la esquina es la misma
+        # informacion pero MEDIDA: la camara la proyecta al suelo y dice a
+        # cuantos milimetros esta. Medido en pista el 05-09 con el robot
+        # quieto antes de una esquina, la naranja se estabiliza en 875 mm y la
+        # azul en 1109, ambas al 100 % de los cuadros; el disparo por avance
+        # cae entre 680 y 1050. O sea que apuntan al mismo sitio y lo que
+        # cambia es de donde sale el numero.
+        #
+        # OJO, ESTO YA FALLO DOS VECES POR OTRO CAMINO (ver
+        # `_disparo_de_giro_mm`): anadir `frontal_min` como disparo extra dio
+        # 16 entradas en GIRO para 12 esquinas, y el detector por derivada dio
+        # 3 esquinas con 57 retrocesos. La razon es de arquitectura y sigue
+        # valiendo aqui: contar UNA esquina de mas gira el rumbo cardinal y
+        # deja el marco desplazado 90 grados el resto de la vuelta. Por eso el
+        # disparo por linea exige confirmaciones consecutivas y respeta el
+        # mismo refractario, y por eso se deja conmutable: hasta que no haya
+        # tres corridas comparadas, "linea" es una hipotesis, no una mejora.
+        self.giro_fuente = str(
+            control.get("corner_trigger_source", "avance")
+        ).strip().lower()
+        self.giro_linea_mm = float(control.get("corner_line_trigger_mm", 900.0))
+        self.giro_linea_confirmaciones = max(
+            1, int(control.get("corner_line_confirm_scans", 2))
+        )
+        # Cuanta recta puede quedar COMO MUCHO por detras de una linea vista.
+        # Medido el 05-09 con el robot quieto antes de una esquina: la naranja
+        # caia a 875 mm y el muro frontal a 1692, o sea 817 mm entre una y
+        # otro. Ese hueco NO es constante -- la linea es diagonal, asi que
+        # donde la cruza el robot depende de su posicion lateral, y en un
+        # carril de 1000 mm eso da varios cientos de milimetros de variacion.
+        # Por eso el margen es generoso: no se busca estimar el avance con la
+        # linea, solo descartar valores imposibles.
+        self.linea_cota_margen_mm = float(
+            control.get("line_avance_ceiling_margin_mm", 1200.0)
+        )
+        self.linea_cota_activa = bool(
+            control.get("line_avance_ceiling_enabled", True)
+        )
+
         self.velocidad_giro = int(control.get("speed_turn_pwm", 45))
         self.velocidad_retroceso = int(control.get("speed_reverse_pwm", -32))
         self.velocidad_aprox = int(control.get("speed_parking_approach_pwm", 30))
@@ -182,6 +224,8 @@ class Piloto:
         self._empujando = False
         if self.parqueo is not None:
             self.parqueo.reiniciar()
+        self._confirmaciones_linea = 0
+        self._giro_por_linea = False
 
         if self.sentido_configurado == "LEFT":
             self.sentido = -1
@@ -650,6 +694,9 @@ class Piloto:
             return self._procesar_salida_bahia(paredes, lineas, ahora)
 
         self._rumbo_absoluto = float(rumbo_deg)
+        # Solo en RECTA. Durante el giro y el retroceso el robot esta cruzado
+        # y la linea que ve no es la de la recta que dice medir.
+        cota = self._cota_de_avance(lineas) if self.estado == RECTA else None
         self.pose = self.localizador.actualizar(
             paredes,
             rumbo_deg,
@@ -657,6 +704,7 @@ class Piloto:
             self._ultima_velocidad,
             ahora,
             maniobrando=self.estado in (GIRO, RETROCESO),
+            cota_avance_mm=cota,
         )
         self._memorizar(pilares, paredes)
 
@@ -685,7 +733,7 @@ class Piloto:
                 return respuesta
 
         if self.estado == RECTA:
-            return self._procesar_recta(paredes, pilares, ahora)
+            return self._procesar_recta(paredes, pilares, lineas, ahora)
         if self.estado == GIRO:
             return self._procesar_giro(paredes, rumbo_deg, ahora)
         if self.estado == APROXIMACION:
@@ -735,10 +783,60 @@ class Piloto:
             return self._emitir(self.velocidad_aprox, 0.0, "salida por tiempo")
         return self._emitir(self.velocidad_aprox, giro, "saliendo de la bahia")
 
+    def _cota_de_avance(self, lineas: Sequence[LineaPiso]) -> Optional[float]:
+        """Techo de `avance` deducido de la linea pintada mas cercana.
+
+        La idea que SI funciona de usar la linea: no decirle al robot donde
+        esta, sino donde NO puede estar. Si la camara ve la linea de la
+        esquina a 900 mm, entonces no quedan 3000 mm de recta, y punto.
+
+        Se toma la linea mas cercana que caiga por delante y dentro del
+        carril propio -- el mismo filtro lateral de `_resolver_sentido`,
+        porque una franja a 650 mm de lado es de la esquina de al lado.
+        """
+
+        if not self.linea_cota_activa:
+            return None
+        candidatas = [
+            linea.y_mm
+            for linea in lineas
+            if 0.0 < linea.y_mm <= self.linea_max_avance_mm
+            and abs(linea.x_mm) < self.linea_max_lateral_mm
+        ]
+        if not candidatas:
+            return None
+        return min(candidatas) + self.linea_cota_margen_mm
+
+    def _linea_dispara_giro(self, lineas: Sequence[LineaPiso]) -> bool:
+        """La linea pintada de la esquina, vista y confirmada, abre el giro.
+
+        Se exigen confirmaciones CONSECUTIVAS a proposito. Un solo cuadro con
+        un reflejo de la lona del color equivocado no puede meter una esquina
+        que no existe: una esquina de mas gira el rumbo cardinal y deja el
+        marco desplazado 90 grados el resto de la vuelta, que es exactamente
+        como murieron los dos intentos anteriores de tocar este disparo.
+
+        El filtro lateral es el mismo que usa `_resolver_sentido`: una franja
+        a 650 mm de lado es la linea de la esquina de al lado, no la propia.
+        """
+
+        candidatas = [
+            linea
+            for linea in lineas
+            if 0.0 < linea.y_mm <= self.giro_linea_mm
+            and abs(linea.x_mm) < self.linea_max_lateral_mm
+        ]
+        if candidatas:
+            self._confirmaciones_linea += 1
+        else:
+            self._confirmaciones_linea = 0
+        return self._confirmaciones_linea >= self.giro_linea_confirmaciones
+
     def _procesar_recta(
         self,
         paredes: MapaParedes,
         pilares: Sequence[DeteccionPilar],
+        lineas: Sequence[LineaPiso],
         ahora: float,
     ) -> Consigna:
         assert self.pose is not None
@@ -761,10 +859,26 @@ class Piloto:
 
         disparo = self._disparo_de_giro_mm()
         refractario = ahora - self._ultima_esquina_s > self.giro_refractario_s
-        if self.pose.avance_valido and self.pose.avance_mm < disparo and refractario:
+        # Se evalua SIEMPRE, aunque mande el avance: asi una corrida en modo
+        # "avance" deja en el CSV si la linea habria disparado y donde, y la
+        # comparacion de las tres corridas sale de datos y no de opinion.
+        linea_lista = self._linea_dispara_giro(lineas)
+        self._giro_por_linea = linea_lista
+        por_linea = linea_lista and self.giro_fuente == "linea"
+        por_avance = self.pose.avance_valido and self.pose.avance_mm < disparo
+        if refractario and (por_linea or por_avance):
+            # El avance se conserva como RED, no como segundo disparo: si la
+            # linea no se ve -- lona sucia, reflejo, un pilar tapandola -- el
+            # robot tiene que girar igual. Nunca puede quedar peor que hoy.
+            self._confirmaciones_linea = 0
             self._rumbo_giro_ref = self._rumbo_absoluto
             self._entrar(GIRO, ahora)
-            return self._emitir(self.velocidad_giro, self._angulo_de_giro(), "entrando en giro")
+            fuente = "linea" if por_linea else "avance"
+            return self._emitir(
+                self.velocidad_giro,
+                self._angulo_de_giro(),
+                "entrando en giro por " + fuente,
+            )
 
         return self._emitir(velocidad, angulo, f"carril {objetivo:.0f}mm")
 
@@ -991,4 +1105,15 @@ class Piloto:
             "casillas": self.mapa.casillas_conocidas(),
             "retrocesos": self._retrocesos,
             "atascos": self._atascos,
+            # Que fuente manda hoy y si la linea estaba lista en este ciclo.
+            # Con las dos columnas se puede contar, sobre una corrida en modo
+            # "avance", cuantas esquinas habria abierto la linea y cuantas de
+            # mas: es la comparacion que decide si el cambio vale.
+            "giro_fuente": self.giro_fuente,
+            "linea_lista": int(getattr(self, "_giro_por_linea", False)),
+            # Cuantas veces la linea ha tenido que recortar un avance inflado.
+            # Si sube mucho, el estimador se esta perdiendo de verdad.
+            "recortes_linea": getattr(
+                self.localizador, "_recortes_por_referencia", 0
+            ),
         }

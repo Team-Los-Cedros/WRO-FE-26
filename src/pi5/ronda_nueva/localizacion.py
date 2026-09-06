@@ -68,6 +68,7 @@ class Localizador:
         self._ultimo_t = 0.0
         self._rechazos_avance = 0
         self._rechazos_offset = 0
+        self._recortes_por_referencia = 0
 
     # ------------------------------------------------------------- control
 
@@ -79,6 +80,7 @@ class Localizador:
         self._ultimo_t = 0.0
         self._rechazos_avance = 0
         self._rechazos_offset = 0
+        self._recortes_por_referencia = 0
 
     def anotar_esquina(self, sentido: int) -> None:
         """Una esquina terminada: avanza el segmento y ancla el rumbo cardinal.
@@ -135,7 +137,15 @@ class Localizador:
         velocidad_pwm: float = 0.0,
         timestamp: Optional[float] = None,
         maniobrando: bool = False,
+        cota_avance_mm: Optional[float] = None,
     ) -> PoseCarril:
+        """``cota_avance_mm`` es un TECHO externo, no una medida.
+
+        Lo pone quien vea una referencia conocida de la pista -- hoy la linea
+        pintada de la esquina -- y significa "queda como mucho esto de recta".
+        Entra por separado del filtro a proposito: no compite con la medida
+        del LiDAR ni la promedia, solo recorta lo imposible.
+        """
         ahora = float(paredes.timestamp if timestamp is None else timestamp)
         # En el primer ciclo no hay prediccion que valga: los valores semilla
         # son 3000 y medio carril, y compararlos con la medida la rechazaria
@@ -199,6 +209,27 @@ class Localizador:
         ) = self._mezclar(
             medido_offset, prediccion_offset, primera, self._rechazos_offset
         )
+
+        # El techo por referencia va ANTES del acotado general y es de UNA
+        # SOLA DIRECCION: puede bajar el avance, nunca subirlo.
+        #
+        # Esa asimetria es lo que lo hace seguro. El fallo conocido de este
+        # estimador es quedarse "clavado en 3000", o sea creer que queda una
+        # recta entera cuando la esquina esta encima; como el giro dispara con
+        # `avance < umbral`, ese valor inflado hace que la esquina NO LLEGUE
+        # NUNCA y el robot acabe retrocediendo contra el muro. Recortar solo
+        # hacia abajo corrige ese caso y no puede inventar el contrario.
+        #
+        # Y no puede disparar una esquina por si solo: el techo se calcula con
+        # un margen deliberadamente generoso sobre la linea, muy por encima de
+        # la banda de disparo. Se comprobo que hacerlo mandar directamente
+        # (disparar el giro con la linea) da 4 esquinas y 26 retrocesos contra
+        # 11 y 14, porque la linea es DIAGONAL y se ve mucho antes de llegar.
+        if cota_avance_mm is not None:
+            techo = float(cota_avance_mm)
+            if math.isfinite(techo) and techo < self._avance_mm:
+                self._avance_mm = techo
+                self._recortes_por_referencia += 1
 
         self._avance_mm = _limitar(self._avance_mm, -400.0, self.largo_recta_mm + 400.0)
         self._offset_mm = _limitar(self._offset_mm, -300.0, self.ancho_carril_mm + 300.0)
