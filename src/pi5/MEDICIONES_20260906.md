@@ -245,3 +245,40 @@ equivocado por metro y medio. Ver §3.
 6. **El firmware de la Pico en el robot es más nuevo que el del repo y no está
    commiteado**: `/home/pi/pico_nuevo/main.py` son 17066 bytes del 03-09 contra
    16057 del 01-09 en `src/pico/`. Mil bytes que solo existen en la Pi.
+
+---
+
+## 8. Lo que se cerro en codigo con estas medidas (misma fecha, por la tarde)
+
+Rama `medidas/banco-0609`, paquete `ronda_nueva`. Los pendientes 0 y 5 de la
+lista de arriba quedan cerrados; el 1, el 2, el 3 y el 4 siguen abiertos y
+siguen pidiendo pista o cinta metrica.
+
+* **Pendiente 0 — `wall_min_length_mm` en el parqueo.** `PercepcionLidar` acepta
+  ahora un minimo de segmento distinto, y solo para la pared del LADO de la
+  bahia (`_largo_minimo_mm`): escalado por la distancia medida
+  (`wall_min_length_parking_ratio` 0,75) con suelo en
+  `wall_min_length_parking_mm` (60) y techo en el valor de carrera (220), que
+  se vuelve a alcanzar a partir de 293 mm. Frontal y trasera conservan los 220
+  a proposito: con un minimo global de 60, un delimitador de 200 mm de huella
+  se clasifica como muro FRONTAL a 171 mm teniendo el de verdad a 1499 --
+  comprobado sobre pista sintetica, y es el test que fija el candado.
+* **Pendiente 5 — `_trasera_mm()`.** La holgura trasera del parqueo sale ahora
+  SOLO del ultrasonido, y descontando los 34 mm de `ultrasound_rear_to_tail_mm`
+  (los 44 de aquella pose eran 10 mm de sitio real). La trasera del LiDAR no
+  participa ni para bajar la medida. Sin ultrasonido valido la respuesta es
+  `None` = SIN EVIDENCIA, y retroceder con tres barridos seguidos sin eco
+  termina en FALLO en vez de seguir a ciegas.
+* **De propina, tres cosas que salieron al hacer lo anterior.** El paralelismo
+  tiene segunda fuente (rumbo de la IMU contra la referencia que se toma al
+  salir de ALINEAR), asi que los tramos ya no cortan por reloj: los relojes
+  pasan a ser red de seguridad hacia FALLO y `leg_timeout_s` sube de 3,5 a 6,0
+  porque 42 grados a los 11,66 deg/s de la reversa son 3,6 s y el 3,5 anterior
+  habria matado el arco bueno. El arco de entrada fuerza el radio grande
+  tambien con la bahia a la derecha. Y la correccion lateral de ALINEAR tenia
+  el signo cambiado: cuanto mas cerca del muro, mas giraba hacia el.
+
+Nada de esto se ha probado en pista todavia. La verificacion en el robot es
+`herramientas/diag_pose_bahia.py`, que ahora imprime el mismo barrido con y sin
+lado de parqueo para que se vea si el umbral relajado es lo que desbloquea la
+lateral.

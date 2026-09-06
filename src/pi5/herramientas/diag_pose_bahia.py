@@ -60,10 +60,18 @@ def main():
     # varias muestras: lo que importa es si la medida es ESTABLE, no un valor suelto
     muestras = {"lat_izq": [], "lat_der": [], "trasera_lidar": [], "us": [],
                 "frontal": [], "huecos": 0}
+    muestras["lat_izq_carrera"] = []
     ultima = None
+    ultima_carrera = None
     for i in range(12):
         with _lock: scan, ts = _ult
         paredes, objetos, hueco = percep.procesar(scan, ts, 0.0, lado_parqueo=-1)
+        # El MISMO barrido sin declarar el lado de la bahia. Es la comparacion
+        # que aisla el bloqueante del 06-09: umbral de segmento de carrera
+        # (220 mm) contra el relajado del parqueo.
+        ultima_carrera, _oc, _hc = percep.procesar(scan, ts, 0.0, lado_parqueo=0)
+        if ultima_carrera.izquierda:
+            muestras["lat_izq_carrera"].append(ultima_carrera.izquierda.distancia_mm)
         ultima = paredes
         if paredes.izquierda: muestras["lat_izq"].append(paredes.izquierda.distancia_mm)
         if paredes.derecha:   muestras["lat_der"].append(paredes.derecha.distancia_mm)
@@ -81,8 +89,13 @@ def main():
           f"  izq {ultima.izquierda_min_mm:7.1f}  der {ultima.derecha_min_mm:7.1f}")
     print(f"  corredor     {ultima.corredor_mm:.0f} mm a {ultima.corredor_deg:.0f} deg")
 
+    print("\n=== EL MISMO BARRIDO SIN LADO DE PARQUEO (umbral de carrera) ===")
+    print(recta(ultima_carrera.izquierda, "izquierda"))
+    print("  NO ENCONTRADA aqui y encontrada arriba = el umbral relajado")
+    print("  del parqueo es lo unico que deja cerrar a VERIFICAR.")
+
     print("\n=== ESTABILIDAD EN 12 BARRIDOS ===")
-    for k in ("frontal", "lat_izq", "lat_der", "trasera_lidar", "us"):
+    for k in ("frontal", "lat_izq", "lat_izq_carrera", "lat_der", "trasera_lidar", "us"):
         v = muestras[k]
         if not v: print(f"  {k:14s} SIN DATO en los 12 barridos"); continue
         print(f"  {k:14s} n={len(v):2d}/12  mediana {statistics.median(v):7.1f}  "
@@ -98,7 +111,9 @@ def main():
         print(f"  {etiqueta}:")
         print(f"     _lateral_mm  = {lat if lat is None else round(lat,1)}")
         print(f"     _trasera_mm  = {tra if tra is None else round(tra,1)}   "
-              f"(ultrasonido crudo {pico.us})")
+              f"(ultrasonido crudo {pico.us}, menos "
+              f"{ctrl.ultrasonido_a_culata_mm:.0f} de sensor a culata; "
+              f"None = SIN EVIDENCIA, no libre)")
         print(f"     _paralelo    = {par if par is None else round(par,2)} deg")
         dentro = ctrl._dentro(lat, par)
         print(f"     _dentro()    = {dentro}   "
