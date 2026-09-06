@@ -8,10 +8,25 @@ Bienvenidos al repositorio oficial del **Team Los Cedros**, integrado por estudi
 2. [Anatomía del Repositorio](#2-anatomía-del-repositorio)
 3. [Diseño Evolutivo y Ciclos de Iteración](#3-diseño-evolutivo-y-ciclos-de-iteración)
 4. [Arquitectura Eléctrica y Distribución de Señales](#4-arquitectura-eléctrica-y-distribución-de-señales)
-5. [Capa de Percepción y Alto Nivel (Raspberry Pi 3B)](#5-capa-de-percepción-y-alto-nivel-raspberry-pi-3b)
+5. [Capa de Percepción y Alto Nivel (Raspberry Pi 5)](#5-capa-de-percepción-y-alto-nivel-raspberry-pi-5)
 6. [Capa de Control de Bajo Nivel (Raspberry Pi Pico 2)](#6-capa-de-control-de-bajo-nivel-raspberry-pi-pico-2)
 7. [Geometría de Dirección y Movilidad Mecánica](#7-geometría-de-dirección-y-movilidad-mecánica)
 8. [Análisis de Riesgos y Registro de Iteraciones](#8-análisis-de-riesgos-y-registro-de-iteraciones)
+9. [Estado Actual y Trabajo Pendiente](#9-estado-actual-y-trabajo-pendiente)
+
+---
+
+## 0. Estado Actual del Hardware (última revisión: 06-09-2026)
+
+El robot cambió en cinco puntos respecto a la primera versión documentada en este README. Cada cambio se detalla en su sección; esta tabla existe para que no haya que reconstruirlo leyendo el documento entero.
+
+| Qué cambió | Antes | Ahora | Dónde se detalla |
+| :--- | :--- | :--- | :--- |
+| **Cerebro de alto nivel** | Raspberry Pi 3B | **Raspberry Pi 5** (migrado el 03-09-2026) | 4.2 y 5 |
+| **Soporte del LiDAR** | Sin mástil documentado | **Mástil** con el plano de barrido a 69 mm del piso; se enmascara el sector 140-213° que él mismo ocupa | 4.2 |
+| **Medida trasera** | Ninguna | **Ultrasonido HC-SR04** en `GP14`/`GP15`, único sensor que ve hacia atrás | 4.2 y 4.3 |
+| **Sensor de color de piso** | TCS3472 bajo el chasis | **Retirado.** El sentido se resuelve por cámara y por asimetría de paredes | 4.2 y 5.3-C |
+| **Arranque** | Dos botones (uno por ronda) | **Un solo botón en `GPIO 21`** | 4.2 y 4.3 |
 
 ---
 
@@ -42,7 +57,27 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │   │   ├── main.py               # Bucle principal de control en tiempo real y actuadores
 │   │   ├── protocolo_seguro.py   # Valida consignas y modela el watchdog de 500 ms
 │   │   └── Mpu6050.py            # Driver I2C standalone para el sensor inercial MPU6050
-│   └── pi3B/                     # Scripts de alto nivel (Python 3 - Raspberry Pi 3B)
+│   ├── pi5/                      # Scripts de alto nivel (Python 3 - Raspberry Pi 5) -- CODIGO VIVO
+│   │   ├── deploy.sh             # Despliegue atomico "create only": nunca mezcla sobre una instalacion previa
+│   │   ├── MEDICIONES_20260906.md # Medidas de banco del chasis, la bahia y la velocidad
+│   │   ├── comun/                # Driver del LiDAR compartido por los tres cerebros
+│   │   ├── ronda_nueva/          # Ronda de Obstaculos. Es el cerebro que se corre hoy
+│   │   │   ├── ronda_nueva.py    # Punto de entrada: tres hilos (camara, LiDAR, control)
+│   │   │   ├── piloto.py         # FSM de ronda: RECTA / GIRO / RETROCESO / APROXIMACION / PARQUEO
+│   │   │   ├── planificador.py   # Ruta como nodos (avance, offset) con meseta por pilar
+│   │   │   ├── percepcion_lidar.py # Paredes por ajuste de rectas, objetos y hueco de parqueo
+│   │   │   ├── localizacion.py   # Pose dentro de la recta (avance/offset) sin SLAM
+│   │   │   ├── estacionamiento.py # FSM del parqueo en varios tiempos, pura y sin I/O
+│   │   │   ├── vision_pista.py   # HSV de pilares, muros magenta y lineas de piso
+│   │   │   ├── fusion.py         # Empareja camara y LiDAR en milimetros
+│   │   │   ├── mapa_pista.py     # Memoria de las 12 casillas de pilar, con votos de color
+│   │   │   ├── servidor_web.py   # Panel en vivo por HTTP (--panel-web)
+│   │   │   ├── configuracion.json # Todas las constantes, cada una con su nota de por que
+│   │   │   └── tests/            # 205 pruebas contra una pista sintetica, sin robot
+│   │   ├── ronda_abierta/        # Open Challenge en un solo archivo auditable
+│   │   ├── ronda_cerrada/        # El cerebro de la 3B portado tal cual. Congelado
+│   │   └── herramientas/         # 15 diagnosticos de banco (ver seccion 2.2)
+│   └── pi3B/                     # Scripts de la Raspberry Pi 3B -- ARCHIVADO (ver seccion 4.2)
 │       ├── controlador_inicio.py # Orquestador central (Ejecutado como servicio del sistema OS)
 │       ├── deploy.sh             # Copia los .py de carrera planos a /home/pi/
 │       ├── comun/                # Drivers compartidos por ambas rondas
@@ -77,7 +112,7 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 
 ```
 
-> **Nota de Software de Inicio:** El script `controlador_inicio.py` actúa como el orquestador maestro en la Raspberry Pi 3B, configurado explícitamente como un servicio de `systemd` en Linux para garantizar el autoarranque inmediato del coche al encender la batería.
+> **Nota de Software de Inicio:** `controlador_inicio.py` fue el orquestador maestro de la Raspberry Pi 3B, arrancado por `systemd`. En la Pi 5 el cerebro se lanza directamente (`python3 -m ronda_nueva.ronda_nueva`) y espera el botón de `GPIO 21`; las unidades `wro_start.service` y `wro_robot.service` están copiadas pero **deshabilitadas**, igual que en la 3B.
 
 > **Reproducibilidad:** el manual completo para dejar una Raspberry Pi 3B y una Pico 2 nuevas en este mismo estado (sistema operativo, dependencias, firmware, despliegue de scripts) está en [`INSTALACION.md`](INSTALACION.md).
 
@@ -151,7 +186,7 @@ De acuerdo con las rigurosas restricciones de peso, inercia de rotación y estab
   Al descartar un chasis totalmente impreso en 3D y migrar a una estructura de vigas de fricción LEGO, logramos consolidar una masa total ultraligera de **613 gramos**. En física de aceleración y curvas, la fuerza centrípeta que intenta sacar al carro del carril responde a la ecuación $F_c = \frac{m \cdot v^2}{r}$. Al reducir la masa ($m$) prácticamente a la mitad en comparación con prototipos pesados de la competencia, disminuimos la fuerza de deriva lateral de forma lineal. Esto nos permite trazar las esquinas a velocidades tangenciales significativamente más altas sin sufrir subviraje mecánico ni deslizamiento por pérdida de adherencia (*grip*).
 
 * **Fusión Sensorial Avanzada (LiDAR C1 vs. Ultrasonidos Tradicionales):**
-  Se descartaron los sensores de proximidad por ultrasonido (tipo HC-SR04) debido a sus limitaciones físicas inherentes: retrasos por eco acústico (tiempo de vuelo en aire abierto), conos de dispersión muy amplios que generan falsos positivos y la necesidad de ejecutar bucles de lectura bloqueantes que saturan la CPU. En su lugar, implementamos un escáner láser **RPLIDAR C1 (ToF)** operando a una frecuencia de muestreo masiva por bus USB. Esto nos otorga una firma espacial geométrica de 360° en tiempo real, permitiendo que la Raspberry Pi 3B ejecute cálculos de centrado reactivo mediante micro-correcciones proporucionales inmediatas.
+  Se descartó el ultrasonido **como sensor de percepción principal** (tipo HC-SR04) por sus limitaciones físicas inherentes: retrasos por eco acústico, conos de dispersión muy amplios que generan falsos positivos y bucles de lectura bloqueantes. Para eso implementamos un escáner láser **RPLIDAR C1 (ToF)** por bus USB, que da una firma geométrica de 360° en tiempo real. Ahora bien, esa decisión tiene una excepción medida: el mástil del propio LiDAR le tapa el sector **140-213°**, así que hacia atrás no ve. En el parqueo el robot entra marcha atrás contra esa pared, y la "trasera" que el LiDAR reconstruye de los hombros en oblicuo llegó a discrepar **1777 mm contra 44** del ultrasonido en la misma pose (06-09). Por eso se añadió **un** HC-SR04 mirando atrás: no compite con el LiDAR, cubre exactamente el ángulo donde el LiDAR es ciego.
 
 * **Procesamiento de Visión Nativo OpenCV contra Sensores Embebidos Cerrados:**
   Muchos equipos optan por cámaras inteligentes con procesadores integrados de firmware cerrado (como HuskyLens). Aunque simplifican la conexión, restringen severamente la flexibilidad algorítmica. Nuestra arquitectura utiliza la **Pi Camera Module 3** conectada por la interfaz CSI de alta velocidad directo al procesador de la **Raspberry Pi 3B**. El procesamiento se realiza a nivel de software mediante código propio en **OpenCV**, permitiendo la manipulación directa de la matriz de píxeles en el dominio HSV, la aplicación de filtros morfológicos personalizados para eliminar el ruido lumínico de los boxes y la inyección dinámica de offsets angulares directo al servomotor Ackermann.
@@ -196,25 +231,26 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 
 | Componente | Foto | Justificación de selección y ubicación |
 | :--- | :---: | :--- |
-| **RPLiDAR C1** | <img src="v-photos/Componentes/RPLiDAR_C1.png" width="90"/> | Montado a **90mm del piso**, sobre la cámara, para obtener un barrido de 360° sin obstrucciones del propio cuerpo del robot. A esa altura el haz sí intersecta tanto postes como paredes (ambos de 100mm según el reglamento) — la distinción entre uno y otro **no es por altura**, la hace la clasificación geométrica del cluster en `lidar_geometria.py` (extensión angular menor a 15° y 3-30 puntos = poste; mayor extensión o más puntos = muro). |
+| **RPLiDAR C1** | <img src="v-photos/Componentes/RPLiDAR_C1.png" width="90"/> | Montado sobre un **mástil** que lo eleva por encima de la cámara. El plano de barrido quedó medido con regla el 06-09 a **69 mm del piso**, altura a la que el haz intersecta tanto postes como paredes (ambos de 100 mm según el reglamento); la distinción entre uno y otro **no es por altura**, la hace la clasificación geométrica del cluster. El mástil tiene un coste conocido y medido: se ve a sí mismo. `diag_mastil.py` lo midió en **141-212° a 35-68 mm** con presencia en prácticamente el 100 % de los barridos, y por eso `lidar.blind_sectors_deg` enmascara `140-213`. El arreglo mecánico del 05-09 (*mastilfix*) eliminó además el eco de la propia rueda: `diag_eco_volante.py` no encuentra un solo punto bajo 500 mm en los sectores laterales, con el volante recto y a tope. |
 | **Pi Camera Module 3 Wide** (FOV ~102°) | <img src="v-photos/Componentes/Camara.png" width="90"/> | Ubicada al frente, debajo del LiDAR y retrasada respecto al parachoques (ver sección 3.4) para proteger el sensor de impactos directos, montada a **0° de inclinación** (mirando derecho al frente, sin tilt hacia el piso). |
 | **MPU6050 (IMU)** | <img src="v-photos/Componentes/MPU6050.png" width="90"/> | Montado rígidamente sobre la placa perforada, alineado con el eje longitudinal del chasis para que la lectura del eje Z corresponda exactamente al *yaw* del vehículo sin necesidad de compensar desalineación mecánica. |
 | **Geekservo Servo (Dirección)** | <img src="v-photos/Componentes/GeekservoServo.png" width="90"/> | Acoplado directo al `base_servo` del eje delantero; se eligió por compatibilidad mecánica nativa con las vigas Technic, evitando adaptadores impresos que añaden holgura al sistema de dirección. |
 | **Geekservo DC (Tracción)** | <img src="v-photos/Componentes/GeekservoDC.png" width="90"/> | Seleccionado por su torque de bloqueo de $2.4\,\text{kg}\cdot\text{cm}$, validado matemáticamente en la sección 7.4 con un margen de seguridad de 2.55×. |
 | **Driver TB6612FNG** | <img src="v-photos/Componentes/TB6612FNG.png" width="90"/> | Preferido sobre el clásico L298N por su topología MOSFET (menor caída de tensión y disipación térmica), crítico dado el presupuesto de corriente ajustado del sistema (sección 4.3). |
-| **Raspberry Pi 3B** | <img src="v-photos/Componentes/Rspr3B.jpg" width="90"/> | Capa de alto nivel: único módulo del kit con soporte nativo de interfaz CSI (cámara) y suficiente cómputo para correr OpenCV en tiempo real. |
+| **Raspberry Pi 5** | <img src="v-photos/Componentes/Rspr3B.jpg" width="90"/> | Capa de alto nivel. **Sustituye a la Pi 3B el 03-09-2026** (migración verificada: 3325 archivos y los 170 CSV idénticos por md5). El motivo es cómputo medido, no preferencia: el mismo pipeline de visión pasó de **67-72 ms a 4,8 ms** por cuadro a 640x360, y a 1280x720 —resolución que en la 3B no cabía— cuesta **22,2 ms**. La edad del barrido LiDAR bajó de 16,0 ms de media a **0,1 ms**. Eso es lo que permitió subir la cámara a 1280x720 @ 30 fps. |
 | **Raspberry Pi Pico 2** | <img src="v-photos/Componentes/Pico2.jpg" width="90"/> | Capa de bajo nivel de tiempo real: descarga a la Pi 3B de la generación de PWM y la integración del giroscopio, evitando que el *jitter* del sistema operativo Linux afecte la estabilidad del lazo de control físico. |
 | **Reguladores XL1509 / XL4016** | <img src="v-photos/Componentes/Xl1509.png" width="90"/> <img src="v-photos/Componentes/Xl4016.png" width="90"/> | Ver arquitectura de desacoplamiento por etapas en la sección 4.1 y análisis de margen de seguridad en la sección 4.3. |
 | **Baterías 21700 (2S)** | <img src="v-photos/Componentes/baterias.jpg" width="90"/> | Ver justificación de densidad de corriente en la sección 3.4. |
-| **Botón físico (x2)** | <img src="v-photos/Componentes/Boton.png" width="90"/> | Selección de ronda (Abierta/Cerrada) por hardware puro (GPIO con pull-up) en vez de un menú por software, para minimizar el tiempo entre el arranque de la batería y el inicio de la marcha, tal como exige el reglamento. |
-| **Sensor de Color TCS3472** | <img src="v-photos/Componentes/TCS3472.jpg" width="90"/> | Montado bajo el chasis, mirando el piso, en un bus $\text{I}^2\text{C}$ independiente de la IMU (sección 4.3) para no competir por el bus con el MPU6050. Lee la línea de color del punto de arranque para fijar el sentido de carrera (AZUL/NARANJA) por HSV con umbral de saturación calibrado en vivo — ver método abajo y la nota de estado en la sección 5.3-C. |
+| **Botón físico de arranque (x1)** | <img src="v-photos/Componentes/Boton.png" width="90"/> | **Un solo botón, en `GPIO 21` de la Pi 5** (entrada con *pull-up*, se dispara al ponerse a nivel bajo). Antes eran dos, uno por ronda. Se dejó en uno porque la ronda ya no se elige por hardware sino por el programa que se lanza (`ronda_nueva`, `ronda_abierta` o `ronda_cerrada`), y un único pulsador reduce el cableado y los modos de fallo en la línea de salida. El arranque sin botón existe solo como opción de banco (`--arranque-inmediato`) y la ronda oficial no la usa. |
+| **Ultrasonido trasero HC-SR04** | &mdash; | Añadido para el parqueo, la única maniobra en que el robot va marcha atrás contra una pared que **el LiDAR no puede ver**: el soporte del propio sensor le tapa el sector 140-213°, así que la "pared trasera" que el LiDAR reporta se reconstruye de los hombros en oblicuo y no es una medida. Medido el 06-09 con el robot aparcado a mano: el ultrasonido leía 44 mm y el LiDAR 1777 mm con calidad 0,95. Va en la Pico 2 (`GP14` trigger / `GP15` echo) y está **34 mm por delante del punto más atrasado del robot**, así que la holgura real de la culata es su lectura menos esos 34. |
+| **Sensor de Color TCS3472** | <img src="v-photos/Componentes/TCS3472.jpg" width="90"/> | **RETIRADO del robot.** Iba bajo el chasis leyendo la línea de color del punto de arranque para fijar el sentido de carrera. Desde la migración a la Pi 5 la Pico responde `COLOR:SIN_SENSOR` y el sentido se resuelve por otras dos vías (sección 5.3-C): la **línea de piso vista por la cámara** y, si no hay línea, la **asimetría de las paredes** que mide el LiDAR. Se documenta porque el firmware que lo lee sigue en `src/pico/main.py` y se reactiva solo si el sensor vuelve a conectarse. |
 
 #### Método de Calibración de Sensores
 
 * **IMU (MPU6050):** Al energizar la Pico 2, `src/pico/main.py` promedia 100 lecturas del giroscopio en el eje Z (~1 segundo, con una espera de 10 ms entre muestras) para calcular `giro_z_offset` antes de entrar al bucle de control. Esto elimina el *bias* estático de fabricación del MEMS sin necesidad de recalibración manual entre carreras.
 * **Cámara (Segmentación HSV):** `calibrar_hsv.py` transmite el feed de la Pi Camera por socket TCP a la laptop del equipo y expone sliders interactivos de OpenCV para ajustar en vivo los rangos `H/S/V` de verde y rojo (el rojo requiere dos rangos por el *wraparound* del matiz en 0°/180°). Los umbrales resultantes se copian manualmente a `src/pi3B/ronda_cerrada/vision.py` antes de cada jornada de pruebas, ya que la iluminación de los boxes varía respecto a la de la pista oficial.
 * **Sensor de Color de Piso (TCS3472):** al arrancar, `src/pico/main.py` promedia 25 lecturas de saturación del piso blanco bajo la iluminación real (`calibrar_suelo_inicial()`) y fija `saturacion_base_pista` como ese promedio más un margen de 0.12 — un umbral dinámico en vez de un valor fijo que se desajusta con cada cambio de luz entre el box y la pista oficial. Cada lectura pasa además por un promedio móvil de 4 muestras en tono (H) y saturación (S) antes de clasificarse, para filtrar destellos puntuales del sensor.
-* **Puntos de fallo considerados:** si la IMU se satura o pierde el bus I2C, `main.py` captura la excepción y fuerza `velocidad_z = 0.0` (el coche sigue guiándose solo por LiDAR en vez de trabar el bucle de control); si el LiDAR pierde la lectura de una pared, la Pi 3B congela el último ángulo válido (modo "Inercial", sección 5.3) en lugar de enviar un comando basado en datos corruptos.
+* **Puntos de fallo considerados:** si la IMU se satura o pierde el bus I2C, `main.py` captura la excepción y fuerza `velocidad_z = 0.0` (el coche sigue guiándose solo por LiDAR en vez de trabar el bucle de control); si el LiDAR pierde la lectura de una pared, la Pi 5 congela el último ángulo válido (modo "Inercial", sección 5.3) en lugar de enviar un comando basado en datos corruptos.
 
 ### 4.3 Mapa de Conexiones Calibrado (Pinout)
 
@@ -229,18 +265,21 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **TB6612FNG (PWMB)** | Pin 29 | `GP22` | Salida PWM | Modulación de velocidad por ancho de pulso ($2\,\text{kHz}$). |
 | **MPU6050 (SDA)** | Pin 21 | `GP16` | $\text{I}^2\text{C0}$ SDA | Línea de datos del bus inercial. |
 | **MPU6050 (SCL)** | Pin 22 | `GP17` | $\text{I}^2\text{C0}$ SCL | Línea de reloj síncrono del bus inercial ($400\,\text{kHz}$). |
-| **TCS3472 (SDA)** | Pin 24 | `GP18` | $\text{I}^2\text{C1}$ SDA | Línea de datos del sensor de color de piso, en bus separado del inercial. |
-| **TCS3472 (SCL)** | Pin 25 | `GP19` | $\text{I}^2\text{C1}$ SCL | Línea de reloj del bus de color ($100\,\text{kHz}$, más lento que el de la IMU porque el TCS3472 no soporta $400\,\text{kHz}$ de forma confiable). |
+| **HC-SR04 (TRIG)** | Pin 19 | `GP14` | Salida Digital | Disparo del ultrasonido trasero, usado por el parqueo (sección 4.2). |
+| **HC-SR04 (ECHO)** | Pin 20 | `GP15` | Entrada Digital | Retorno de eco. Es la única medida trasera real: el LiDAR tiene ciego el sector 140-213°. |
+| **TCS3472 (SDA)** | Pin 24 | `GP18` | $\text{I}^2\text{C1}$ SDA | Línea de datos del sensor de color de piso. **El sensor está retirado** (sección 4.2); el bus y el firmware se conservan por si vuelve a montarse. |
+| **TCS3472 (SCL)** | Pin 25 | `GP19` | $\text{I}^2\text{C1}$ SCL | Línea de reloj del bus de color, hoy sin sensor conectado ($100\,\text{kHz}$, más lento que el de la IMU porque el TCS3472 no soporta $400\,\text{kHz}$ de forma confiable). |
 
-#### Conexiones Maestras de la Raspberry Pi 3B
+#### Conexiones Maestras de la Raspberry Pi 5
 
 * **Pi Camera Module 3:** Conectada a la interfaz nativa CSI mediante un cable flexible plano de 15 pines.
 * **RPLIDAR C1:** Conectado directamente a un puerto USB 2.0 maestro (Comunicación UART integrada a $460\,800\,\text{bps}$).
 * **Raspberry Pi Pico 2:** Enlazada por interfaz de datos USB corta operando bajo la clase de dispositivo COM Virtual (VCP) a una tasa fija de $115\,200\,\text{bps}$.
+* **Botón de arranque:** un único pulsador contra masa en `GPIO 21`, leído con resistencia de *pull-up* interna. Es lo que da la salida en la ronda oficial.
 
 ### 4.4 Presupuesto de Consumo Energético y Gestión de Corriente
 
-Para evitar caídas de tensión críticas (*brownouts*) en la Raspberry Pi 3B cuando los actuadores demandan torque máximo, se calculó el presupuesto de corriente nominal y de pico (Stall) del sistema:
+Para evitar caídas de tensión críticas (*brownouts*) cuando los actuadores demandan torque máximo, se calculó el presupuesto de corriente nominal y de pico (Stall) del sistema. **Aviso: la tabla siguiente se midió con la Raspberry Pi 3B y no se ha vuelto a medir tras la migración a la Pi 5**, que consume más. El margen real es menor que el que aparece aquí; volver a medirlo está en la lista de pendientes (sección 9).
 
 | Componente | Voltaje Operativo | Corriente Nominal | Corriente de Pico (Stall) | Regulador Asociado |
 | :--- | :---: | :---: | :---: | :---: |
@@ -261,9 +300,9 @@ Para evitar caídas de tensión críticas (*brownouts*) en la Raspberry Pi 3B cu
 
 ---
 
-## 5. Capa de Percepción y Alto Nivel (Raspberry Pi 3B)
+## 5. Capa de Percepción y Alto Nivel (Raspberry Pi 5)
 
-La Raspberry Pi 3B se encarga de los procesos que demandan alta capacidad de cómputo. Mediante programación concurrentemente multihilos (`threading`), decodifica los datos en crudo del LiDAR y las imágenes de la cámara, calculando las decisiones estratégicas de navegación.
+La Raspberry Pi 5 se encarga de los procesos que demandan alta capacidad de cómputo. Sustituyó a la Pi 3B el 03-09-2026 (sección 4.2); los números de tiempo de este README que vengan de la 3B están marcados como tales. Mediante programación concurrentemente multihilos (`threading`), decodifica los datos en crudo del LiDAR y las imágenes de la cámara, calculando las decisiones estratégicas de navegación.
 
 ### Diagrama de Arquitectura de Software
 
@@ -513,21 +552,20 @@ stateDiagram-v2
 >
 > Los timeouts de `APROXIMACION` y `SOBREPASO` no son constantes sueltas: `navegacion.py` los calcula a partir de `tracker.MM_POR_SEG_A_PWM100` (400mm/s, medido en pista — sección 8.3) y la velocidad de PWM de cada fase, con un margen de 1.3× sobre el tiempo teórico. Son **red de seguridad**, no la vía normal — la transición esperada es geométrica (por posición del tracker), y si el timeout es más corto que la física, se convierte en la ruta principal sin que nadie lo note (exactamente lo que pasaba antes de medir la velocidad real).
 
-#### C. Sentido de Carrera y Sensor de Color de Piso — Estado Actual
+#### C. Sentido de Carrera — El Sensor de Color Ya No Está
 
-El reglamento fija que la dirección de circulación (horario o antihorario) se define de forma aleatoria antes de cada ronda, así que el robot no puede asumirla. El hardware para resolver esto ya está instalado: un **TCS3472** bajo el chasis (sección 4.2/4.3) lee la línea de color del punto de arranque y la Pico 2 la clasifica como `AZUL` (antihorario) o `NARANJA` (horario), transmitiéndola en cada trama de telemetría junto al *yaw* acumulado (`IMU:<grados>,COLOR:<nombre>`).
+El reglamento fija que la dirección de circulación (horario o antihorario) se sortea antes de cada ronda, así que el robot no puede asumirla. La solución original era un **TCS3472** bajo el chasis que leía la línea de color del punto de arranque y la Pico 2 clasificaba como `AZUL` (antihorario) o `NARANJA` (horario), transmitiéndola en la trama de telemetría (`IMU:<grados>,COLOR:<nombre>`).
 
-**Estado real, para que no quede como intención confundida con hecho:**
+**Ese sensor está retirado.** Desde la migración a la Pi 5 la Pico responde `COLOR:SIN_SENSOR`. El firmware que lo lee sigue en `src/pico/main.py` y volvería a funcionar solo si el sensor se reconecta, pero hoy no hay que contar con él.
 
-* El firmware (`src/pico/main.py`) sí lee, calibra y transmite el color — validado en pista en la sesión de depuración de la sección 8.3.
-* `comun/enlace_pico.py` sí parsea esa trama correctamente (era justo el bug de la sección 8.3 #1).
-* **`navegacion.py`, el módulo que decide velocidad y ángulo en la Ronda Cerrada, no consume ese campo.** No hay ningún `signo_giro` ni `esquinas_lado` en la pila modular actual.
+El sentido se resuelve ahora en `ronda_nueva/piloto.py` (`_resolver_sentido`) con dos evidencias, y basta con una:
 
-Esto no es un olvido que haya que tapar corriendo: el diseño de `navegacion.py` es **agnóstico al sentido de giro por construcción**, y eso es deliberado, no un accidente feliz. El centrado de pared (`_centrado_paredes`, control P sobre `izquierda - derecha`) es simétrico — no le importa si el pasillo gira a la izquierda o a la derecha, solo mantiene el robot equidistante de ambas paredes. El conteo de vueltas para disparar el parqueo compara `abs(heading) >= UMBRAL_VUELTAS` (línea 267), con valor absoluto a propósito: si el robot circula en horario el *yaw* acumulado es negativo, si es antihorario es positivo, y el umbral se cumple igual en ambos casos. El retroceso de emergencia (`RETROCESO`) mide en vivo qué diagonal trasera tiene más espacio libre en cada ciclo en vez de usar un signo fijo, por la misma razón.
+1. **La línea de piso vista por la cámara.** Es la misma señal oficial que usaba el TCS3472, pero leída con la Pi Camera y proyectada al suelo por la homografía: un blob azul o naranja por delante del robot. `diag_lineas.py` mide dónde cae cada una a la resolución real de la ronda.
+2. **La asimetría de las paredes.** El bloque interior siempre está más cerca que el muro exterior, así que comparar la mínima izquierda contra la derecha da el sentido sin ver ninguna línea. Es la red de seguridad cuando la lona está sucia, hay un reflejo o un pilar tapa la línea.
 
-En otras palabras: **la Ronda Cerrada actual no necesita saber el sentido para conducir bien**, y eso simplificó la máquina de estados en el refactor modular (sección 8.1) frente al monolito anterior, que sí lo usaba y por tanto dependía de que ese dato llegara correcto. El único lugar donde el sentido sí importaría es para escoger el **lado del carril hacia el que gira cada esquina** si en algún momento se necesitara una estrategia no simétrica — no es el caso hoy.
+Si en `direction_timeout_s` (10 s) ninguna de las dos resuelve, se arranca en horario por defecto: es la mitad de las veces, y quedarse parado son cero puntos seguros.
 
-Queda pendiente evaluar si conectar el sensor de color aporta algo que el diseño simétrico actual no dé ya (por ejemplo, como confirmación redundante del sentido para telemetría o depuración) antes de invertir tiempo en integrarlo a la FSM sin necesidad real.
+`control.turn_direction` permite además fijarlo a `LEFT` o `RIGHT` para las pruebas de banco. La ronda oficial va en `AUTO`.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 
@@ -962,6 +1000,47 @@ El bucle desapareció y el robot volvió a encadenar evasiones (8 en 84s, rojo y
 
 ---
 
+---
+
+## 9. Estado Actual y Trabajo Pendiente
+
+Lista viva, ordenada por lo que más cuesta hoy en puntos. Cada entrada dice **qué se sabe medido** y **qué falta**, para que nadie repita un experimento ya descartado.
+
+### 9.1 Bloqueantes de la Ronda de Obstáculos
+
+**1. El localizador se queda ciego con el robot cruzado.**
+`Localizador.actualizar` rechaza la medida de avance mientras `alineado` es falso (rumbo fuera de `pose_resync_max_heading_deg`, o el piloto en GIRO/RETROCESO) y solo la adopta al agotar `pose_resync_blind_cycles`, que son **25 ciclos, o sea 2,5 s a 10 Hz**.
+*Medido el 06-09:* el avance sostuvo 2121 mm con `avance_valido=0` durante diez ciclos mientras `frontal_min` daba 517-543 (26 mm de dispersión). Al resincronizar, el avance real ya era 525 — por debajo de la ventana de disparo de la esquina (680-1050) —, así que el giro salió de golpe, sin anticipación y con un pilar a 226 mm por delante.
+*Descartado:* la regla "una medida que se repite resincroniza aunque el robot vaya cruzado" **no vale**. La tumba `test_cruzado_no_adopta_la_pared_espuria`, y con razón: cruzado 40° la pared de delante es espuria y adoptarla manda el avance de 3000 a 800. Con estabilidad y rumbo los dos casos son indistinguibles; **hace falta otra señal** para separarlos.
+
+**2. La evasión de pilares arranca demasiado tarde.**
+El robot llega a **13 mm** del bloque antes de que la ruta se mueva.
+*Descartado como causa:* no es error de seguimiento (mediana 14 mm), no es que el plan ceda (45 ciclos de 1734), y no es la cámara ni la homografía (ver 9.3).
+
+**3. El mapa aprende pilares que no existen.**
+Registra **9-10 casillas donde hay 5 bloques**, en todas las configuraciones probadas. Como `Piloto._memorizar` solo admite detecciones **con color**, el duplicado no viene del detector de objetos del LiDAR sino de la proyección a `(avance, offset)` — otra vez el localizador.
+
+### 9.2 Pendientes de Medida (banco, no pista)
+
+* **Radio de giro en REVERSA.** Es la única entrada geométrica del parqueo sin medir. La inferencia desde la IMU da ~306 mm contra los 228 de marcha adelante, un 34 % peor, pero es inferencia. Se cierra en dos minutos con cinta: marcar, girar en reversa a tope hasta 90°, marcar, medir la cuerda; `R = cuerda / raíz(2)`.
+* **Presupuesto de corriente de la Pi 5.** La tabla de la sección 4.4 se midió con la Pi 3B. La Pi 5 consume más y el margen real es menor que el publicado.
+* **Los 40 mm de la separación de la bahía.** El detector mide 389-391 mm y la regla dice 350 entre centros. No cuadra con ninguna lectura posible (caras 330, centros 350, bordes externos 370). `lidar.bay_expected_separation_mm` se deja en 390 **a propósito**: bajarlo sin entender la discrepancia rompe el único detector de hueco que funciona.
+* **`approach_lateral_mm = 270` deja cero holgura.** Con el volante a tope el semiancho es 70, y 270 − 70 = 200, exactamente la profundidad de la bahía: el borde roza la punta de los delimitadores al pasar.
+* **`self_echo_*` probablemente sobra.** Enmascara un eco de rueda que el *mastilfix* del 05-09 eliminó. Recuperar esa cobertura angular es gratis, pero hay que verificarlo antes de quitarlo.
+
+### 9.3 Descartado con Datos (no repetir)
+
+* **La cámara y la homografía NO son el problema.** `diag_pilares.py` con la pista montada: 194/194 ciclos de fusión, ±2 mm de estabilidad y **47 mm** de discrepancia cámara-LiDAR sobre una tolerancia de 80. La proyección al carril cae en las filas oficiales (352 contra 380, y 573 contra 574).
+* **El 19 % de fusión no significa que la cámara falle.** Es `FUSION/LIDAR`, y el denominador está lleno de fantasmas: de 327 bultos sin color medidos en pista, solo el **23 %** cae cerca de una fila oficial y **93 están fuera del carril**.
+* **"Un bulto sin color no entra nunca en el plan" es PEOR.** Probado: 8 esquinas y 92 s atascado contra el bloque interior, contra 12 esquinas y tres vueltas con `plan_colorless_below_mm = 1400`. Con 0 el planificador pedía el techo (offset ≥ 870) en 779 de 1733 ciclos; con 1400, en 53 de 1515.
+
+### 9.4 Parqueo
+
+`calibration.parking_ready` sigue en `false`: la maniobra nunca se ha ejercitado con motores. Una corrida normal se niega a arrancar por eso; `--solo-parqueo` y `--sin-parqueo` omiten esa comprobación a propósito.
+El bloqueante de percepción **ya está resuelto** (el muro de la bahía se veía como `None` con el umbral de carrera), pero falta la validación en pista.
+
+---
+
 ## Licencia y Dependencias de Terceros
 
-Este repositorio se distribuye bajo la [Licencia MIT](LICENSE). El software de la Raspberry Pi 3B depende de las siguientes librerías de código abierto (ver [`src/pi3B/requirements.txt`](src/pi3B/requirements.txt) e [`INSTALACION.md`](INSTALACION.md)): OpenCV (`opencv-python`), NumPy, PySerial, RPi.GPIO y `picamera2` (paquete oficial de Raspberry Pi para la Pi Camera Module 3). El firmware de la Pico 2 corre sobre MicroPython y no usa librerías externas adicionales.
+Este repositorio se distribuye bajo la [Licencia MIT](LICENSE). El software de alto nivel (Raspberry Pi 5, y antes la 3B) depende de las siguientes librerías de código abierto (ver [`src/pi5/requirements.txt`](src/pi5/requirements.txt) e [`INSTALACION.md`](INSTALACION.md)): OpenCV (`opencv-python`), NumPy, PySerial, RPi.GPIO y `picamera2` (paquete oficial de Raspberry Pi para la Pi Camera Module 3). El firmware de la Pico 2 corre sobre MicroPython y no usa librerías externas adicionales.
