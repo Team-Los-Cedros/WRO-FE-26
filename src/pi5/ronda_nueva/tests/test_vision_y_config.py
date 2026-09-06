@@ -363,6 +363,8 @@ class PruebaMontajeMedido(unittest.TestCase):
         self.assertEqual(config["lidar"]["right_sector_deg"], [56.0, 135.0])
         self.assertEqual(config["lidar"]["rear_shoulder_offset_deg"], [40.0, 60.0])
         self.assertEqual(config["lidar"]["rear_shoulder_wall_fraction"], 0.8)
+        self.assertFalse(config["control"]["line_avance_ceiling_enabled"])
+        self.assertEqual(config["control"]["line_avance_ceiling_margin_mm"], 1200.0)
 
     def test_el_modo_del_sensor_no_se_toca_al_cambiar_la_resolucion(self):
         # El CAMPO lo fija el modo raw, no la resolucion de salida: 2304x1296
