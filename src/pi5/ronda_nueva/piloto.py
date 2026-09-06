@@ -110,6 +110,12 @@ class Piloto:
         self.giro_refractario_s = float(control.get("corner_refractory_s", 1.2))
         self.giro_salida_mm = float(control.get("corner_exit_front_mm", 700.0))
         self.giro_rumbo_max_deg = float(control.get("corner_max_heading_deg", 105.0))
+        # Un pilar por rebasar aplaza la esquina.  Ver ``_procesar_recta``.
+        self.giro_pilar_mm = float(control.get("corner_pillar_block_mm", 350.0))
+        self.giro_pilar_lateral_mm = float(
+            control.get("corner_pillar_lateral_mm", 200.0)
+        )
+        self.giro_pilar_suelo_mm = float(control.get("corner_pillar_floor_mm", 300.0))
 
         # DISPARO DEL GIRO POR LINEA DE PISO.
         #
@@ -158,7 +164,8 @@ class Piloto:
         self.velocidad_aprox = int(control.get("speed_parking_approach_pwm", 30))
 
         self.emergencia_frontal_mm = float(control.get("emergency_front_mm", 145.0))
-        self.emergencia_lateral_mm = float(control.get("emergency_side_mm", 85.0))
+        self.emergencia_lateral_mm = float(control.get("emergency_side_mm", 15.0))
+        self.emergencia_objeto_mm = float(control.get("emergency_object_mm", 60.0))
         self.retroceso_min_s = float(control.get("recovery_min_s", 0.6))
         self.retroceso_max_s = float(control.get("recovery_timeout_s", 3.0))
         self.retroceso_salida_mm = float(control.get("recovery_exit_front_mm", 300.0))
@@ -185,6 +192,12 @@ class Piloto:
         self.slew_direccion = float(control.get("steering_slew_deg_per_scan", 9.0))
         self.slew_velocidad = int(control.get("speed_slew_pwm_per_scan", 12))
         self.orientacion_timeout_s = float(control.get("direction_timeout_s", 10.0))
+        self.salida_lateral_mm = float(control.get("bay_exit_lateral_mm", 260.0))
+        self.salida_rumbo_deg = float(control.get("bay_exit_heading_deg", 15.0))
+        self.salida_confirmaciones_min = max(
+            1, int(control.get("bay_exit_confirm_scans", 2))
+        )
+        self.salida_timeout_s = float(control.get("bay_exit_timeout_s", 4.0))
         self.linea_max_lateral_mm = float(control.get("line_max_lateral_mm", 320.0))
         # La ventana longitudinal tiene que llegar donde llega la camara: con
         # 900 mm y el filtro lateral a la vez, en el robot no quedaba NINGUNA
@@ -226,6 +239,11 @@ class Piloto:
             self.parqueo.reiniciar()
         self._confirmaciones_linea = 0
         self._giro_por_linea = False
+        self._sin_color_vistos: List[Tuple[float, float]] = []
+        self._esquinas_pospuestas = 0
+        self._salida_confirmaciones = 0
+        self._salida_rumbo_ref: Optional[float] = None
+        self._salida_rumbo_max = 0.0
 
         if self.sentido_configurado == "LEFT":
             self.sentido = -1
@@ -429,14 +447,31 @@ class Piloto:
     def _hay_emergencia(self, paredes: MapaParedes) -> bool:
         """Solo la ESTRUCTURA dispara emergencias, nunca un pilar.
 
-        Las minimas laterales excluyen los puntos de objeto y el frente se
-        juzga por el corredor libre del ancho del robot.  Con la version
-        anterior -- minimos crudos de sector -- un poste que se iba a rebasar
-        limpiamente por el costado disparaba el retroceso, y en simulacion el
-        robot se quedaba en 1 esquina de 12 con la velocidad media en 6 PWM.
+        Esto siempre fue la intencion, y las minimas laterales si la cumplian
+        -- excluyen los puntos de objeto --, pero el frente no: se juzgaba con
+        ``corredor_mm``, que cuenta TODO, muros y objetos.  O sea que el pilar
+        que el planificador acababa de decidir rebasar por el costado cerraba
+        el corredor y disparaba el retroceso.
+
+        MEDIDO EL 06-09 SOBRE LAS 13 CORRIDAS DE LA TARDE: de 112 entradas en
+        RETROCESO, 111 las disparo el corredor y ninguna la lateral; el
+        corredor se cerraba a 138 mm de mediana mientras la estructura estaba
+        a 552, y el punto que lo cerraba caia a 74 mm del eje, o sea al lado
+        del robot y no delante.  89 de esas 112 estaban en la banda 120-145,
+        rozando el umbral.  La corrida que no tuvo ni un retroceso hizo 12
+        esquinas en 122 s; las que tuvieron 13-20 se quedaron entre 4 y 9.
+
+        Por eso el frente se juzga ahora con ``corredor_estructura_mm``.  Los
+        objetos conservan un guardarrail mucho mas corto -- 60 mm frente a los
+        145 de estructura --, porque un pilar a menos de 60 mm por delante ya
+        no es un rebase, es un choque: en aquellas 112 solo 6 bajaban de 40.
+        El corredor completo se sigue usando para FRENAR, que es donde ver el
+        pilar si hace falta.
         """
 
-        if paredes.corredor_mm < self.emergencia_frontal_mm:
+        if paredes.corredor_estructura_mm < self.emergencia_frontal_mm:
+            return True
+        if paredes.corredor_mm < self.emergencia_objeto_mm:
             return True
         return (
             min(paredes.izquierda_min_mm, paredes.derecha_min_mm)
@@ -512,6 +547,7 @@ class Piloto:
 
         salida: List[Tuple[float, float, str]] = []
         vivos: List[Tuple[float, float]] = []
+        self._sin_color_vistos = []
 
         for pilar in pilares:
             avance = self.localizador.avance_de_punto(pilar.x_mm, pilar.y_mm, paredes)
@@ -544,6 +580,14 @@ class Piloto:
             # las corridas 3, 4 y 5 del 04/05-09 acumularon 24 retrocesos,
             # casi todos contra un bulto de 55 mm a 150 mm del morro.  El
             # planificador ya sabe rodear sin color, por el hueco mayor.
+            if not color:
+                # INSTRUMENTACION.  Se anota TODO bulto sin color que cae en
+                # esta recta, entre en el plan o no.  Es lo unico que permite
+                # separar dos cosas que hoy se confunden en el mismo numero:
+                # un pilar de verdad que la camara no llego a colorear, y un
+                # fantasma del LiDAR.  El primero cae en una fila oficial
+                # (offset 380 o 574); el segundo, en cualquier sitio.
+                self._sin_color_vistos.append((avance, offset))
             if not color and not self.plan_con_sin_color:
                 distancia = math.hypot(pilar.x_mm, pilar.y_mm)
                 if distancia > self.sin_color_cerca_mm:
@@ -687,13 +731,16 @@ class Piloto:
             self._entrar(FIN, ahora)
             return Consigna(0, 0.0, FIN, "tiempo agotado")
 
+        # El rumbo se guarda ANTES de despachar: SALIDA_BAHIA tambien lo
+        # necesita, y estaba por detras de su propio return.
+        self._rumbo_absoluto = float(rumbo_deg)
+
         if self.estado == ORIENTACION:
             return self._procesar_orientacion(paredes, lineas, ahora)
 
         if self.estado == SALIDA_BAHIA:
             return self._procesar_salida_bahia(paredes, lineas, ahora)
 
-        self._rumbo_absoluto = float(rumbo_deg)
         # Solo en RECTA. Durante el giro y el retroceso el robot esta cruzado
         # y la linea que ve no es la de la recta que dice medir.
         cota = self._cota_de_avance(lineas) if self.estado == RECTA else None
@@ -737,7 +784,9 @@ class Piloto:
         if self.estado == GIRO:
             return self._procesar_giro(paredes, rumbo_deg, ahora)
         if self.estado == APROXIMACION:
-            return self._procesar_aproximacion(paredes, pilares, magenta, hueco, ahora)
+            return self._procesar_aproximacion(
+                paredes, pilares, magenta, hueco, ultrasonido_mm, ahora
+            )
         if self.estado == PARQUEO:
             return self._procesar_parqueo(paredes, hueco, ultrasonido_mm, ahora)
         return Consigna(0, 0.0, self.estado, self._razon, terminado=self.estado == FIN)
@@ -768,17 +817,46 @@ class Piloto:
         Se sale en dos tiempos y por sensores, no por tiempo: primero se
         avanza girando hacia el carril hasta que el muro de al lado se abre, y
         despues se endereza.  El sentido se resuelve en cuanto hay carril.
+
+        EL RELOJ YA NO ES CONDICION DE AVANCE.  La version anterior exigia
+        ``self._tiempo(ahora) > 0.6`` junto al muro lateral, o sea que el
+        tramo dependia de acertar cuanto tarda el robot en despegarse: con la
+        bateria baja se salia antes de tiempo y con la bateria llena se
+        perdian seis decimas.  El 0,6 estaba ahi para que un barrido suelto no
+        declarara la salida nada mas arrancar, y eso se resuelve con
+        confirmaciones consecutivas, que es una medida y no una espera -- el
+        mismo patron de ``verify_scans`` y ``corner_line_confirm_scans``.  El
+        rumbo de la IMU se suma como segunda evidencia cuando aporta.  El
+        corte por tiempo queda solo de red de seguridad: quedarse dentro del
+        cajon es cero puntos seguros, asi que agotarlo sigue saliendo a
+        ORIENTACION y no a FIN.
         """
 
         if self.sentido == 0:
             self._resolver_sentido(paredes, lineas)
+        if self._salida_rumbo_ref is None:
+            self._salida_rumbo_ref = self._rumbo_absoluto
         giro = -float(self.sentido or 1) * self.plan.conversor.mando_max_izq
+
         lateral = min(paredes.izquierda_min_mm, paredes.derecha_min_mm)
-        if self._tiempo(ahora) > 0.6 and lateral > 260.0:
+        libre = lateral > self.salida_lateral_mm
+        self._salida_confirmaciones = self._salida_confirmaciones + 1 if libre else 0
+
+        girado = abs(self._rumbo_absoluto - self._salida_rumbo_ref)
+        self._salida_rumbo_max = max(self._salida_rumbo_max, girado)
+        # La IMU solo manda si demuestra estar viva.  Si el yaw no se ha
+        # movido ni 3 grados en todo el tramo, exigirle 15 dejaria al robot
+        # dando gas dentro del cajon hasta la red de seguridad; si se mueve,
+        # es la mejor prueba de que el morro ya apunta al carril y no de que
+        # el LiDAR ha perdido de vista un delimitador.
+        imu_viva = self._salida_rumbo_max > 3.0
+        rumbo_ok = girado >= self.salida_rumbo_deg or not imu_viva
+
+        if self._salida_confirmaciones >= self.salida_confirmaciones_min and rumbo_ok:
             self.localizador.reiniciar()
             self._entrar(ORIENTACION, ahora)
             return self._emitir(self.velocidad_aprox, 0.0, "fuera de la bahia")
-        if self._tiempo(ahora) > 4.0:
+        if self._tiempo(ahora) > self.salida_timeout_s:
             self._entrar(ORIENTACION, ahora)
             return self._emitir(self.velocidad_aprox, 0.0, "salida por tiempo")
         return self._emitir(self.velocidad_aprox, giro, "saliendo de la bahia")
@@ -866,6 +944,33 @@ class Piloto:
         self._giro_por_linea = linea_lista
         por_linea = linea_lista and self.giro_fuente == "linea"
         por_avance = self.pose.avance_valido and self.pose.avance_mm < disparo
+        # UN PILAR POR REBASAR MANDA SOBRE LA ESQUINA.
+        #
+        # El disparo miraba solo el refractario y el avance, asi que la
+        # esquina se llevaba por delante cualquier rebase a medias.  MEDIDO EL
+        # 06-09 en bueno_01: en t=39,6 el robot entro en GIRO "por avance"
+        # teniendo un pilar VERDE en (171, 226) -- 226 mm por delante -- y a
+        # 1,2 s el corredor se cerraba a 73 mm y entraba en retroceso.  Lo
+        # mismo en t=9,5, 17,7 y 42,9, con el verde entre -136 y -142 de
+        # lateral: las cuatro veces el bloque estaba dentro de +-180 mm.
+        #
+        # La ventana lateral es MAS ANCHA que el robot (130 mm) a proposito:
+        # girando a tope el chasis barre bastante mas que su propio ancho, y
+        # un poste que de frente queda al costado entra en la trayectoria en
+        # cuanto empieza el arco.
+        #
+        # El suelo es lo que impide que esto bloquee la esquina para siempre:
+        # por debajo de el ya no queda recta que gastar y hay que girar
+        # aunque el poste siga ahi, porque no girar es chocar contra el muro.
+        if refractario and (por_linea or por_avance) and self.pose.avance_mm > self.giro_pilar_suelo_mm:
+            estorba = any(
+                0.0 < pilar.y_mm <= self.giro_pilar_mm
+                and abs(pilar.x_mm) <= self.giro_pilar_lateral_mm
+                for pilar in pilares
+            )
+            if estorba:
+                self._esquinas_pospuestas += 1
+                return self._emitir(velocidad, angulo, f"pilar antes de la esquina")
         if refractario and (por_linea or por_avance):
             # El avance se conserva como RED, no como segundo disparo: si la
             # linea no se ve -- lona sucia, reflejo, un pilar tapandola -- el
@@ -963,6 +1068,7 @@ class Piloto:
         pilares: Sequence[DeteccionPilar],
         magenta: Sequence[ParedMagenta],
         hueco: Optional[HuecoParqueo],
+        ultrasonido_mm: Optional[float],
         ahora: float,
     ) -> Consigna:
         """Acercarse al cajon pegado al muro exterior, listo para entrar.
@@ -997,7 +1103,7 @@ class Piloto:
 
         if hueco is not None and abs(error) < 90.0:
             self._entrar(PARQUEO, ahora)
-            return self._procesar_parqueo(paredes, hueco, None, ahora)
+            return self._procesar_parqueo(paredes, hueco, ultrasonido_mm, ahora)
 
         if self.pose.avance_valido and self.pose.avance_mm < self.giro_disparo_min_mm:
             self._rumbo_giro_ref = self._rumbo_absoluto
@@ -1027,6 +1133,10 @@ class Piloto:
             ultrasonido_mm=ultrasonido_mm,
             lado=self._lado_de_bahia(),
             ahora=ahora,
+            # Sin esto la FSM del parqueo veia el rumbo clavado en 0.0 y sus
+            # arcos se quedaban sin la unica fuente de paralelismo que sigue
+            # existiendo con el robot cruzado dentro de la bahia.
+            rumbo_deg=self._rumbo_absoluto,
         )
         if resultado.terminado:
             self._entrar(FIN, ahora)
@@ -1105,6 +1215,17 @@ class Piloto:
             "casillas": self.mapa.casillas_conocidas(),
             "retrocesos": self._retrocesos,
             "atascos": self._atascos,
+            # Bultos SIN COLOR de esta recta, entren o no en el plan.  El
+            # offset es lo que los separa: un pilar de verdad cae en una fila
+            # oficial (380 o 574) y un fantasma del LiDAR, en cualquier sitio.
+            "esquinas_pospuestas": self._esquinas_pospuestas,
+            "sin_color_n": len(self._sin_color_vistos),
+            "sin_color_off": ";".join(
+                f"{offset:.0f}" for _avance, offset in self._sin_color_vistos
+            ),
+            "sin_color_av": ";".join(
+                f"{avance:.0f}" for avance, _offset in self._sin_color_vistos
+            ),
             # Que fuente manda hoy y si la linea estaba lista en este ciclo.
             # Con las dos columnas se puede contar, sobre una corrida en modo
             # "avance", cuantas esquinas habria abierto la linea y cuantas de

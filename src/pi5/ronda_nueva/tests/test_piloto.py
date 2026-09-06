@@ -12,7 +12,15 @@ import unittest
 from ..estacionamiento import ControlEstacionamiento
 from ..modelos import DeteccionPilar, MapaParedes, Recta
 from ..percepcion_lidar import PercepcionLidar
-from ..piloto import FIN, GIRO, ORIENTACION, RECTA, RETROCESO, Piloto
+from ..piloto import (
+    FIN,
+    GIRO,
+    ORIENTACION,
+    RECTA,
+    RETROCESO,
+    SALIDA_BAHIA,
+    Piloto,
+)
 from .apoyo import barrido_sintetico, config_minima, pose_en_carril
 
 
@@ -290,6 +298,7 @@ class PruebaVigilanteDeAtascos(unittest.TestCase):
             derecha_min_mm=der,
             trasera_min_mm=1800.0,
             corredor_mm=frontal,
+            corredor_estructura_mm=frontal,
         )
 
     def _rodar(self, piloto, paredes_por_ciclo, rumbo=0.0, t0=0.0, dt=0.1):
@@ -451,6 +460,256 @@ class PruebaVigilanteDeAtascos(unittest.TestCase):
         self.assertEqual(piloto._atascos, 0)
 
 
+class PruebaEsquinaConPilar(unittest.TestCase):
+    """Un pilar por rebasar aplaza la esquina.  Pero no para siempre.
+
+    EL DATO, 06-09 en bueno_01: el robot entro en GIRO "por avance" cuatro
+    veces con un pilar VERDE entre 172 y 226 mm por delante y entre -142 y
+    +171 de lateral.  En la de t=39,6 el corredor se cerraba a 73 mm 1,2 s
+    despues y entraba en retroceso: giro contra el bloque.
+    """
+
+    def _paredes(self, frontal, izq=400.0, der=600.0):
+        return MapaParedes(
+            timestamp=1.0,
+            frontal=Recta(frontal, 0.0, 1.0, 30, 1.0),
+            izquierda=Recta(izq, -90.0, 1.0, 40, 1.0),
+            derecha=Recta(der, 90.0, 1.0, 40, 1.0),
+            frontal_min_mm=frontal,
+            izquierda_min_mm=izq,
+            derecha_min_mm=der,
+            trasera_min_mm=1800.0,
+            corredor_mm=frontal,
+            corredor_estructura_mm=frontal,
+        )
+
+    def _rodar(self, piloto, pilares, frontal=500.0, ciclos=6):
+        consigna = None
+        for paso in range(ciclos):
+            consigna = piloto.procesar(
+                paredes=self._paredes(2500.0 if paso == 0 else frontal),
+                pilares=pilares,
+                ahora=0.1 * paso,
+            )
+        return consigna
+
+    def test_el_pilar_de_delante_aplaza_la_esquina(self):
+        """La pose exacta de t=39,6: verde en (171, 226) con la esquina lista."""
+
+        piloto = Piloto(config())
+        verde = [DeteccionPilar(0.0, "VERDE", 171.0, 226.0, "FUSION", 0.9)]
+        consigna = self._rodar(piloto, verde)
+        self.assertEqual(piloto.estado, RECTA)
+        self.assertIn("pilar", consigna.razon)
+        self.assertGreater(piloto._esquinas_pospuestas, 0)
+
+    def test_sin_pilar_la_esquina_dispara_igual(self):
+        piloto = Piloto(config())
+        self._rodar(piloto, [])
+        self.assertEqual(piloto.estado, GIRO)
+
+    def test_un_pilar_muy_al_costado_no_aplaza(self):
+        """400 mm de lateral no entra en la trayectoria del arco."""
+
+        piloto = Piloto(config())
+        lejos = [DeteccionPilar(0.0, "VERDE", 400.0, 226.0, "FUSION", 0.9)]
+        self._rodar(piloto, lejos)
+        self.assertEqual(piloto.estado, GIRO)
+
+    def test_un_pilar_ya_rebasado_no_aplaza(self):
+        """y negativa: esta detras, ya no estorba."""
+
+        piloto = Piloto(config())
+        detras = [DeteccionPilar(0.0, "VERDE", 100.0, -150.0, "FUSION", 0.9)]
+        self._rodar(piloto, detras)
+        self.assertEqual(piloto.estado, GIRO)
+
+    def test_sin_recta_que_gastar_se_gira_aunque_estorbe(self):
+        """Por debajo del suelo, no girar es chocar contra el muro."""
+
+        piloto = Piloto(config())
+        verde = [DeteccionPilar(0.0, "VERDE", 171.0, 226.0, "FUSION", 0.9)]
+        self._rodar(piloto, verde, frontal=250.0)
+        self.assertEqual(piloto.estado, GIRO)
+
+
+class PruebaEmergencia(unittest.TestCase):
+    """Un pilar que se rebasa no es una emergencia.  Un muro si.
+
+    EL DATO, del 06-09: en las 13 corridas de la tarde hubo 112 entradas en
+    RETROCESO.  111 las disparo el corredor y NINGUNA la lateral.  En esos
+    ciclos el corredor se cerraba a 138 mm de mediana mientras la estructura
+    estaba a 552, y el punto que lo cerraba caia a 74 mm del eje: al lado del
+    robot, no delante.  Era el pilar que el planificador acababa de decidir
+    rebasar.  La corrida sin ni un retroceso hizo 12 esquinas en 122 s.
+    """
+
+    def _paredes(self, corredor, estructura, izq=400.0, der=600.0):
+        return MapaParedes(
+            timestamp=1.0,
+            frontal=Recta(estructura, 0.0, 1.0, 30, 1.0),
+            izquierda=Recta(izq, -90.0, 1.0, 40, 1.0),
+            derecha=Recta(der, 90.0, 1.0, 40, 1.0),
+            frontal_min_mm=estructura,
+            izquierda_min_mm=izq,
+            derecha_min_mm=der,
+            trasera_min_mm=1800.0,
+            corredor_mm=corredor,
+            corredor_estructura_mm=estructura,
+        )
+
+    def test_el_pilar_que_se_rebasa_no_dispara_el_retroceso(self):
+        """El corredor a 138 mm, que es la mediana de aquellas 112 entradas.
+
+        El muro se deja lejos a proposito: lo que se prueba es la emergencia,
+        y con la estructura a 552 saltaria ademas el disparo de esquina.
+        """
+
+        piloto = Piloto(config())
+        piloto.procesar(paredes=self._paredes(1200.0, 1200.0), ahora=0.0)
+        self.assertEqual(piloto.estado, RECTA)
+        consigna = piloto.procesar(paredes=self._paredes(138.0, 1200.0), ahora=0.1)
+        self.assertEqual(piloto.estado, RECTA)
+        self.assertGreater(consigna.velocidad, 0, "sigue avanzando, no retrocede")
+
+    def test_un_muro_encima_si_lo_dispara(self):
+        piloto = Piloto(config())
+        piloto.procesar(paredes=self._paredes(1200.0, 1200.0), ahora=0.0)
+        piloto.procesar(paredes=self._paredes(90.0, 90.0), ahora=0.1)
+        self.assertEqual(piloto.estado, RETROCESO)
+
+    def test_un_objeto_a_punto_de_chocar_si_lo_dispara(self):
+        """Debajo de 60 mm ya no es un rebase.  Solo 6 de las 112 bajaban de 40."""
+
+        piloto = Piloto(config())
+        piloto.procesar(paredes=self._paredes(1200.0, 1200.0), ahora=0.0)
+        piloto.procesar(paredes=self._paredes(35.0, 1200.0), ahora=0.1)
+        self.assertEqual(piloto.estado, RETROCESO)
+
+    def test_el_frenado_sigue_viendo_el_pilar(self):
+        """La emergencia deja de mirar el objeto; la velocidad no.
+
+        Son preguntas distintas: rebasar un pilar de cerca es normal, pero
+        hacerlo a 55 PWM no.
+        """
+
+        piloto = Piloto(config())
+        # La velocidad sube por rampa (speed_slew_pwm_per_scan), asi que hay
+        # que dejarla asentarse antes de comparar.
+        lejos = None
+        for paso in range(10):
+            lejos = piloto.procesar(
+                paredes=self._paredes(1200.0, 1200.0), ahora=0.1 * paso
+            )
+        cerca = piloto.procesar(paredes=self._paredes(200.0, 1200.0), ahora=1.1)
+        self.assertEqual(piloto.estado, RECTA, "no es una emergencia")
+        self.assertLess(cerca.velocidad, lejos.velocidad)
+
+
+class PruebaSalidaDeBahia(unittest.TestCase):
+    """Sacar el robot del cajon sin que el reloj sea criterio de avance.
+
+    La version anterior exigia ``self._tiempo(ahora) > 0.6`` ADEMAS del muro
+    lateral, o sea que el tramo dependia de acertar cuanto tarda el robot en
+    despegarse.  Ahora avanza por confirmaciones consecutivas de que los dos
+    minimos laterales estan abiertos, con el rumbo de la IMU como segunda
+    evidencia cuando la IMU se mueve.
+    """
+
+    def _config(self):
+        cfg = config()
+        cfg["control"]["start_in_bay"] = True
+        return cfg
+
+    def _paredes(self, izq, der, frontal=1200.0):
+        return MapaParedes(
+            timestamp=1.0,
+            frontal=Recta(frontal, 0.0, 1.0, 30, 1.0),
+            izquierda=Recta(izq, -90.0, 1.0, 40, 1.0),
+            derecha=Recta(der, 90.0, 1.0, 40, 1.0),
+            frontal_min_mm=frontal,
+            izquierda_min_mm=izq,
+            derecha_min_mm=der,
+            trasera_min_mm=300.0,
+            corredor_mm=frontal,
+            corredor_estructura_mm=frontal,
+        )
+
+    def test_encajonado_no_sale_por_mucho_que_pase_el_tiempo(self):
+        piloto = Piloto(self._config())
+        for paso in range(6):
+            consigna = piloto.procesar(
+                paredes=self._paredes(izq=90.0, der=120.0),
+                rumbo_deg=4.0 * paso,
+                ahora=0.2 * paso,
+            )
+        self.assertEqual(piloto.estado, SALIDA_BAHIA)
+        self.assertNotEqual(consigna.angulo, 0.0, "sigue girando para salir")
+
+    def test_un_solo_barrido_abierto_no_declara_la_salida(self):
+        """Un eco perdido de un delimitador no es haber salido del cajon.
+
+        Es lo que cubria el 0,6 del reloj, y se resuelve con la misma receta
+        que verify_scans: confirmaciones consecutivas.
+        """
+
+        piloto = Piloto(self._config())
+        piloto.procesar(paredes=self._paredes(izq=90.0, der=120.0), rumbo_deg=0.0, ahora=0.0)
+        piloto.procesar(paredes=self._paredes(izq=900.0, der=900.0), rumbo_deg=20.0, ahora=0.1)
+        self.assertEqual(piloto.estado, SALIDA_BAHIA)
+
+    def test_con_el_lateral_abierto_y_rumbo_ganado_sale_enseguida(self):
+        piloto = Piloto(self._config())
+        piloto.procesar(paredes=self._paredes(izq=90.0, der=120.0), rumbo_deg=0.0, ahora=0.0)
+        for paso in range(2):
+            piloto.procesar(
+                paredes=self._paredes(izq=900.0, der=900.0),
+                rumbo_deg=20.0,
+                ahora=0.1 + 0.1 * paso,
+            )
+        self.assertEqual(piloto.estado, ORIENTACION)
+
+    def test_sin_rumbo_ganado_el_muro_lateral_manda_igual(self):
+        """Con el yaw muerto, exigirle 15 grados dejaria al robot dentro.
+
+        La IMU solo puede vetar la salida si demuestra estar viva.
+        """
+
+        piloto = Piloto(self._config())
+        piloto.procesar(paredes=self._paredes(izq=90.0, der=120.0), rumbo_deg=0.0, ahora=0.0)
+        for paso in range(2):
+            piloto.procesar(
+                paredes=self._paredes(izq=900.0, der=900.0),
+                rumbo_deg=0.0,
+                ahora=0.1 + 0.1 * paso,
+            )
+        self.assertEqual(piloto.estado, ORIENTACION)
+
+    def test_la_imu_viva_pero_corta_retiene_la_salida(self):
+        """8 grados no son los 15 que se piden, y la IMU se esta moviendo."""
+
+        piloto = Piloto(self._config())
+        piloto.procesar(paredes=self._paredes(izq=90.0, der=120.0), rumbo_deg=0.0, ahora=0.0)
+        for paso in range(3):
+            piloto.procesar(
+                paredes=self._paredes(izq=900.0, der=900.0),
+                rumbo_deg=8.0,
+                ahora=0.1 + 0.1 * paso,
+            )
+        self.assertEqual(piloto.estado, SALIDA_BAHIA)
+
+    def test_el_reloj_sigue_siendo_red_de_seguridad(self):
+        """Quedarse en el cajon son cero puntos seguros: se sale igual."""
+
+        piloto = Piloto(self._config())
+        piloto.procesar(paredes=self._paredes(izq=90.0, der=120.0), rumbo_deg=0.0, ahora=0.0)
+        consigna = piloto.procesar(
+            paredes=self._paredes(izq=90.0, der=120.0), rumbo_deg=0.0, ahora=9.0
+        )
+        self.assertEqual(piloto.estado, ORIENTACION)
+        self.assertIn("tiempo", consigna.razon)
+
+
 class PruebaEstados(unittest.TestCase):
     def _paredes(self, frontal=1200.0, izq=400.0, der=600.0):
         return MapaParedes(
@@ -462,9 +721,14 @@ class PruebaEstados(unittest.TestCase):
             izquierda_min_mm=izq,
             derecha_min_mm=der,
             trasera_min_mm=1800.0,
-            # El corredor es lo que decide emergencias y frenado; sin ponerlo
-            # queda en infinito y el robot no ve la pared que tiene encima.
+            # El corredor es lo que decide el frenado; sin ponerlo queda en
+            # infinito y el robot no ve la pared que tiene encima.  El de
+            # ESTRUCTURA es el que decide la emergencia, y aqui vale lo mismo
+            # porque estas fixtures modelan un muro: cuando lo que cierra el
+            # corredor es un pilar, los dos numeros se separan y esa es toda
+            # la diferencia (ver PruebaEmergencia).
             corredor_mm=frontal,
+            corredor_estructura_mm=frontal,
         )
 
     def test_con_sentido_fijo_no_pasa_por_orientacion(self):

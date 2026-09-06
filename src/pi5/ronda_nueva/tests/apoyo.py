@@ -72,6 +72,7 @@ def barrido_sintetico(
     alcance_mm: float = 4000.0,
     ruido_mm: float = 0.0,
     semilla: int = 0,
+    rectangulos: Sequence[Tuple[float, float, float, float]] = (),
 ) -> List[Tuple[float, float]]:
     """Barrido del LiDAR desde una pose del mundo, con oclusion correcta.
 
@@ -79,6 +80,11 @@ def barrido_sintetico(
     queda con el primer objeto que encuentra, asi que un pilar tapa la pared
     que tiene detras -- que es justo el efecto que rompia la version anterior
     de esta fixture.
+
+    ``rectangulos`` son (cx, cy, ancho, alto) para lo que no es cuadrado.  Los
+    delimitadores de la bahia miden 200 x 20 (regla 13.7) y son justo los que
+    tapan el muro dentro del cajon, que es de donde sale el problema de la
+    pose aparcada.
     """
 
     import random
@@ -87,6 +93,8 @@ def barrido_sintetico(
     obstaculos = list(paredes_pista())
     for px, py, lado in pilares:
         obstaculos.extend(_segmentos_rectangulo(px, py, lado, lado))
+    for cx, cy, ancho, alto in rectangulos:
+        obstaculos.extend(_segmentos_rectangulo(cx, cy, ancho, alto))
 
     muestras: List[Tuple[float, float]] = []
     angulo = 0.0
@@ -133,6 +141,98 @@ def pose_en_carril(
         x, y = y, -x
         rumbo += 90.0
     return x, y, rumbo + error_rumbo_deg
+
+
+# --- La bahia de parqueo, contra el muro exterior del segmento 0 ----------
+# Medidas de regla del 06-09: hueco util 330 mm de cara interior a cara
+# interior, profundidad 200, delimitadores de 200 x 20.  Los delimitadores
+# salen PERPENDICULARES al muro, asi que su normal apunta adelante o atras y
+# nunca de lado: por eso pueden taparle al LiDAR el muro lateral sin llegar a
+# clasificarse como uno.
+BAHIA_HUECO_MM = 330.0
+BAHIA_PROFUNDIDAD_MM = 200.0
+DELIMITADOR_LARGO_MM = 200.0
+DELIMITADOR_GRUESO_MM = 20.0
+
+
+def delimitadores_bahia(centro_y_mm: float = 0.0):
+    """Los dos delimitadores en el marco del mundo, listos para el barrido."""
+
+    borde = LADO_EXTERIOR_MM / 2.0
+    centro_x = -borde + BAHIA_PROFUNDIDAD_MM / 2.0
+    separacion = (BAHIA_HUECO_MM + DELIMITADOR_GRUESO_MM) / 2.0
+    return [
+        (
+            centro_x,
+            centro_y_mm + signo * separacion,
+            DELIMITADOR_LARGO_MM,
+            DELIMITADOR_GRUESO_MM,
+        )
+        for signo in (-1.0, 1.0)
+    ]
+
+
+def pose_aparcada(
+    lateral_mm: float = 78.0,
+    paralelo_deg: float = -3.4,
+    culata_mm: float = 10.0,
+    largo_robot_mm: float = 210.0,
+    lidar_a_culata_mm: float = 192.0,
+) -> Tuple[float, float, float]:
+    """La pose que se midio a mano el 06-09, en coordenadas del mundo.
+
+    ``lateral_mm`` es la perpendicular del LiDAR al muro (77,9 medidos) y
+    ``paralelo_deg`` el error contra el muro (normal -93,4, o sea -3,4).  El
+    LiDAR va 192 mm por delante de la culata -- 137 al eje trasero mas 55 de
+    voladizo --, asi que con 10 mm de sitio detras queda casi centrado en un
+    hueco de 330 para un robot de 210.
+    """
+
+    borde = LADO_EXTERIOR_MM / 2.0
+    x = -borde + lateral_mm
+    y = -(BAHIA_HUECO_MM / 2.0) + culata_mm + lidar_a_culata_mm
+    # rumbo del barrido es positivo hacia +X, o sea horario; el paralelismo
+    # negativo es el robot girado a la izquierda, o sea antihorario.
+    return x, y, -paralelo_deg
+
+
+def barrido_pared_de_bahia(
+    distancia_mm: float = 77.9,
+    normal_deg: float = -93.4,
+    puntos: int = 38,
+    largo_mm: float = 70.0,
+    ruido_mm: float = 1.0,
+    semilla: int = 11,
+) -> List[Tuple[float, float]]:
+    """El muro de la bahia tal y como lo devolvio el LiDAR el 06-09.
+
+    NO se traza por rayos a proposito.  El trazador ve los 330 mm de muro que
+    dejan libres los dos delimitadores, porque supone que todo rayo que llega
+    a una superficie vuelve; el C1 real, a 78 mm y con el muro casi de canto,
+    solo devolvio 38 puntos y un segmento de menos de 80 mm.  Reproducir la
+    geometria ideal no reproduce el fallo, asi que la fixture parte de la
+    medida: 77,9 mm de perpendicular, normal -93,4 grados, 38 puntos y 3,0 mm
+    de residuo.
+    """
+
+    import random
+
+    aleatorio = random.Random(semilla)
+    rad = math.radians(normal_deg)
+    nx, ny = math.sin(rad), math.cos(rad)
+    # Direccion de la pared: la normal girada 90 grados.
+    ux, uy = -ny, nx
+
+    muestras: List[Tuple[float, float]] = []
+    for indice in range(puntos):
+        t = largo_mm * (indice / (puntos - 1.0) - 0.5)
+        desvio = aleatorio.gauss(0.0, ruido_mm)
+        x = (distancia_mm + desvio) * nx + t * ux
+        y = (distancia_mm + desvio) * ny + t * uy
+        angulo = math.degrees(math.atan2(x, y)) % 360.0
+        muestras.append((angulo, math.hypot(x, y)))
+    muestras.sort()
+    return muestras
 
 
 def config_minima() -> Dict:

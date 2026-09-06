@@ -75,6 +75,10 @@ CAMPOS_TELEMETRIA = (
     "casillas",
     "retrocesos",
     "atascos",
+    "esquinas_pospuestas",
+    "sin_color_n",
+    "sin_color_off",
+    "sin_color_av",
     # Que abre cada esquina. `linea_lista` se registra aunque mande el avance,
     # asi una corrida sirve para comparar las dos fuentes sin correr dos veces.
     "giro_fuente",
@@ -88,6 +92,11 @@ CAMPOS_TELEMETRIA = (
     # 2 no estaba en el CSV: se analizaba con ``frontal_min``, que es otra cosa.
     "corredor",
     "corredor_deg",
+    # El corredor de ESTRUCTURA es el que decide la emergencia desde el 06-09.
+    # Tenerlos los dos en el CSV es lo que permite ver, fila a fila, si un
+    # retroceso lo disparo un muro o el pilar que se estaba rebasando.
+    "corredor_estructura",
+    "corredor_estructura_deg",
     "pilares",
     # Desglose por origen.  Sin esto solo se veia ``pilar1_fuente``, que es el
     # PRIMERO de una lista ordenada por parejas de fusion, no el mas cercano:
@@ -108,6 +117,12 @@ CAMPOS_TELEMETRIA = (
     "parqueo_estado",
     "parqueo_razon",
     "parqueo_vaivenes",
+    # De donde salio el paralelismo con el que se corto cada arco (``lidar``,
+    # ``imu`` o vacio) y cuantos barridos seguidos lleva el ultrasonido sin
+    # eco.  Las dos contestan, leyendo el CSV, la pregunta de por que un
+    # parqueo termino donde termino.
+    "parqueo_paralelo_fuente",
+    "parqueo_ciegos_atras",
     "hueco_confianza",
     "hueco_separacion",
     "hueco_lateral",
@@ -288,6 +303,12 @@ class AplicacionRonda:
             # Diagnostico: de que rumbo viene el eco que cierra el corredor.
             "corredor_deg": round(paredes.corredor_deg, 1)
             if math.isfinite(paredes.corredor_deg)
+            else "",
+            "corredor_estructura": round(paredes.corredor_estructura_mm, 1)
+            if math.isfinite(paredes.corredor_estructura_mm)
+            else "",
+            "corredor_estructura_deg": round(paredes.corredor_estructura_deg, 1)
+            if math.isfinite(paredes.corredor_estructura_deg)
             else "",
             "izquierda": round(paredes.izquierda_min_mm, 1)
             if math.isfinite(paredes.izquierda_min_mm)

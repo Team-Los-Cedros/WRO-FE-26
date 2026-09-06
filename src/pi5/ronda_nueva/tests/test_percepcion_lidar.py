@@ -4,7 +4,13 @@ import math
 import unittest
 
 from ..percepcion_lidar import PercepcionLidar, ajustar_recta, segmentar
-from .apoyo import barrido_sintetico, config_minima, pose_en_carril
+from .apoyo import (
+    barrido_pared_de_bahia,
+    barrido_sintetico,
+    config_minima,
+    delimitadores_bahia,
+    pose_en_carril,
+)
 
 
 class PruebaParedes(unittest.TestCase):
@@ -200,6 +206,112 @@ class PruebaEcoPropio(unittest.TestCase):
             percepcion._mascarar([(290.0, 40.0)], angulo_servo_deg=8.0),
             [(290.0, 40.0)],
         )
+
+
+class PruebaParedDeBahia(unittest.TestCase):
+    """El muro del parqueo: el bloqueante que se aislo el 06-09.
+
+    Con el robot colocado a mano en la pose aparcada, ``paredes.izquierda``
+    salia None en los doce barridos aunque el LiDAR tuviera 38 puntos contra
+    ese muro con 3,0 mm de residuo.  Sin lateral y sin paralelo la FSM de
+    parqueo no puede declarar LISTO nunca, asi que la maniobra terminaba en
+    FALLO al agotar el timeout AUNQUE SALIERA PERFECTA.
+    """
+
+    def setUp(self):
+        self.percepcion = PercepcionLidar(config_minima())
+
+    def test_sin_lado_de_parqueo_el_muro_de_la_bahia_no_se_ve(self):
+        """El umbral de carrera pide 220 mm de segmento y ahi hay menos de 80.
+
+        No es un umbral estricto, es una condicion geometricamente imposible:
+        con el flanco a 11 mm del muro los delimitadores tapan el resto.
+        """
+
+        scan = barrido_pared_de_bahia()
+        paredes, _o, _h = self.percepcion.procesar(scan, 1.0)
+        self.assertIsNone(paredes.izquierda)
+
+    def test_con_lado_de_parqueo_sale_la_medida_que_se_midio(self):
+        """77,9 mm y normal -93,4: los mismos numeros del barrido guardado."""
+
+        scan = barrido_pared_de_bahia()
+        paredes, _o, _h = self.percepcion.procesar(scan, 1.0, lado_parqueo=-1)
+        self.assertIsNotNone(paredes.izquierda)
+        self.assertAlmostEqual(paredes.izquierda.distancia_mm, 77.9, delta=3.0)
+        self.assertAlmostEqual(paredes.izquierda.angulo_deg, -93.4, delta=2.0)
+        # Y lo que la FSM le pide: dentro de inside_lateral_mm y con menos de
+        # parallel_tolerance_deg de desviacion.
+        self.assertLess(paredes.izquierda.distancia_mm, 140.0)
+        self.assertLess(abs(paredes.izquierda.angulo_deg + 90.0), 6.0)
+
+    def test_la_relajacion_es_solo_del_lado_de_la_bahia(self):
+        """Con la bahia declarada a la DERECHA, el muro izquierdo no se relaja."""
+
+        scan = barrido_pared_de_bahia()
+        paredes, _o, _h = self.percepcion.procesar(scan, 1.0, lado_parqueo=1)
+        self.assertIsNone(paredes.izquierda)
+
+    def test_un_delimitador_no_pasa_por_muro_frontal_durante_el_parqueo(self):
+        """El candado que hace que bajar el umbral a secas no valga.
+
+        Circulando a approach_lateral_mm del muro exterior, los dos
+        delimitadores quedan a unos 175 mm por delante y por detras, y miden
+        200 mm de huella.  Con un minimo global de 60 el ajuste los clasifica
+        como muro FRONTAL a 171 mm teniendo el de verdad a 1499: el
+        localizador se creeria a punto de chocar y el piloto dispararia la
+        esquina.  Por eso la relajacion mira la direccion de la normal y solo
+        toca la pared del lado de la bahia.
+        """
+
+        x, y = -1500.0 + 270.0, 0.0
+        scan = barrido_sintetico(
+            x, y, 0.0, rectangulos=delimitadores_bahia(), ruido_mm=3.0, semilla=3
+        )
+        for lado in (0, -1):
+            paredes, _o, _h = self.percepcion.procesar(scan, 1.0, lado_parqueo=lado)
+            with self.subTest(lado=lado):
+                self.assertIsNotNone(paredes.frontal)
+                self.assertGreater(paredes.frontal.distancia_mm, 1000.0)
+                self.assertIsNotNone(paredes.trasera)
+                self.assertGreater(paredes.trasera.distancia_mm, 1000.0)
+
+
+class PruebaCorredor(unittest.TestCase):
+    """El corredor no puede contar puntos que estan dentro del robot.
+
+    EL DATO, 06-09: en las corridas fix_01 y fix_02 un eco a 55 mm y 54 grados
+    a la derecha cerraba el corredor y disparaba el retroceso 83 veces, con la
+    estructura a 1533 mm.  Que era del propio robot quedo probado por
+    retroceso: en 13 de 13 episodios el corredor seguia en 52-59 mm despues de
+    1,5 s alejandose, cuando un objeto real ya se habria ido a mas de 150.
+    """
+
+    def setUp(self):
+        self.percepcion = PercepcionLidar(config_minima())
+
+    def _corredor(self, puntos):
+        return self.percepcion._corredor_libre_mm(puntos)[0]
+
+    def test_un_eco_dentro_de_la_huella_no_cierra_el_corredor(self):
+        # 55 mm a 54 grados: x 44,5  y 32,3.  Dentro del ancho del robot y a
+        # 14 mm por delante del parachoques.
+        eco = [(54.0, 55.0)]
+        pared = [(0.0, 1500.0), (2.0, 1500.0), (358.0, 1500.0)]
+        self.assertGreater(self._corredor(eco + pared), 1000.0)
+
+    def test_un_muro_pegado_si_cierra_el_corredor(self):
+        """Un muro a 45 mm da puntos en TODO el ancho, no solo en la huella."""
+
+        muro = [(ang, 45.0 / max(0.2, abs(__import__("math").cos(
+            __import__("math").radians(ang))))) for ang in range(-70, 71, 2)]
+        self.assertLess(self._corredor(muro), 150.0)
+
+    def test_un_pilar_por_delante_sigue_cerrando_el_corredor(self):
+        """A 200 mm por delante y 40 de lado: fuera de la huella, cuenta."""
+
+        pilar = [(11.0, 204.0), (13.0, 205.0), (9.0, 203.0)]
+        self.assertLess(self._corredor(pilar), 250.0)
 
 
 class PruebaAjuste(unittest.TestCase):

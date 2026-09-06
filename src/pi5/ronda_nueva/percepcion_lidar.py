@@ -361,8 +361,46 @@ class PercepcionLidar:
             return None
         return recta
 
+    def _largo_minimo_mm(
+        self, recta: Recta, lado_parqueo: int, largo_carrera_mm: float
+    ) -> float:
+        """Cuanto segmento se le exige a UNA recta para aceptarla como pared.
+
+        MEDIDO EL 06-09 CON EL ROBOT COLOCADO A MANO EN LA POSE APARCADA: el
+        muro de la bahia deja 38 puntos con 3,0 mm de residuo y una normal de
+        -93,4 grados, pero ``paredes.izquierda`` salia ``None`` en los doce
+        barridos.  Barriendo el umbral sobre ese mismo barrido: 220, 180, 150,
+        120, 100 y 80 mm no encuentran nada; 60 SI, y devuelve 77,9 mm.  Con
+        el flanco a 11 mm del muro los dos delimitadores tapan el resto de la
+        pared, asi que exigir 220 mm de segmento ahi no es un umbral estricto,
+        es una condicion imposible -- y sin lateral ni paralelo VERIFICAR no
+        podia cerrar nunca, aunque la maniobra saliera perfecta.
+
+        POR QUE NO SE BAJA EL UMBRAL A SECAS
+        Los 220 mm son los que impiden que un pilar (100 mm) o un delimitador
+        (200 mm de huella) pasen por pared durante la vuelta.  Aqui se relajan
+        con dos candados: solo la pared del LADO de la bahia -- frontal y
+        trasera conservan el umbral de carrera, que es donde un delimitador
+        visto de canto haria dano durante la APROXIMACION -- y solo en
+        proporcion a la distancia, porque el trozo de muro que cabe en un
+        sector angular fijo crece con ella.  A 78 mm el segmento real medido
+        estaba entre 60 y 80 mm, o sea 0,8-1,0 de la distancia; con 0,75 el
+        umbral vuelve al valor de carrera a partir de 293 mm, ya fuera de la
+        bahia (200 mm de profundidad).
+        """
+
+        if not lado_parqueo:
+            return largo_carrera_mm
+        ventana = float(self._cfg("wall_normal_window_deg", 42.0))
+        referencia = 90.0 if lado_parqueo > 0 else -90.0
+        if abs(recta.angulo_deg - referencia) > ventana:
+            return largo_carrera_mm
+        minimo = float(self._cfg("wall_min_length_parking_mm", 60.0))
+        razon = float(self._cfg("wall_min_length_parking_ratio", 0.75))
+        return _limitar(recta.distancia_mm * razon, minimo, largo_carrera_mm)
+
     def rectas_del_barrido(
-        self, clusters: Sequence[Sequence[PuntoPolar]]
+        self, clusters: Sequence[Sequence[PuntoPolar]], lado_parqueo: int = 0
     ) -> List[Tuple[Recta, float, PuntoXY, PuntoXY]]:
         """Todos los tramos rectos del barrido, con su longitud.
 
@@ -396,7 +434,7 @@ class PercepcionLidar:
                     continue
                 inicio, fin = puntos_xy[0], puntos_xy[-1]
                 largo = math.hypot(fin[0] - inicio[0], fin[1] - inicio[1])
-                if largo < largo_min:
+                if largo < self._largo_minimo_mm(recta, lado_parqueo, largo_min):
                     continue
                 salida.append((recta, largo, inicio, fin))
         return salida
@@ -413,11 +451,27 @@ class PercepcionLidar:
         """
 
         medio_ancho = float(self._cfg("corridor_half_width_mm", 95.0))
+        # HUELLA PROPIA.  ``objetos()`` ya descartaba los puntos que caen
+        # dentro del robot; el corredor no lo hacia, y se tragaba cualquier
+        # eco con y>0 dentro de la banda aunque estuviera fisicamente encima
+        # del chasis.  Medido el 06-09 en las corridas fix_01 y fix_02: un eco
+        # a 55 mm y 54 grados a la derecha -- x 46, y 33, o sea 15 mm por
+        # delante del parachoques y DENTRO del ancho -- cerraba el corredor y
+        # disparaba el retroceso.  Que es del robot y no de la pista esta
+        # probado por retroceso: en 13 de 13 episodios el corredor seguia en
+        # 52-59 mm despues de 1,5 s alejandose, cuando un objeto real ya se
+        # habria ido a mas de 150.
+        huella_x = float(self._cfg("corridor_self_half_width_mm", 75.0))
+        huella_y = float(self._cfg("corridor_self_front_mm", 45.0))
         mejor = SIN_DATO_MM
         rumbo = float("nan")
         for angulo, distancia in puntos:
             x, y = _polar_a_xy(angulo, distancia)
-            if y > 0.0 and abs(x) <= medio_ancho and y < mejor:
+            if y <= 0.0 or abs(x) > medio_ancho:
+                continue
+            if y <= huella_y and abs(x) <= huella_x:
+                continue
+            if y < mejor:
                 mejor = y
                 rumbo = angulo
         return mejor, rumbo
@@ -428,6 +482,7 @@ class PercepcionLidar:
         puntos: Sequence[PuntoPolar],
         timestamp: float,
         puntos_objeto: Optional[set] = None,
+        lado_parqueo: int = 0,
     ) -> MapaParedes:
         """Clasifica los tramos rectos en frontal / trasera / izquierda / derecha.
 
@@ -448,7 +503,9 @@ class PercepcionLidar:
         tolerancia = float(self._cfg("wall_straddle_tolerance_mm", 200.0))
         clases: dict = {"frontal": None, "derecha": None, "izquierda": None, "trasera": None}
 
-        for recta, _largo, inicio, fin in self.rectas_del_barrido(clusters):
+        for recta, _largo, inicio, fin in self.rectas_del_barrido(
+            clusters, lado_parqueo
+        ):
             angulo = recta.angulo_deg
             if abs(angulo) <= ventana:
                 nombre = "frontal"
@@ -503,6 +560,10 @@ class PercepcionLidar:
                 minimos["trasera"] = trasera_hombros.distancia_mm
 
         corredor_mm, corredor_deg = self._corredor_libre_mm(puntos)
+        # ``estructura`` ya tiene fuera los puntos que se explicaron como
+        # objeto, asi que el segundo corredor sale del mismo recorrido sin
+        # volver a mirar el barrido.
+        corredor_est_mm, corredor_est_deg = self._corredor_libre_mm(estructura)
         return MapaParedes(
             timestamp=float(timestamp),
             frontal=clases["frontal"],
@@ -515,6 +576,8 @@ class PercepcionLidar:
             derecha_min_mm=minimos["derecha"],
             corredor_mm=corredor_mm,
             corredor_deg=corredor_deg,
+            corredor_estructura_mm=corredor_est_mm,
+            corredor_estructura_deg=corredor_est_deg,
             puntos_totales=len(puntos),
         )
 
@@ -810,6 +873,10 @@ class PercepcionLidar:
         Devuelve ``(paredes, objetos, hueco)``.  El hueco solo se busca cuando
         ``lado_parqueo`` es distinto de cero, porque partir clusters en rectas
         cuesta y no hace falta durante las vueltas.
+
+        ``lado_parqueo`` hace ademas otra cosa: relaja el minimo de segmento
+        de la pared de ESE lado (ver ``_largo_minimo_mm``), que es lo unico
+        que permite ver el muro de la bahia con el flanco a 11 mm de el.
         """
 
         max_mm = float(self._cfg("max_distance_mm", 4000.0))
@@ -823,7 +890,9 @@ class PercepcionLidar:
             min_puntos=max(2, int(self._cfg("object_min_points", 3))),
         )
         objetos, puntos_objeto = self.objetos(clusters, timestamp, con_puntos=True)
-        paredes = self.paredes(clusters, puntos, timestamp, puntos_objeto)
+        paredes = self.paredes(
+            clusters, puntos, timestamp, puntos_objeto, lado_parqueo
+        )
         # El descarte por cercania a la pared va DESPUES y sobre la lista ya
         # hecha: solo necesita el centro de cada objeto, asi que no hay que
         # repetir el PCA.  Hacerlo con una segunda pasada completa costaba 27

@@ -105,6 +105,15 @@ class MapaParedes:
     # corredor se cierra a 150 mm con los dos muros a 900, el eco no es de la
     # pista y el rumbo dice de que parte del propio robot viene.
     corredor_deg: float = float("nan")
+    # El MISMO corredor pero contando solo ESTRUCTURA.  Existe porque las dos
+    # preguntas que se le hacian al corredor no son la misma: para FRENAR hay
+    # que ver el pilar que se va a rebasar, pero para declarar una EMERGENCIA
+    # y retroceder no, porque rebasar un pilar de cerca es la maniobra normal
+    # de la ronda, no un atasco.  Medido el 06-09 sobre 13 corridas: 111 de
+    # los 112 retrocesos los disparo el corredor cerrandose a 138 mm de
+    # mediana mientras la estructura estaba a 552.
+    corredor_estructura_mm: float = float("inf")
+    corredor_estructura_deg: float = float("nan")
     puntos_totales: int = 0
 
 
