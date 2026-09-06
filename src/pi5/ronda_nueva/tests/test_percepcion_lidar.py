@@ -55,6 +55,39 @@ class PruebaParedes(unittest.TestCase):
             paredes.izquierda.distancia_desde(250.0, 800.0), 650.0, delta=25.0
         )
 
+    def test_los_hombros_reconstruyen_la_trasera_tapada_por_el_mastil(self):
+        """La mascara 140..213 deja la trasera solo en sus hombros.
+
+        Es la geometria medida del Pi 5.  Con los antiguos offsets 18..35 los
+        dos hombros caian en la mascara; 40..60 usa los haces visibles y no
+        convierte el mastil de 50 mm en un obstaculo trasero.
+        """
+
+        distancia = 1120.0
+        barrido = []
+        for angulo in range(115, 246, 2):
+            coseno = math.cos(math.radians(angulo))
+            if coseno < 0.0:
+                barrido.append((float(angulo), -distancia / coseno))
+        # Los laterales cercanos entran tambien por los bordes de los hombros.
+        # Su proyeccion axial es menor y no pueden convertirse en la trasera.
+        barrido.extend([(121.0, 540.0), (123.0, 550.0), (237.0, 620.0)])
+        config = config_minima()
+        config["lidar"] = {
+            "blind_sectors_deg": [[140.0, 213.0]],
+            "rear_axis_deg": 180.0,
+            "rear_shoulder_offset_deg": [40.0, 60.0],
+            "rear_min_valid_points": 2,
+            "rear_shoulder_wall_fraction": 0.8,
+            "wall_normal_window_deg": 42.0,
+            "wall_max_residual_mm": 75.0,
+        }
+        paredes, _objetos, _hueco = PercepcionLidar(config).procesar(barrido, 1.0)
+
+        self.assertIsNotNone(paredes.trasera)
+        self.assertAlmostEqual(paredes.trasera.distancia_mm, distancia, delta=10.0)
+        self.assertAlmostEqual(paredes.trasera_min_mm, distancia, delta=10.0)
+
 
 class PruebaObjetos(unittest.TestCase):
     def setUp(self):

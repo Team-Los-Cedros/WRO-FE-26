@@ -349,18 +349,20 @@ class PruebaMontajeMedido(unittest.TestCase):
 
     def test_la_mascara_del_mastil_es_la_medida_en_la_pi5(self):
         # Medido el 2026-09-05 con herramientas/diag_mastil.py, tres veces
-        # seguidas: entre 141 y 194 grados hay eco en el 100 % de los barridos
-        # que miraron ese grado, a 37-72 mm y con 2-3 mm de dispersion; en 140
-        # cae al 17 % y en 195 al 2 %.  A esa distancia no cabe pista: el LiDAR
-        # va al ras del parachoques y el robot se extiende 222 mm hacia atras.
+        # seguidas: el mastil ocupa 141..212 grados a 35-68 mm.  A esa
+        # distancia no cabe pista: el LiDAR va al ras del parachoques y el
+        # robot se extiende 222 mm hacia atras.
         #
-        # La mascara heredada de la Pi 3B (163-195) dejaba 22 grados de
-        # estructura sin tapar por el lado derecho-trasero, dentro de
-        # rear_sector_deg: en el CSV del simulacro, trasera_min pasaba de
-        # 40,2 mm (clavada, el propio mastil) a 1712,9 mm (el muro de verdad)
-        # solo con corregir el sector.  El resto de sectores no se movio.
+        # La mascara que acababa en 195 dejaba los grados 196..210 de la
+        # estructura dentro de rear_sector_deg: trasera_min se clavaba entre
+        # 44 y 58 mm y bloqueaba el parqueo.  El soporte de camara, 28..54
+        # grados, no se anade como segunda cuna: se saca estrechando el
+        # comienzo del sector derecho a 56 grados.
         config = cargar_configuracion(str(RUTA_CONFIG))
-        self.assertEqual(config["lidar"]["blind_sectors_deg"], [[140.0, 195.0]])
+        self.assertEqual(config["lidar"]["blind_sectors_deg"], [[140.0, 213.0]])
+        self.assertEqual(config["lidar"]["right_sector_deg"], [56.0, 135.0])
+        self.assertEqual(config["lidar"]["rear_shoulder_offset_deg"], [40.0, 60.0])
+        self.assertEqual(config["lidar"]["rear_shoulder_wall_fraction"], 0.8)
 
     def test_el_modo_del_sensor_no_se_toca_al_cambiar_la_resolucion(self):
         # El CAMPO lo fija el modo raw, no la resolucion de salida: 2304x1296

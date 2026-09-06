@@ -272,15 +272,22 @@
       315.0
     ],
     "right_sector_deg": [
-      45.0,
+      56.0,
       135.0
     ],
     "blind_sectors_deg": [
       [
         140.0,
-        195.0
+        213.0
       ]
     ],
+    "rear_axis_deg": 180.0,
+    "rear_shoulder_offset_deg": [
+      40.0,
+      60.0
+    ],
+    "rear_min_valid_points": 2,
+    "rear_shoulder_wall_fraction": 0.8,
     "self_echo_base_mm": -68.0,
     "self_echo_mm_per_deg": 7.0,
     "self_echo_margin": 1.3,
@@ -308,7 +315,7 @@
     "self_footprint_half_width_mm": 115.0,
     "self_footprint_front_mm": 0.0,
     "self_footprint_back_mm": 250.0,
-    "_nota_mascara": "Medido en la Pi 5 el 2026-09-05 con herramientas/diag_mastil.py (220 barridos, robot quieto): entre 141 y 194 grados hay eco en el 100 % de los barridos que miraron ese grado, a 37-69 mm y con 2-3 mm de dispersion; en 140 baja al 17 % y en 195 al 2 %. A esa distancia no puede haber pista -- el LiDAR va al ras del parachoques y el robot se extiende 222 mm hacia atras --, asi que es el mastil de la camara. La mascara heredada de la Pi 3B (163-195) dejaba 22 grados de estructura sin tapar por el lado derecho-trasero, justo dentro de rear_sector_deg (150-210): trasera_min_mm se leia clavada en ~43 mm. El sector se escribe con el primer y el ultimo grado a tapar, porque _en_sector es inclusivo en los dos extremos."
+    "_nota_mascara": "Medido en la Pi 5 el 2026-09-05 con herramientas/diag_mastil.py (tres medidas, robot quieto): el mastil ocupa 141..212 grados a 35-68 mm. Se enmascara 140..213 porque _en_sector incluye ambos extremos y deja un grado de margen a cada lado. La mascara anterior acababa en 195 y dejaba 196..210 dentro de rear_sector_deg (150..210): trasera_min_mm se leia clavada en 44-58 mm, el propio mastil. La trasera se recupera de los hombros visibles, a 40..60 grados de rear_axis_deg; los hombros 18..35 quedan por completo dentro del mastil. Se conserva el 80 % mas lejano de la proyeccion axial para quitar los muros laterales que tambien cruzan los hombros: comprobado en el arranque del 05-09, el ajuste trasero dio 1643 mm y 1,9 mm de residuo. El soporte fijo de la camara, 28..54 grados a 142-172 mm, no es otra cuna trasera: se excluye del sector derecho empezando en 56 grados."
   },
   "fusion": {
     "gate_mm": 220.0,

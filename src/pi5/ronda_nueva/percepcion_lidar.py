@@ -306,6 +306,61 @@ class PercepcionLidar:
             if d <= max_mm and _en_sector(a, sector)
         ]
 
+    def _trasera_por_hombros(
+        self, puntos: Sequence[PuntoPolar]
+    ) -> Optional[Recta]:
+        """Reconstruye el muro trasero cuando el mastil tapa su eje.
+
+        El mastil ocupa 140..213 grados: no queda ningun haz util en el
+        sector trasero central.  Los dos hombros visibles a 40..60 grados del
+        eje trasero ven la misma pared oblicuamente; ajustarlos juntos permite
+        recuperar su perpendicular sin inventar una lectura dentro de la zona
+        ciega.  Si no hay evidencia suficiente se devuelve ``None``.
+        """
+
+        eje = float(self._cfg("rear_axis_deg", 180.0))
+        offsets = tuple(self._cfg("rear_shoulder_offset_deg", (40.0, 60.0)))
+        if len(offsets) != 2:
+            return None
+        minimo, maximo = (float(offsets[0]), float(offsets[1]))
+        if not 0.0 < minimo <= maximo < 90.0:
+            return None
+
+        candidatos = []
+        for angulo, distancia in puntos:
+            diferencia = abs(((angulo - eje + 180.0) % 360.0) - 180.0)
+            if minimo <= diferencia <= maximo:
+                # Los laterales tambien cruzan estas ventanas cuando el robot
+                # esta cerca de un borde.  La pared que queda detras tiene la
+                # mayor componente sobre el eje trasero; no se usa la minima,
+                # que seria precisamente el lateral proximo.
+                axial = distancia * math.cos(math.radians(diferencia))
+                candidatos.append((_polar_a_xy(angulo, distancia), axial))
+
+        requeridos = max(2, int(self._cfg("rear_min_valid_points", 2)))
+        if len(candidatos) < requeridos:
+            return None
+        fraccion = float(self._cfg("rear_shoulder_wall_fraction", 0.8))
+        if not 0.0 < fraccion <= 1.0:
+            return None
+        axial_maximo = max(axial for _punto, axial in candidatos)
+        hombros = [
+            punto
+            for punto, axial in candidatos
+            if axial >= fraccion * axial_maximo
+        ]
+        if len(hombros) < requeridos:
+            return None
+        recta = ajustar_recta(hombros)
+        if recta is None:
+            return None
+        ventana = float(self._cfg("wall_normal_window_deg", 42.0))
+        if abs(abs(recta.angulo_deg) - 180.0) > ventana:
+            return None
+        if recta.residuo_mm > float(self._cfg("wall_max_residual_mm", 75.0)):
+            return None
+        return recta
+
     def rectas_del_barrido(
         self, clusters: Sequence[Sequence[PuntoPolar]]
     ) -> List[Tuple[Recta, float, PuntoXY, PuntoXY]]:
@@ -437,6 +492,15 @@ class PercepcionLidar:
             minimos[nombre] = min(
                 (math.hypot(x, y) for x, y in muestras), default=SIN_DATO_MM
             )
+
+        if clases["trasera"] is None:
+            trasera_hombros = self._trasera_por_hombros(estructura)
+            if trasera_hombros is not None:
+                clases["trasera"] = trasera_hombros
+                # El minimo angular central queda intencionadamente vacio.
+                # La perpendicular ajustada con los hombros es la medida
+                # segura que consume el parqueo y tambien la telemetria.
+                minimos["trasera"] = trasera_hombros.distancia_mm
 
         corredor_mm, corredor_deg = self._corredor_libre_mm(puntos)
         return MapaParedes(
