@@ -245,7 +245,7 @@ async function tic(){
       ['mapa', d.mapa || '--', ''],
       ['casillas', num(d.casillas)+'/12', ''],
       ['hueco conf.', num(d.hueco_confianza,2), (d.hueco_confianza>0)?'ok':''],
-      ['edad LiDAR', num(d.lidar_edad_ms,1)+' ms', ''],
+      ['edad LiDAR', num(d.lidar_edad_ms,2)+' ms', ''],
       ['vision', num(d.vision_edad_ms,0)+' ms', ''],
       ['ciclo', num(d.ciclo_ms,1)+' ms', ''],
     ]);

@@ -304,7 +304,11 @@ class AplicacionRonda:
             "vision_edad_ms": round(
                 self.buzon_vision.edad_ultimo(ahora) * 1000.0, 1
             ),
-            "lidar_edad_ms": round(edad_lidar_ms, 1),
+            # Microsegundos, no decimas. En la 3B esta edad eran 16 ms y una
+            # decima sobraba; en la Pi 5 la mediana es 0,3 ms, asi que
+            # redondear a 0,1 convierte la columna en doce valores sueltos y
+            # el cuanto pasa a ser un tercio de la magnitud que se mide.
+            "lidar_edad_ms": round(edad_lidar_ms, 3),
             "ciclo_ms": round(ciclo_ms, 2),
             "percepcion_ms": round(percepcion_ms, 2),
             "barridos_descartados": self.buzon_barridos.descartados,
