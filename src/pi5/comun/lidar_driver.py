@@ -151,7 +151,7 @@ class LidarDriver:
         return posicionales >= 2
 
     def _abrir(self):
-        self._ser = serial.Serial(self._puerto, baudrate=self._baudrate, timeout=1)
+        self._ser = serial.Serial(self._puerto, baudrate=self._baudrate, timeout=0.0001)
         time.sleep(0.5)
         self._ser.write(START_MOTOR_CMD)
         time.sleep(1.5)
