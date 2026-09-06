@@ -73,6 +73,11 @@ shopt -s nullglob
 FUENTES_RONDA=("$ORIGEN_PI5"/ronda_nueva/*.py)
 FUENTES_HERRAMIENTAS=("$ORIGEN_PI5"/herramientas/*.py)
 FUENTES_COMUN=("$ORIGEN_PI5"/comun/*.py)
+# Los otros dos cerebros. Se despliegan JUNTOS a proposito: comparten la
+# Pico y el LiDAR, y tenerlos en el mismo directorio permite lanzar uno u
+# otro sin volver a desplegar, que es lo que hace falta para compararlos.
+FUENTES_CERRADA=("$ORIGEN_PI5"/ronda_cerrada/*.py)
+FUENTES_ABIERTA=("$ORIGEN_PI5"/ronda_abierta/*.py)
 if (( ${#FUENTES_RONDA[@]} == 0 || ${#FUENTES_COMUN[@]} == 0 )); then
     echo "[-] Faltan modulos Python en ronda_nueva/ o comun/." >&2
     exit 2
@@ -120,6 +125,15 @@ mkdir "$STAGING/ronda_nueva" "$STAGING/comun" "$STAGING/herramientas"
 cp -- "${FUENTES_RONDA[@]}" "$STAGING/ronda_nueva/"
 cp -- "$ORIGEN_PI5/ronda_nueva/configuracion.json" "$STAGING/ronda_nueva/"
 cp -- "${FUENTES_COMUN[@]}" "$STAGING/comun/"
+if (( ${#FUENTES_CERRADA[@]} > 0 )); then
+    mkdir "$STAGING/ronda_cerrada"
+    cp -- "${FUENTES_CERRADA[@]}" "$STAGING/ronda_cerrada/"
+    cp -- "$ORIGEN_PI5/ronda_cerrada/configuracion.json" "$STAGING/ronda_cerrada/"
+fi
+if (( ${#FUENTES_ABIERTA[@]} > 0 )); then
+    mkdir "$STAGING/ronda_abierta"
+    cp -- "${FUENTES_ABIERTA[@]}" "$STAGING/ronda_abierta/"
+fi
 if (( ${#FUENTES_HERRAMIENTAS[@]} > 0 )); then
     cp -- "${FUENTES_HERRAMIENTAS[@]}" "$STAGING/herramientas/"
 fi
