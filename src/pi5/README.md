@@ -6,6 +6,8 @@ propias pruebas. La Pi 3B sigue arrancando exactamente igual que antes.
 
 ```
 src/pi5/
+  prueba_abierta.py            prueba independiente de ronda abierta (copia de la Raspi)
+  ronda_curvas/                copia de trabajo de la Raspi para la ronda de curvas
   comun/lidar_driver.py        driver del RPLIDAR C1 (copiado tal cual: está probado)
   herramientas/calibrar_suelo.py
   ronda_nueva/
@@ -33,6 +35,24 @@ src/pi5/
     bench_vision.py            coste por cuadro y cadencia real de la visión
     reescalar_camara.py        cambia la resolución sin perder la calibración
 ```
+
+## Código recibido de la Raspberry Pi
+
+Además de la implementación modular `ronda_nueva/`, se preservan dos códigos
+recibidos directamente de la Raspi:
+
+- `prueba_abierta.py` es una prueba independiente para la ronda abierta. Usa el
+  LiDAR en `/dev/ttyUSB0`, la Pico en `/dev/ttyACM0` y el botón de inicio en
+  GPIO 21.
+- `ronda_curvas/` contiene el conjunto de módulos usado en la Raspi para la
+  ronda con cámara y curvas. Su punto de entrada es `ronda_camara.py`.
+
+`ronda_curvas/` se guarda como una copia fiel del código de la Raspi, no como
+un paquete autónomo: su punto de entrada además requiere los módulos vecinos
+`vision.py`, `lidar_geometria.py`, `lidar_mascara.py`, `geometria_robot.py`,
+`optica.py` y `registro_metricas.py`. Consulta su README antes de desplegarlo.
+No sustituye a `ronda_nueva/`, que sigue siendo la implementación modular de
+Pi 5.
 
 ---
 
