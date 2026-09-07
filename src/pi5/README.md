@@ -12,19 +12,9 @@ src/pi5/
   ronda_curvas/                copia de trabajo de la Raspi para la ronda de curvas
   comun/lidar_driver.py        driver del RPLIDAR C1 (copiado tal cual: está probado)
   herramientas/calibrar_suelo.py
-  ronda_nueva/
-    modelos.py                 tipos y convenciones de signo
-    geometria_suelo.py         homografía imagen → suelo
-    vision_pista.py            espacio libre, pilares, magenta y líneas
-    percepcion_lidar.py        paredes como rectas, objetos, hueco de bahía
-    fusion.py                  cámara + LiDAR, en milímetros
-    localizacion.py            pose dentro de la recta, sin SLAM
-    mapa_pista.py              las doce casillas y sus votos
-    planificador.py            la trayectoria y la ley de dirección
-    piloto.py                  la máquina de estados
-    estacionamiento.py         la maniobra de parqueo
-    ronda_nueva.py             punto de entrada
-    tests/                     132 pruebas, todas sin robot
+  legacy/
+    ronda_nueva/               implementación modular archivada
+    ronda_cerrada/             implementación anterior archivada
   herramientas/
     calibrar_desde_muros.py    homografía con las paredes, sin colocar nada
     calibrar_suelo.py          cobertura del montaje y homografía con pilares
@@ -38,10 +28,20 @@ src/pi5/
     reescalar_camara.py        cambia la resolución sin perder la calibración
 ```
 
+## Código archivado
+
+`legacy/ronda_nueva/` y `legacy/ronda_cerrada/` son las dos implementaciones
+anteriores de Pi 5. Se mantienen para consulta y reproducción, pero no son los
+programas de trabajo actuales. Sus imports internos no se modificaron: para
+reproducir sus comandos históricos desde el repositorio, primero entra en
+`src/pi5/legacy/`. El script `deploy.sh` también las toma desde esta carpeta y
+las instala con sus nombres históricos, sin mezclar el código archivado con
+`ronda_abierta/` o `ronda_curvas/`.
+
 ## Código recibido de la Raspberry Pi
 
-Además de la implementación modular `ronda_nueva/`, se preservan dos códigos
-recibidos directamente de la Raspi:
+Además del código archivado, se preservan dos códigos recibidos directamente de
+la Raspi:
 
 - `ronda_abierta/prueba_abierta.py` es la copia sincronizada de
   `/home/pi/prueba_abierta.py` en la Pi 5: una prueba independiente para la
@@ -611,7 +611,7 @@ Magenta sigue sin calibrar: hace falta el cajón de parqueo a la vista.
 ### 5.5 Validar y desarmar la traca
 
 ```bash
-python3 -m ronda_nueva.ronda_nueva --validar-config
+python3 -m legacy.ronda_nueva.ronda_nueva --validar-config
 ```
 
 `runtime.motion_enabled` viene en `false` y hay cinco calibraciones que se
@@ -703,7 +703,7 @@ mucho antes que los separadores del LiDAR.
 ## 9. Pruebas
 
 ```bash
-cd src/pi5
+cd src/pi5/legacy
 python3 -m unittest discover -s ronda_nueva/tests -t . -p "test_*.py"
 ```
 

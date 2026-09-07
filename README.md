@@ -61,21 +61,10 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │   │   ├── deploy.sh             # Despliegue atomico "create only": nunca mezcla sobre una instalacion previa
 │   │   ├── MEDICIONES_20260906.md # Medidas de banco del chasis, la bahia y la velocidad
 │   │   ├── comun/                # Driver del LiDAR compartido por los tres cerebros
-│   │   ├── ronda_nueva/          # Ronda de Obstaculos. Es el cerebro que se corre hoy
-│   │   │   ├── ronda_nueva.py    # Punto de entrada: tres hilos (camara, LiDAR, control)
-│   │   │   ├── piloto.py         # FSM de ronda: RECTA / GIRO / RETROCESO / APROXIMACION / PARQUEO
-│   │   │   ├── planificador.py   # Ruta como nodos (avance, offset) con meseta por pilar
-│   │   │   ├── percepcion_lidar.py # Paredes por ajuste de rectas, objetos y hueco de parqueo
-│   │   │   ├── localizacion.py   # Pose dentro de la recta (avance/offset) sin SLAM
-│   │   │   ├── estacionamiento.py # FSM del parqueo en varios tiempos, pura y sin I/O
-│   │   │   ├── vision_pista.py   # HSV de pilares, muros magenta y lineas de piso
-│   │   │   ├── fusion.py         # Empareja camara y LiDAR en milimetros
-│   │   │   ├── mapa_pista.py     # Memoria de las 12 casillas de pilar, con votos de color
-│   │   │   ├── servidor_web.py   # Panel en vivo por HTTP (--panel-web)
-│   │   │   ├── configuracion.json # Todas las constantes, cada una con su nota de por que
-│   │   │   └── tests/            # 205 pruebas contra una pista sintetica, sin robot
+│   │   ├── legacy/               # Implementaciones históricas de Pi 5 (no activas)
+│   │   │   ├── ronda_nueva/      # Cerebro modular archivado, con configuración y pruebas
+│   │   │   └── ronda_cerrada/    # Cerebro previo archivado
 │   │   ├── ronda_abierta/        # Open Challenge en un solo archivo auditable
-│   │   ├── ronda_cerrada/        # El cerebro de la 3B portado tal cual. Congelado
 │   │   └── herramientas/         # 15 diagnosticos de banco (ver seccion 2.2)
 │   └── pi3B/                     # Scripts de la Raspberry Pi 3B -- ARCHIVADO (ver seccion 4.2)
 │       ├── controlador_inicio.py # Orquestador central (Ejecutado como servicio del sistema OS)
