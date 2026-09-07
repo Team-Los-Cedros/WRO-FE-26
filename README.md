@@ -237,7 +237,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **Pi Camera Module 3 Wide** (FOV ~102°) | <img src="v-photos/Componentes/Camara.png" width="90"/> | Ubicada al frente, debajo del LiDAR y retrasada respecto al parachoques (ver sección 3.4) para proteger el sensor de impactos directos, montada a **0° de inclinación** (mirando derecho al frente, sin tilt hacia el piso). |
 | **MPU6050 (IMU)** | <img src="v-photos/Componentes/MPU6050.png" width="90"/> | Montado rígidamente sobre la placa perforada, alineado con el eje longitudinal del chasis para que la lectura del eje Z corresponda exactamente al *yaw* del vehículo sin necesidad de compensar desalineación mecánica. |
 | **Geekservo Servo (Dirección)** | <img src="v-photos/Componentes/GeekservoServo.png" width="90"/> | Acoplado directo al `base_servo` del eje delantero; se eligió por compatibilidad mecánica nativa con las vigas Technic, evitando adaptadores impresos que añaden holgura al sistema de dirección. |
-| **Geekservo DC (Tracción)** | <img src="v-photos/Componentes/GeekservoDC.png" width="90"/> | Seleccionado por su torque de bloqueo de $2.4\,\text{kg}\cdot\text{cm}$, validado matemáticamente en la sección 7.4 con un margen de seguridad de 2.55×. |
+| **Geekservo DC (Tracción)** | <img src="v-photos/Componentes/GeekservoDC.png" width="90"/> | Seleccionado por su torque de bloqueo de $2.4\,\text{kg}\cdot\text{cm}$, validado matemáticamente en la sección 7.4 con un margen de seguridad de **2.18×** sobre los 720 g de la V3 (era 2.55× con los 613 g de la V2). |
 | **Driver TB6612FNG** | <img src="v-photos/Componentes/TB6612FNG.png" width="90"/> | Preferido sobre el clásico L298N por su topología MOSFET (menor caída de tensión y disipación térmica), crítico dado el presupuesto de corriente ajustado del sistema (sección 4.3). |
 | **Raspberry Pi 5** | <img src="v-photos/Componentes/Rspr5.jpg" width="90"/> | Capa de alto nivel, montada en su carcasa Canakit con ventilador (es la que se ve en los perfiles de la sección 3.3). **Sustituye a la Pi 3B el 03-09-2026** (migración verificada: 3325 archivos y los 170 CSV idénticos por md5). El motivo es cómputo medido, no preferencia: el mismo pipeline de visión pasó de **67-72 ms a 4,8 ms** por cuadro a 640x360, y a 1280x720 —resolución que en la 3B no cabía— cuesta **22,2 ms**. La edad del barrido LiDAR bajó de 16,0 ms de media a **0,1 ms**. Eso es lo que permitió subir la cámara a 1280x720 @ 30 fps. |
 | **Raspberry Pi Pico 2** | <img src="v-photos/Componentes/Pico2.jpg" width="90"/> | Capa de bajo nivel de tiempo real: descarga a la Pi 5 de la generación de PWM y la integración del giroscopio, evitando que el *jitter* del sistema operativo Linux afecte la estabilidad del lazo de control físico. |
@@ -816,16 +816,18 @@ El rango operativo del actuador Geekservo se restringe a los siguientes umbrales
 | :---: | :---: |
 | <img src="v-photos/Ackermann/AnguloMaxDer.jpeg" alt="Prueba física de ángulo máximo derecho" width="260px"/> | <img src="v-photos/Ackermann/AnguloMaxIzq.jpeg" alt="Prueba física de ángulo máximo izquierdo" width="260px"/> |
 
-> **Ventaja mecánica de la modularidad LEGO:** La sustitución del filamento impreso en 3D por vigas de fricción LEGO redujo el coeficiente de masa inercial global, consolidando un peso final competitivo de **613 gramos exactos** que disminuye drásticamente el subviraje físico provocado por la fuerza centrípeta en las esquinas de la pista de la WRO.
+> **Ventaja mecánica de la modularidad LEGO:** La sustitución del filamento impreso en 3D por vigas de fricción LEGO redujo el coeficiente de masa inercial global, consolidando un peso final competitivo de **613 gramos exactos** en la V2 (**720 g** en la V3, con la Pi 5 y los sensores nuevos) que disminuye drásticamente el subviraje físico provocado por la fuerza centrípeta en las esquinas de la pista de la WRO.
 
 ### 7.4 Análisis de Ingeniería: Cálculo Matemático de Torque y Fuerza de Tracción
 
 Para validar científicamente que nuestro motor de tracción acoplado al driver **TB6612FNG** es capaz de romper la fricción estática del neumático sin sobrecalentar las etapas de potencia ni patinar en pista, se realizó el modelo matemático de torque dinámico basado en las mediciones reales del vehículo:
 
-#### A. Variables Físicas del Prototipo (V2):
+#### A. Variables Físicas del Prototipo (V3):
 
-> **Aviso: la masa es la de la V2.** Los $613\,\text{g}$ se pesaron con la Raspberry Pi 3B. La V3 monta la Pi 5, el mástil del LiDAR y el ultrasonido trasero, así que **pesa más y el margen de torque calculado abajo es optimista**. Volver a pesar el robot está en la [sección 9](#9-estado-actual-y-trabajo-pendiente); el chasis y la geometría Ackermann no cambiaron, así que el resto del cálculo sigue valiendo.
-* **Masa total del vehículo ($m$):** $613\,\text{g} = 0.613\,\text{kg}$
+> **Masa remedida el 06-09-2026 con báscula digital ($d=1\,\text{g}$).** La V3 pesa **720 g** contra los $613\,\text{g}$ de la V2: **107 g más, un $17.5\,\%$**, que es lo que suman la Raspberry Pi 5 con su carcasa, el mástil del LiDAR y el ultrasonido trasero. El chasis y la geometría Ackermann no cambiaron, así que solo hay que rehacer el balance de carga.
+>
+> <img src="v-photos/V3/Masa_720g.jpeg" alt="Bascula digital marcando 720 g con el robot V3 encima" width="320px"/>
+* **Masa total del vehículo ($m$):** $720\,\text{g} = 0.720\,\text{kg}$  <sub>(V2: $613\,\text{g}$)</sub>
 * **Fuerza de Gravedad ($g$):** $9.81\,\text{m/s}^2$
 * **Radio del neumático de tracción ($r$):** $18\,\text{mm} = 0.018\,\text{m}$ (Diámetro de $36\,\text{mm}$)
 * **Coeficiente de fricción estática caucho-pista ($\mu_e$):** $\approx 0.85$ (Escenario de máxima adherencia en curvas)
@@ -833,23 +835,23 @@ Para validar científicamente que nuestro motor de tracción acoplado al driver 
 #### B. Cálculo de la Fuerza Normal y Fricción Estática Máxima:
 La fuerza de fricción máxima ($F_f$) que el motor debe vencer para mover el vehículo desde el reposo total en el peor escenario (fricción estática máxima) es:
 
-$$F_N = m \cdot g = 0.613\,\text{kg} \cdot 9.81\,\text{m/s}^2 = 6.013\,\text{N}$$
+$$F_N = m \cdot g = 0.720\,\text{kg} \cdot 9.81\,\text{m/s}^2 = 7.063\,\text{N}$$
 
-$$F_f = F_N \cdot \mu_e = 6.013\,\text{N} \cdot 0.85 = 5.111\,\text{N}$$
+$$F_f = F_N \cdot \mu_e = 7.063\,\text{N} \cdot 0.85 = 6.004\,\text{N}$$
 
 #### C. Torque Mínimo Requerido en el Eje de las Ruedas:
 Para contrarrestar esta fuerza en el radio del neumático ($r$), el torque mínimo de arranque ($T_{\text{min}}$) en el eje es:
 
-$$T_{\text{min}} = F_f \cdot r = 5.111\,\text{N} \cdot 0.018\,\text{m} = 0.092\,\text{N}\cdot\text{m} = \mathbf{0.938\,\text{kg}\cdot\text{cm}}$$
+$$T_{\text{min}} = F_f \cdot r = 6.004\,\text{N} \cdot 0.018\,\text{m} = 0.108\,\text{N}\cdot\text{m} = \mathbf{1.102\,\text{kg}\cdot\text{cm}}$$
 
 #### D. Justificación de la Selección del Motor (Margen de Seguridad):
 Nuestro motorreductor DC seleccionado entrega un **Torque de Bloqueo (Stall Torque) de $2.4\,\text{kg}\cdot\text{cm}$** a su voltaje operativo nominal de $7.4\,\text{V}$. 
 
 Realizando el análisis de balance de carga:
 
-$$\text{Margen de Torque} = \frac{T_{\text{motor}}}{T_{\text{min}}} = \frac{2.4\,\text{kg}\cdot\text{cm}}{0.938\,\text{kg}\cdot\text{cm}} = \mathbf{2.55}$$
+$$\text{Margen de Torque} = \frac{T_{\text{motor}}}{T_{\text{min}}} = \frac{2.4\,\text{kg}\cdot\text{cm}}{1.102\,\text{kg}\cdot\text{cm}} = \mathbf{2.18}$$
 
-* **Conclusión de Ingeniería:** El sistema de transmisión posee un **factor de seguridad de 2.55 veces el torque mínimo necesario**. Esto significa que el motor opera al **$39.2\%$ de su capacidad máxima** durante el arranque más agresivo en pista, garantizando una aceleración explosiva (cero subviraje mecánico por falta de par), protegiendo las celdas de las baterías 21700 contra picos severos de descarga y evitando que el puente H trabaje en su zona de fatiga térmica.
+* **Conclusión de Ingeniería:** El sistema de transmisión posee un **factor de seguridad de 2.18 veces el torque mínimo necesario**. Esto significa que el motor opera al **$45.9\%$ de su capacidad máxima** durante el arranque más agresivo en pista, garantizando una aceleración explosiva (cero subviraje mecánico por falta de par), protegiendo las celdas de las baterías 21700 contra picos severos de descarga y evitando que el puente H trabaje en su zona de fatiga térmica.
 
 ---
 
@@ -872,7 +874,7 @@ Consolidando los puntos de fallo detectados a lo largo de las secciones anterior
 
 El vehículo no es la suma de partes independientes: una decisión en un subsistema restringe directamente a los demás. Ejemplos concretos de esa interdependencia documentados en este repositorio:
 
-* **Masa (mecánica) → Torque requerido (potencia) → Selección de motor:** reducir la masa a 613 g (sección 3.4) bajó el torque mínimo de arranque a 0.938 kg·cm (sección 7.4), lo que permitió mantener el mismo motorreductor con un margen de seguridad de 2.55× en vez de sobredimensionar el sistema de tracción.
+* **Masa (mecánica) → Torque requerido (potencia) → Selección de motor:** reducir la masa a 613 g en la V2 (sección 3.4) bajó el torque mínimo de arranque a 0.938 kg·cm, lo que permitió mantener el mismo motorreductor en vez de sobredimensionar la tracción. La V3 pesa 720 g y ese margen bajó de 2.55× a **2.18×** (sección 7.4): sigue holgado, pero es el precio medido de subir a la Pi 5 y añadir el mástil y el ultrasonido.
 * **Frecuencia de PWM del motor (potencia) → Ruido en el bus I2C (sensores):** la conmutación del puente H en la línea de tracción fue la razón por la que se separaron las líneas de alimentación (XL1509 para dirección, XL4016 para lógica) — sin ese aislamiento, el ruido inductivo del servo se filtraría hacia el MPU6050 y el LiDAR.
 * **Latencia de cómputo de la Pi 3B (software) → Estabilidad del lazo de control (bajo nivel):** por eso la generación de PWM y la integración del giroscopio se delegan a la Pico 2 en tiempo real, y la Pi 3B solo envía consignas de alto nivel (`velocidad, ángulo`) por UART — así el *jitter* del sistema operativo Linux nunca llega a tocar el actuador directamente.
 
@@ -1063,7 +1065,6 @@ Registra **9-10 casillas donde hay 5 bloques**, en todas las configuraciones pro
 * **Radio de giro en REVERSA.** Es la única entrada geométrica del parqueo sin medir. La inferencia desde la IMU da ~306 mm contra los 228 de marcha adelante, un 34 % peor, pero es inferencia. Se cierra en dos minutos con cinta: marcar, girar en reversa a tope hasta 90°, marcar, medir la cuerda; `R = cuerda / raíz(2)`.
 * **Los 40 mm de la separación de la bahía.** El detector mide 389-391 mm y la regla dice 350 entre centros. No cuadra con ninguna lectura posible (caras 330, centros 350, bordes externos 370). `lidar.bay_expected_separation_mm` se deja en 390 **a propósito**: bajarlo sin entender la discrepancia rompe el único detector de hueco que funciona.
 * **`approach_lateral_mm = 270` deja cero holgura.** Con el volante a tope el semiancho es 70, y 270 − 70 = 200, exactamente la profundidad de la bahía: el borde roza la punta de los delimitadores al pasar.
-* **Pesar la V3.** El margen de torque de la sección 7.4 usa los $613\,\text{g}$ de la V2, pesados con la Pi 3B. La V3 lleva más encima y ese margen es optimista.
 * **Arranque automático en la Pi 5.** `wro_start.service` y `wro_robot.service` están copiadas pero deshabilitadas. Rehabilitarlas exige decidir qué ronda se lanza por defecto, porque el selector de dos botones ya no existe (sección 5.1).
 * **Comentarios del firmware de la Pico.** `src/pico/main.py` sigue diciendo "Pi 3B" en tres comentarios. **No se tocaron a propósito**: el `main.py` que corre en el robot va unos 1000 bytes por delante del que hay en el repo y sin commitear, así que editar el del repo aumenta la divergencia. Primero hay que traerse el del robot.
 * **`self_echo_*` probablemente sobra.** Enmascara un eco de rueda que el *mastilfix* del 05-09 eliminó. Recuperar esa cobertura angular es gratis, pero hay que verificarlo antes de quitarlo.
