@@ -173,8 +173,8 @@ De acuerdo con las normativas de la WRO, se presentan las 6 capturas ortogonales
 
 De acuerdo con las rigurosas restricciones de peso, inercia de rotación y estabilidad dinámica evaluadas en pista, el equipo aplicó los principios del pensamiento sistémico para balancear de forma óptima las variables físicas del prototipo. A diferencia de las arquitecturas convencionales de manufactura aditiva masiva (chasis impresos en 3D multicapa que elevan el peso por encima de los $1000\,\text{g}$), nuestro diseño optimiza la relación potencia-masa:
 
-* **Ventaja Cinemática de la Reducción de Masa (613 gramos exactos):**
-  Al descartar un chasis totalmente impreso en 3D y migrar a una estructura de vigas de fricción LEGO, logramos consolidar una masa total ultraligera de **613 gramos**. En física de aceleración y curvas, la fuerza centrípeta que intenta sacar al carro del carril responde a la ecuación $F_c = \frac{m \cdot v^2}{r}$. Al reducir la masa ($m$) prácticamente a la mitad en comparación con prototipos pesados de la competencia, disminuimos la fuerza de deriva lateral de forma lineal. Esto nos permite trazar las esquinas a velocidades tangenciales significativamente más altas sin sufrir subviraje mecánico ni deslizamiento por pérdida de adherencia (*grip*).
+* **Ventaja Cinemática de la Reducción de Masa (V3: 720 g; V2: 613 g):**
+  Al descartar un chasis totalmente impreso en 3D y migrar a una estructura de vigas de fricción LEGO, la V2 quedó en **613 g**. La versión que compite actualmente, **V3**, pesa **720 g**: añade 107 g por la Raspberry Pi 5 con carcasa, el mástil del LiDAR y el ultrasonido trasero (medición del 06-09-2026, sección 7.4). Aun con esa instrumentación, la masa sigue por debajo de los aproximadamente 800 g de V1. Como $F_c = \frac{m \cdot v^2}{r}$, reducir la masa disminuye linealmente la fuerza lateral requerida en curva; la mejora debe entenderse como una comparación V1→V3, no como si la V3 todavía pesara 613 g.
 
 * **Fusión Sensorial Avanzada (LiDAR C1 vs. Ultrasonidos Tradicionales):**
   Se descartó el ultrasonido **como sensor de percepción principal** (tipo HC-SR04) por sus limitaciones físicas inherentes: retrasos por eco acústico, conos de dispersión muy amplios que generan falsos positivos y bucles de lectura bloqueantes. Para eso implementamos un escáner láser **RPLIDAR C1 (ToF)** por bus USB, que da una firma geométrica de 360° en tiempo real. Ahora bien, esa decisión tiene una excepción medida: el mástil del propio LiDAR le tapa el sector **140-213°**, así que hacia atrás no ve. En el parqueo el robot entra marcha atrás contra esa pared, y la "trasera" que el LiDAR reconstruye de los hombros en oblicuo llegó a discrepar **1777 mm contra 44** del ultrasonido en la misma pose (06-09). Por eso se añadió **un** HC-SR04 mirando atrás: no compite con el LiDAR, cubre exactamente el ángulo donde el LiDAR es ciego.
@@ -329,40 +329,31 @@ La Raspberry Pi 5 se encarga de los procesos que demandan alta capacidad de cóm
 
 ### Diagrama de Arquitectura de Software
 
-El siguiente diagrama de flujo ilustra la orquestación de procesos entre nuestro servicio de inicio, las rutinas de visión/navegación y la capa de control de bajo nivel:
+El siguiente diagrama ilustra la orquestación actual de `prueba_abierta.py`, desde el botón de salida hasta el control de bajo nivel. El antiguo servicio de inicio se conserva únicamente como referencia:
 
 ```mermaid
 graph TD
-    A["Encendido del Sistema (systemd)"] --> B["controlador_inicio.py"]
-    B --> C{"¿Qué señal se detecta?"}
-    
-    C -->|"Botón 1 (GPIO 21)"| D["Ejecutar: ronda_abierta.py"]
-    C -->|"Botón 2 (GPIO 20)"| E["Ejecutar: ronda_cerrada.py"]
-    
-    D --> F["Centrado Reactivo por LiDAR C1"]
-    E --> G["Fusión Sensorial: OpenCV HSV + LiDAR"]
-    
-    F --> H["Consigna: velocidad, angulo"]
-    G --> H
-    
-    H -->|"UART 115200 bps"| I["Raspberry Pi Pico 2"]
-    I --> J["Filtro Derivativo IMU MPU6050"]
-    J --> K["Saturación Segura y Salida PWM"]
-    
-    K --> L{"¿Sin consigna válida\npor más de 500 ms?"}
-    L -->|"Sí"| M["Freno + servo centrado\nWD:STOP"]
-    L --> I
+    A["Lanzamiento manual en Pi 5\nprueba_abierta.py"] --> B["Espera botón único\nGPIO 21"]
+    B -->|"Pulsado"| C["Arma el programa\ny arranca hilo LiDAR"]
+
+    C --> D["LiDAR C1: barrido de 360°\nventanas laterales"]
+    D --> E["Centrado proporcional\nerror = izquierda - derecha"]
+    E -->|"UART: velocidad, ángulo"| F["Raspberry Pi Pico 2"]
+    F --> G["Saturación de consigna\ny PWM de motor/servo"]
+    F -->|"UART: IMU:<yaw>"| H["Hilo de telemetría\nen prueba_abierta.py"]
+    H --> I["Integra yaw y decide\nlas fases de vuelta/parqueo"]
+    I --> E
+
+    J["systemd / controlador_inicio.py\nreferencia histórica, deshabilitado"] -. "no participa en la ronda actual" .-> A
 
 ```
 
-> **Estado actual del nodo `L`:** el riesgo se descubrió originalmente al auditar
-> `ronda_cerrada`; desde `ronda_nueva`, `src/pico/main.py` usa
-> `protocolo_seguro.py` y frena/centra de forma autónoma tras 500 ms sin una
-> consigna válida. El nuevo orquestador exige además `WD:OK` antes de armar. La
-> lógica está probada offline y el 2026-08-29 la Pico real confirmó `WD:OK` con
-> heartbeat `0,0` y `WD:STOP` 465 ms después de cortarlo. Todavía debe validarse
-> la desconexión física del USB con las ruedas levantadas antes de habilitar
-> movimiento.
+> **Alcance del diagrama:** representa el flujo que implementa
+> `src/pi5/ronda_abierta/prueba_abierta.py`: un único botón en GPIO 21, LiDAR
+> para el centrado y telemetría IMU para el conteo angular. `systemd`,
+> `controlador_inicio.py` y el protocolo `WD:OK/WD:STOP` pertenecen al
+> orquestador/firmware más reciente de `ronda_nueva`; no son estados ni
+> requisitos de arranque de este script de prueba.
 
 ### 5.1 Orquestación del Sistema y Demonio de Arranque Autónomo
 
@@ -394,7 +385,7 @@ WantedBy=multi-user.target
 
 ### 5.2 Estructura Modular del Script de Carrera (Fragmentos Clave)
 
-El script opera bajo su propia máquina de estados finitos, distinta de la de `ronda_cerrada.py` (que usa `CAPTURA_FIRMA -> CARRERA -> PARQUEO -> FIN`, ver diagrama en la sección 5.3-B) — comparten el nombre `CARRERA` pero no el resto; no vale asumir que un fix de una fase aplica a la otra ronda por tener el mismo nombre. La detección de fin de carrera y la maniobra final cambiaron de raíz: en vez de contar vueltas por deriva de IMU (`angulo_acumulado_robot >= 1010°`) y frenar cuando la geometría de pared vuelve a parecerse a la inicial, ahora se cuentan directamente las **líneas naranjas de las esquinas** con el sensor de color de piso (TCS3472, sección 4.2) — 4 por vuelta × 3 vueltas = 12 líneas — y al cruzar la última se ejecuta un avance final cronometrado hacia el cajón, sin depender de que el ángulo neto de la IMU no haya derivado en una carrera larga:
+`src/pi5/ronda_abierta/prueba_abierta.py` usa una máquina de estados propia y no usa el sensor de color ni cuenta líneas de pista. El hilo de telemetría recibe `IMU:<yaw>` desde la Pico, integra los cambios normalizados a $[-180°, 180°]$ y emplea el valor absoluto acumulado para contar tres vueltas: 990° inicia la aproximación y 1080° marca las tres vueltas completas. El LiDAR captura una firma lateral al inicio y mantiene el centrado proporcional durante las tres fases móviles.
 
 ```mermaid
 stateDiagram-v2
@@ -402,77 +393,84 @@ stateDiagram-v2
     ESPERANDO_BOTON --> CALIBRANDO: Botón GPIO21 presionado (fase_actual = "CALIBRANDO")
     CALIBRANDO --> CAPTURA_INICIAL: Hilo LiDAR detecta fase "CALIBRANDO" y activa el barrido
     CAPTURA_INICIAL --> CARRERA: Primer barrido completo -- guarda la firma de pared inicial (Izq/Der en mm)
-    CARRERA --> BUSCANDO_PARQUEO: linea naranja #11 detectada (penultima de 12 -- 3 vueltas x 4 esquinas)
-    BUSCANDO_PARQUEO --> AVANZANDO_AL_PARQUEO: linea naranja #12 detectada (meta) -- velocidad ya reducida a VELOCIDAD_PARQUEO
-    AVANZANDO_AL_PARQUEO --> PARANDO: avance de TIEMPO_AVANCE_70CM=1.8s cumplido, O firma de pared vuelve a coincidir (tolerancia 80mm)
-    PARANDO --> [*]: apagar_sistema() -- detiene motores, GPIO.cleanup(), sys.exit(0)
+    CARRERA --> BUSCANDO_PARQUEO: yaw acumulado absoluto >= 990° (1080° - 90°)
+    BUSCANDO_PARQUEO --> AVANZANDO_AL_PARQUEO: yaw acumulado absoluto >= 1080° (3 x 360°)
+    AVANZANDO_AL_PARQUEO --> PARANDO: tiempo >= TIEMPO_AVANCE_70CM O firma lateral coincide tras 1 s
+    PARANDO --> [*]: apagar_sistema() -- manda 0,0, cierra serial/GPIO y sale
 
     note right of CARRERA
-        Cada linea naranja se filtra con
-        1.2s minimo entre detecciones y 0.3s
-        fuera de la linea para darla por
-        cruzada -- evita contar la misma
-        linea dos veces por ruido del sensor.
-        Las lineas azules se ignoran a
-        proposito (ver seccion 5.3-C: el
-        sentido de giro no hace falta para
-        el centrado simetrico de pared).
+        La IMU se integra entre muestras,
+        corrigiendo los saltos 359° -> 0°.
+        No hay conteo de color ni detección
+        de líneas en este script.
+
+        Estado del valor actual:
+        TIEMPO_AVANCE_70CM = 0.0 s.
+        Por tanto la primera condición de
+        parada se cumple en el siguiente
+        barrido; debe calibrarse antes de
+        usar el parqueo en pista.
     end note
 ```
 
-A continuación se detallan las funciones de sincronización asíncrona y telemetría:
+A continuación se muestran los fragmentos que gobiernan las transiciones reales:
 
 ```python
 def hilo_comunicacion_pico():
-    """ Hilo asincrono: telemetria IMU+color y conteo de lineas naranjas """
-    global ser_pico, angulo_acumulado_robot, fase_actual, angulo_inicial_imu
-    global color_actual, lineas_naranjas_detectadas, en_linea_color
-    global ultimo_tiempo_linea, tiempo_fuera_linea, tiempo_inicio_avance
+    """Hilo asincrono: telemetria IMU y conteo angular de vueltas."""
+    global ser_pico, angulo_acumulado_robot, fase_actual
+    global angulo_imu_previo, tiempo_inicio_avance
     # ... [Inicializacion serial a 115200 bps] ...
     while corriendo:
         if ser_pico.in_waiting > 0:
             try:
                 linea = ser_pico.readline().decode('utf-8').strip()
-                if "IMU:" in linea and "COLOR:" in linea:
-                    partes = linea.split(',')
-                    valor_crudo_imu = abs(float(partes[0].split(':')[1]))
-                    color_actual = partes[1].split(':')[1]
-
-                    if fase_actual in ["ESPERANDO_BOTON", "CALIBRANDO"] or angulo_inicial_imu is None:
-                        angulo_inicial_imu = valor_crudo_imu
-                    angulo_acumulado_robot = valor_crudo_imu - angulo_inicial_imu
-
-                    # Solo lineas NARANJAS cuentan -- las azules se ignoran
-                    if color_actual == "NARANJA":
-                        tiempo_actual = time.time()
-                        if not en_linea_color and (tiempo_actual - ultimo_tiempo_linea > 1.2):
-                            en_linea_color = True
-                            lineas_naranjas_detectadas += 1
-                            ultimo_tiempo_linea = tiempo_actual
-
-                            if lineas_naranjas_detectadas == (TOTAL_LINEAS_OBJETIVO - 1):
-                                fase_actual = "BUSCANDO_PARQUEO"
-                            elif lineas_naranjas_detectadas >= TOTAL_LINEAS_OBJETIVO:
-                                fase_actual = "AVANZANDO_AL_PARQUEO"
-                                tiempo_inicio_avance = time.time()
+                if "IMU:" not in linea:
+                    continue
+                campos = {}
+                for parte in linea.split(','):
+                    if ':' in parte:
+                        clave, valor = parte.split(':', 1)
+                        campos[clave.strip().upper()] = valor.strip()
+                if "IMU" not in campos:
+                    continue
+                valor_crudo_imu = float(campos["IMU"])
+                if fase_actual in ["ESPERANDO_BOTON", "CALIBRANDO"] or angulo_imu_previo is None:
+                    angulo_imu_previo = valor_crudo_imu
+                    angulo_acumulado_robot = 0.0
+                    continue
+                delta_angulo = valor_crudo_imu - angulo_imu_previo
+                if delta_angulo > 180.0:
+                    delta_angulo -= 360.0
+                elif delta_angulo < -180.0:
+                    delta_angulo += 360.0
+                angulo_acumulado_robot += delta_angulo
+                angulo_imu_previo = valor_crudo_imu
+                progreso_angular = abs(angulo_acumulado_robot)
+                if fase_actual == "CARRERA" and progreso_angular >= 990.0:
+                    fase_actual = "BUSCANDO_PARQUEO"
+                elif fase_actual == "BUSCANDO_PARQUEO" and progreso_angular >= 1080.0:
+                    fase_actual = "AVANZANDO_AL_PARQUEO"
+                    tiempo_inicio_avance = time.time()
             except: pass
         time.sleep(0.005)
 
 def procesar_ciclo_completo_lidar():
-    """ Guiado proporcional por fase, mas la maniobra final de parqueo """
+    """Guiado proporcional por fase y parada final."""
     global dist_derecha_min, dist_izquierda_min, fase_actual, tiempo_inicio_avance
 
     error_lateral = dist_izquierda_min - dist_derecha_min
     angulo_objetivo = error_lateral * KP_LATERAL
 
     if fase_actual == "CARRERA":
-        ser_pico.write(f"{VELOCIDAD_CRUCERO},{angulo_objetivo:.2f}\n".encode())
+        enviar_comando_navegacion(VELOCIDAD_CRUCERO)
     elif fase_actual == "BUSCANDO_PARQUEO":
-        ser_pico.write(f"{VELOCIDAD_PARQUEO},{angulo_objetivo:.2f}\n".encode())
+        enviar_comando_navegacion(VELOCIDAD_PARQUEO)
     elif fase_actual == "AVANZANDO_AL_PARQUEO":
-        ser_pico.write(f"{VELOCIDAD_PARQUEO},{angulo_objetivo:.2f}\n".encode())
+        enviar_comando_navegacion(VELOCIDAD_PARQUEO)
         tiempo_transcurrido = time.time() - tiempo_inicio_avance
-        coincidencia_geometrica = (abs(dist_izquierda_min - initial_izquierda) < 80.0
+        coincidencia_geometrica = (tiempo_transcurrido >= TIEMPO_MINIMO_PARA_FIRMA
+                                    and abs(dist_izquierda_min - initial_izquierda) < 80.0
                                     and abs(dist_derecha_min - initial_derecha) < 80.0)
         if tiempo_transcurrido >= TIEMPO_AVANCE_70CM or coincidencia_geometrica:
             fase_actual = "PARANDO"
@@ -481,7 +479,7 @@ def procesar_ciclo_completo_lidar():
 
 ```
 
-> **Nota honesta sobre lo que se perdió en el rediseño:** esta versión eliminó el uso de `comun/registro_metricas.py` — ya no queda un CSV por corrida de la Ronda Abierta como el que sí tiene `ronda_cerrada.py` (sección 8.3). Si se quiere volver a instrumentar, es agregar las mismas tres llamadas a `registro.registrar(...)` que tenía la versión anterior, ahora dentro de las ramas `CARRERA`/`BUSCANDO_PARQUEO`/`AVANZANDO_AL_PARQUEO` de `procesar_ciclo_completo_lidar()`.
+> **Nota de estado:** `prueba_abierta.py` no instancia `comun/registro_metricas.py`, así que no deja un CSV por corrida. Además, `TIEMPO_AVANCE_70CM` vale actualmente `0.0`; el diagrama no lo interpreta como un parqueo de 70 cm ya validado, sino como una parada inmediata pendiente de calibración.
 
 ### 5.3 Estrategia de Navegación Justificada por Rondas (Geometría del Campo)
 
@@ -815,11 +813,17 @@ Para validar científicamente que nuestro motor de tracción acoplado al driver 
 
 > **Masa remedida el 06-09-2026 con báscula digital ($d=1\,\text{g}$).** La V3 pesa **720 g** contra los $613\,\text{g}$ de la V2: **107 g más, un $17.5\,\%$**, que es lo que suman la Raspberry Pi 5 con su carcasa, el mástil del LiDAR y el ultrasonido trasero. El chasis y la geometría Ackermann no cambiaron, así que solo hay que rehacer el balance de carga.
 >
-> <img src="v-photos/V3/Masa_720g.jpeg" alt="Bascula digital marcando 720 g con el robot V3 encima" width="320px"/>
-* **Masa total del vehículo ($m$):** $720\,\text{g} = 0.720\,\text{kg}$  <sub>(V2: $613\,\text{g}$)</sub>
 * **Fuerza de Gravedad ($g$):** $9.81\,\text{m/s}^2$
 * **Radio del neumático de tracción ($r$):** $18\,\text{mm} = 0.018\,\text{m}$ (Diámetro de $36\,\text{mm}$)
 * **Coeficiente de fricción estática caucho-pista ($\mu_e$):** $\approx 0.85$ (Escenario de máxima adherencia en curvas)
+
+#### Masa total del vehículo
+
+<p align="center">
+  <img src="v-photos/V3/Masa_720g.jpeg" alt="Báscula digital marcando 720 g con el robot V3 encima" width="320px"/>
+</p>
+
+* **Masa total del vehículo ($m$):** $720\,\text{g} = 0.720\,\text{kg}$  <sub>(V2: $613\,\text{g}$)</sub>
 
 #### B. Cálculo de la Fuerza Normal y Fricción Estática Máxima:
 La fuerza de fricción máxima ($F_f$) que el motor debe vencer para mover el vehículo desde el reposo total en el peor escenario (fricción estática máxima) es:
