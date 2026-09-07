@@ -167,16 +167,16 @@ Para evidenciar la transformación del vehículo y el rediseño de los tres ejes
 ---
 ### 3.3 Galería de Inspección Técnica Obligatoria (Las 6 Capturas Reglamentarias)
 
-De acuerdo con las normativas de la WRO, se presentan las 6 capturas ortogonales del prototipo de producción actual (V2) depositadas en la carpeta `v-photos/`. Estas imágenes permiten la verificación técnica y garantizan la reproducibilidad completa de nuestro hardware:
+De acuerdo con las normativas de la WRO, se presentan las 6 capturas ortogonales del prototipo de producción actual (**V3**) depositadas en `v-photos/V3/`. Esta versión es la que incorpora la Raspberry Pi 5, el mástil del LiDAR, el ultrasonido trasero y el botón único de arranque (sección 0). Las capturas de la V2 se conservan en la raíz de `v-photos/` y las de la V1 en `v-photos/V1/`, como evidencia de la evolución documentada en la sección 3.2:
 
 | Vista | Captura | Descripción |
 | :---: | :---: | :--- |
-| **Frontal** (`frontview.jpeg`) | <img src="v-photos/frontview.jpeg" alt="Vista Frontal V2" width="260px"/> | Geometría Ackermann frontal y montaje de la Pi Camera 3. |
-| **Trasera** (`backview.jpeg`) | <img src="v-photos/backview.jpeg" alt="Vista Trasera V2" width="260px"/> | Tren de tracción trasero con motor DC y regulador XL4016. |
-| **Perfil Izquierdo** (`Leftview.jpeg`) | <img src="v-photos/Leftview.jpeg" alt="Perfil Izquierdo V2" width="260px"/> | Puertos USB de salida de la Pi 3B. |
-| **Perfil Derecho** (`Rightview.jpeg`) | <img src="v-photos/Rightview.jpeg" alt="Perfil Derecho V2" width="260px"/> | Ubicación del driver TB6612FNG y buses de datos. |
-| **Superior** (`Topview.jpeg`) | <img src="v-photos/Topview.jpeg" alt="Vista Superior V2" width="260px"/> | Disposición central de la Raspberry Pi 3B y la Pico 2. |
-| **Inferior** (`Bottomview.jpeg`) | <img src="v-photos/Bottomview.jpeg" alt="Vista Inferior V2" width="260px"/> | Estructura base del chasis de vigas de fricción LEGO. |
+| **Frontal** (`V3/Frontview.jpeg`) | <img src="v-photos/V3/Frontview.jpeg" alt="Vista Frontal V3" width="260px"/> | El RPLIDAR C1 al frente, a ras del parachoques, con el mástil de la cámara detrás. Geometría Ackermann y vía delantera. |
+| **Trasera** (`V3/Backview.jpeg`) | <img src="v-photos/V3/Backview.jpeg" alt="Vista Trasera V3" width="260px"/> | El **ultrasonido HC-SR04** mirando atrás, el regulador XL4016 con su display de tensión y el tren de tracción. |
+| **Perfil Izquierdo** (`V3/Leftview.jpeg`) | <img src="v-photos/V3/Leftview.jpeg" alt="Perfil Izquierdo V3" width="260px"/> | Perfil completo: LiDAR al frente, la Raspberry Pi 5 con su placa perforada encima, y el mástil trasero con cámara y ultrasonido. Se ve la celda 21700 bajo el chasis. |
+| **Perfil Derecho** (`V3/Rightview.jpeg`) | <img src="v-photos/V3/Rightview.jpeg" alt="Perfil Derecho V3" width="260px"/> | El mismo perfil desde el otro lado, con el microinterruptor de corte y el disipador del regulador. |
+| **Superior** (`V3/Topview.jpeg`) | <img src="v-photos/V3/Topview.jpeg" alt="Vista Superior V3" width="260px"/> | Disposición central: la **Pico 2** y el MPU6050 sobre la placa perforada, y el LiDAR adelantado al eje delantero. |
+| **Inferior** (`V3/Bottomview.jpeg`) | <img src="v-photos/V3/Bottomview.jpeg" alt="Vista Inferior V3" width="260px"/> | Estructura base de vigas de fricción LEGO, las dos celdas 21700 en paralelo mecánico a los lados y el servo de dirección. |
 
 ### 3.4 Justificación de Ingeniería para la Selección de Componentes y Arquitectura de Sistemas (Trade-offs)
 
@@ -242,7 +242,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **Reguladores XL1509 / XL4016** | <img src="v-photos/Componentes/Xl1509.png" width="90"/> <img src="v-photos/Componentes/Xl4016.png" width="90"/> | Ver arquitectura de desacoplamiento por etapas en la sección 4.1 y análisis de margen de seguridad en la sección 4.3. |
 | **Baterías 21700 (2S)** | <img src="v-photos/Componentes/baterias.jpg" width="90"/> | Ver justificación de densidad de corriente en la sección 3.4. |
 | **Botón físico de arranque (x1)** | <img src="v-photos/Componentes/Boton.png" width="90"/> | **Un solo botón, en `GPIO 21` de la Pi 5** (entrada con *pull-up*, se dispara al ponerse a nivel bajo). Antes eran dos, uno por ronda. Se dejó en uno porque la ronda ya no se elige por hardware sino por el programa que se lanza (`ronda_nueva`, `ronda_abierta` o `ronda_cerrada`), y un único pulsador reduce el cableado y los modos de fallo en la línea de salida. El arranque sin botón existe solo como opción de banco (`--arranque-inmediato`) y la ronda oficial no la usa. |
-| **Ultrasonido trasero HC-SR04** | &mdash; | Añadido para el parqueo, la única maniobra en que el robot va marcha atrás contra una pared que **el LiDAR no puede ver**: el soporte del propio sensor le tapa el sector 140-213°, así que la "pared trasera" que el LiDAR reporta se reconstruye de los hombros en oblicuo y no es una medida. Medido el 06-09 con el robot aparcado a mano: el ultrasonido leía 44 mm y el LiDAR 1777 mm con calidad 0,95. Va en la Pico 2 (`GP14` trigger / `GP15` echo) y está **34 mm por delante del punto más atrasado del robot**, así que la holgura real de la culata es su lectura menos esos 34. |
+| **Ultrasonido trasero HC-SR04** | <img src="v-photos/Componentes/Ultrasonido.png" width="90"/> | Añadido para el parqueo, la única maniobra en que el robot va marcha atrás contra una pared que **el LiDAR no puede ver**: el soporte del propio sensor le tapa el sector 140-213°, así que la "pared trasera" que el LiDAR reporta se reconstruye de los hombros en oblicuo y no es una medida. Medido el 06-09 con el robot aparcado a mano: el ultrasonido leía 44 mm y el LiDAR 1777 mm con calidad 0,95. Va en la Pico 2 (`GP14` trigger / `GP15` echo) y está **34 mm por delante del punto más atrasado del robot**, así que la holgura real de la culata es su lectura menos esos 34. |
 | **Sensor de Color TCS3472** | <img src="v-photos/Componentes/TCS3472.jpg" width="90"/> | **RETIRADO del robot.** Iba bajo el chasis leyendo la línea de color del punto de arranque para fijar el sentido de carrera. Desde la migración a la Pi 5 la Pico responde `COLOR:SIN_SENSOR` y el sentido se resuelve por otras dos vías (sección 5.3-C): la **línea de piso vista por la cámara** y, si no hay línea, la **asimetría de las paredes** que mide el LiDAR. Se documenta porque el firmware que lo lee sigue en `src/pico/main.py` y se reactiva solo si el sensor vuelve a conectarse. |
 
 #### Método de Calibración de Sensores
@@ -279,7 +279,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 
 ### 4.4 Presupuesto de Consumo Energético y Gestión de Corriente
 
-Para evitar caídas de tensión críticas (*brownouts*) cuando los actuadores demandan torque máximo, se calculó el presupuesto de corriente nominal y de pico (Stall) del sistema. **Aviso: la tabla siguiente se midió con la Raspberry Pi 3B y no se ha vuelto a medir tras la migración a la Pi 5**, que consume más. El margen real es menor que el que aparece aquí; volver a medirlo está en la lista de pendientes (sección 9).
+Para evitar caídas de tensión críticas (*brownouts*) cuando los actuadores demandan torque máximo, se calculó el presupuesto de corriente nominal y de pico (Stall) del sistema. **La tabla siguiente es la estimación por hoja de datos y se hizo con la Raspberry Pi 3B.** Debajo están las medidas reales del sistema con la Pi 5, tomadas con multímetro el 06-09-2026, que es lo que hay que mirar.
 
 | Componente | Voltaje Operativo | Corriente Nominal | Corriente de Pico (Stall) | Regulador Asociado |
 | :--- | :---: | :---: | :---: | :---: |
@@ -289,6 +289,38 @@ Para evitar caídas de tensión críticas (*brownouts*) cuando los actuadores de
 | **Geekservo Dirección**| $6.0\,\text{V}$ | $180\,\text{mA}$ | $800\,\text{mA}$ | XL1509 (Línea limpia) |
 | **Motor DC (Tracción)**| $7.4\,\text{V} - 8.4\,\text{V}$ | $400\,\text{mA}$ | $2500\,\text{mA}$ | Directo (Batería 2S) |
 | **Raspberry Pi Pico 2**| $5.0\,\text{V} (VBUS)$ | $40\,\text{mA}$ | $90\,\text{mA}$ | USB |
+
+#### Consumo Real Medido (06-09-2026, banco del laboratorio)
+
+La tabla anterior es **estimada por hoja de datos**. Estas son las medidas reales, tomadas con un multímetro ANENG M118A en serie con la batería y la fuente de banco a $8.4\,\text{V}$, que es lo que da un 2S de 21700 a plena carga. Se midieron tres estados, y el tercero (con la Pi apagada) es el que permite separar lo que consume el cerebro de lo que consume el resto:
+
+| Estado | Corriente medida | Evidencia | Qué incluye |
+| :--- | :---: | :---: | :--- |
+| **En funcionamiento** | $\mathbf{1.39\,\text{A}}$ | <img src="v-photos/Amperaje/En_funcionamiento.jpeg" width="200px"/> | Todo: Pi 5, LiDAR girando, cámara, Pico 2, sensores, servo y motor de tracción en marcha. |
+| **En reposo** | $\mathbf{0.61\,\text{A}}$ | <img src="v-photos/Amperaje/En_reposo.jpeg" width="200px"/> | Sistema energizado y ejecutándose, sin tracción. |
+| **Con la Pi 5 apagada** | $\mathbf{0.21\,\text{A}}$ | <img src="v-photos/Amperaje/Con_raspi_apagada.jpeg" width="200px"/> | Solo Pico 2, IMU, ultrasonido, servo y electrónica de potencia. |
+
+> Las fotos capturan el valor instantáneo del multímetro, que oscila; las lecturas de la tabla son las representativas de cada estado. La foto `En_reposo_mostrando_voltaje.jpeg` documenta además la tensión de alimentación del banco durante la prueba.
+
+**Lo que se deduce restando estados:**
+
+$$I_{\text{Pi 5}} = 0.61 - 0.21 = \mathbf{0.40\,\text{A}} \qquad I_{\text{tracción}} = 1.39 - 0.61 = \mathbf{0.78\,\text{A}}$$
+
+| Bloque | Corriente | % del total en marcha |
+| :--- | :---: | :---: |
+| Tracción y dirección en movimiento | $0.78\,\text{A}$ | $56\,\%$ |
+| Raspberry Pi 5 (con cámara y LiDAR por USB) | $0.40\,\text{A}$ | $29\,\%$ |
+| Pico 2, IMU, ultrasonido y electrónica de potencia | $0.21\,\text{A}$ | $15\,\%$ |
+
+**Potencia y autonomía.** A $8.4\,\text{V}$ el consumo en marcha es $1.39 \times 8.4 = \mathbf{11.7\,\text{W}}$ ($10.3\,\text{W}$ con la batería ya a $7.4\,\text{V}$). Las celdas son INR21700/50E de $5.0\,\text{Ah}$, y **en 2S la capacidad no se suma**, solo la tensión:
+
+$$t = rac{5.0\,\text{Ah}}{1.39\,\text{A}} = 3.6\,\text{h} \quad\longrightarrow\quad \text{al } 80\,\% \text{ de descarga útil} = \mathbf{2.9\,\text{h}}$$
+
+Una ronda de la WRO dura 3 minutos, así que la batería da para unas **58 rondas seguidas** sin recargar. La autonomía no es una restricción de este diseño: el límite práctico lo pone el desgaste mecánico, no la energía.
+
+**Contraste con la estimación de hoja de datos.** El presupuesto de la tabla anterior predecía $2.14\,\text{A}$ de pico solo en la línea lógica. La medida real del sistema **completo** en marcha es $1.39\,\text{A}$, o sea que la estimación era conservadora por un factor de $1.5\times$ largo. Eso es lo esperable —las hojas de datos publican el peor caso— y confirma que el margen de los reguladores es mayor que el calculado, no menor. Sobre la corriente total de batería, el pico medido deja el XL4016 de $8.0\,\text{A}$ con un **margen del $82.6\,\%$**.
+
+> **Cuidado al leer ese margen:** $1.39\,\text{A}$ es la corriente de **batería**, no la de cada regulador por separado. Repartir ese total entre el XL4016, el XL1509 y la línea directa del motor exigiría medir cada rama, y eso no se ha hecho. El margen por regulador de la sección siguiente sigue siendo la estimación de diseño.
 
 #### Análisis de Margen de Seguridad en Reguladores:
 1. **Regulador XL4016 (Línea de Control - Límites Lógicos):**
@@ -1023,12 +1055,13 @@ Registra **9-10 casillas donde hay 5 bloques**, en todas las configuraciones pro
 ### 9.2 Pendientes de Medida (banco, no pista)
 
 * **Radio de giro en REVERSA.** Es la única entrada geométrica del parqueo sin medir. La inferencia desde la IMU da ~306 mm contra los 228 de marcha adelante, un 34 % peor, pero es inferencia. Se cierra en dos minutos con cinta: marcar, girar en reversa a tope hasta 90°, marcar, medir la cuerda; `R = cuerda / raíz(2)`.
-* **Presupuesto de corriente de la Pi 5.** La tabla de la sección 4.4 se midió con la Pi 3B. La Pi 5 consume más y el margen real es menor que el publicado.
 * **Los 40 mm de la separación de la bahía.** El detector mide 389-391 mm y la regla dice 350 entre centros. No cuadra con ninguna lectura posible (caras 330, centros 350, bordes externos 370). `lidar.bay_expected_separation_mm` se deja en 390 **a propósito**: bajarlo sin entender la discrepancia rompe el único detector de hueco que funciona.
 * **`approach_lateral_mm = 270` deja cero holgura.** Con el volante a tope el semiancho es 70, y 270 − 70 = 200, exactamente la profundidad de la bahía: el borde roza la punta de los delimitadores al pasar.
 * **`self_echo_*` probablemente sobra.** Enmascara un eco de rueda que el *mastilfix* del 05-09 eliminó. Recuperar esa cobertura angular es gratis, pero hay que verificarlo antes de quitarlo.
 
 ### 9.3 Descartado con Datos (no repetir)
+
+* **El consumo NO es una restricción.** Medido con multímetro el 06-09 (sección 4.4): $1.39\,\text{A}$ en marcha, $0.61\,\text{A}$ en reposo y $0.21\,\text{A}$ con la Pi 5 apagada. Son $11.7\,\text{W}$ a $8.4\,\text{V}$ y unas 58 rondas seguidas con las celdas de $5.0\,\text{Ah}$. La estimación por hoja de datos era conservadora por $1.5\times$.
 
 * **La cámara y la homografía NO son el problema.** `diag_pilares.py` con la pista montada: 194/194 ciclos de fusión, ±2 mm de estabilidad y **47 mm** de discrepancia cámara-LiDAR sobre una tolerancia de 80. La proyección al carril cae en las filas oficiales (352 contra 380, y 573 contra 574).
 * **El 19 % de fusión no significa que la cámara falle.** Es `FUSION/LIDAR`, y el denominador está lleno de fantasmas: de 327 bultos sin color medidos en pista, solo el **23 %** cae cerca de una fila oficial y **93 están fuera del carril**.
