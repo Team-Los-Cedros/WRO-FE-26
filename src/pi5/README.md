@@ -6,7 +6,9 @@ propias pruebas. La Pi 3B sigue arrancando exactamente igual que antes.
 
 ```
 src/pi5/
-  prueba_abierta.py            prueba independiente de ronda abierta (copia de la Raspi)
+  ronda_abierta/
+    prueba_abierta.py          prueba independiente (copia de la Raspi)
+    ronda_abierta.py           implementación modular existente
   ronda_curvas/                copia de trabajo de la Raspi para la ronda de curvas
   comun/lidar_driver.py        driver del RPLIDAR C1 (copiado tal cual: está probado)
   herramientas/calibrar_suelo.py
@@ -41,7 +43,7 @@ src/pi5/
 Además de la implementación modular `ronda_nueva/`, se preservan dos códigos
 recibidos directamente de la Raspi:
 
-- `prueba_abierta.py` es la copia sincronizada de
+- `ronda_abierta/prueba_abierta.py` es la copia sincronizada de
   `/home/pi/prueba_abierta.py` en la Pi 5: una prueba independiente para la
   ronda abierta. Usa el LiDAR en `/dev/ttyUSB0`, la Pico en `/dev/ttyACM0` y
   el botón de inicio en GPIO 21.
