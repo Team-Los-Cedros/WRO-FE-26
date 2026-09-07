@@ -1,0 +1,216 @@
+# Ronda Cerrada con la CAMARA EN MASTIL TRASERO - punto de entrada.
+# Mismo cableado que ronda_cerrada/ronda_cerrada.py; las diferencias
+# estan todas en los modulos que importa y en una linea de al_barrido:
+#
+#   camara_driver.py  el de ronda_camara/, sin rotar 180 (la camara
+#                     quedo derecha en el mastil)
+#   lidar_mascara.py  tapa los 23 grados que el mastil le roba al LiDAR
+#                     y recupera la medida trasera; SIN ESTO el estado
+#                     RETROCESO aborta en su primer ciclo siempre
+#   navegacion.py     maquina de estados con la maniobra geometrica de
+#                     pilar (ver DISENO_CURVAS.md)
+#   geometria_evasion.py  geometria pura de la envolvente
+#   sentido_vuelta.py     horario / antihorario a partir del yaw
+#
+# DESPLIEGUE: ademas de los modulos de siempre hay que copiar
+# comun/geometria_robot.py, que es de donde salen la batalla, el ancho y
+# los offsets de sensores. Sin el, el arranque muere en el import.
+#
+# Este script solo conecta las piezas:
+#   camara_driver.py  hilo de adquisicion de frames (Pi Camera Module 3)
+#   vision.py         procesa cada frame: HSV + histeresis
+#   lidar_driver.py   hilo del RPLIDAR C1, entrega el barrido crudo
+#   lidar_geometria.py  interpreta el barrido: paredes + clustering ABD
+#   tracker.py         posicion del poste activo (lo usa navegacion)
+#   navegacion.py      maquina de estados, decide (velocidad, angulo)
+#   enlace_pico.py      serial con la Pico 2 (consignas + IMU)
+#
+# Secuencia: armar hilos -> esperar boton GP21 -> fijar cero IMU ->
+# arrancar LiDAR -> por cada barrido navegacion decide y se manda a la
+# Pico. El bucle principal solo vigila que el LiDAR siga vivo y apaga.
+import os
+import sys
+import time
+import signal
+import threading
+
+import RPi.GPIO as GPIO
+
+import vision
+import navegacion
+import lidar_mascara
+from camara_driver import CamaraDriver
+from lidar_driver import LidarDriver
+from lidar_geometria import ProcesadorLidar
+from enlace_pico import EnlacePico
+from registro_metricas import RegistroMetricas
+
+PIN_BOTON = 21
+
+# Si el LiDAR no entrega barridos en este tiempo con el robot en marcha
+# se corta la traccion: sin percepcion no se navega
+WATCHDOG_LIDAR = 0.8
+
+corriendo = True
+enlace       = None
+lidar_driver = None
+lidar_geo    = None
+navegador    = None
+registro     = None
+
+_t_ultimo_barrido = 0.0
+_apagando = False
+
+
+def apagar_sistema(sig=None, frame=None):
+    global corriendo, _apagando
+    if _apagando:                 # doble Ctrl+C no debe reentrar aca
+        return
+    _apagando = True
+    print("\n[!] Deteniendo sistema de forma segura...")
+    corriendo = False
+    time.sleep(0.2)
+    if enlace:
+        enlace.cerrar()
+    if lidar_driver:
+        lidar_driver.cerrar()
+    if registro:
+        registro.cerrar()
+    try:
+        GPIO.cleanup()
+    except Exception as e:
+        print(f"[-] GPIO.cleanup() fallo (ignorado): {e}")
+    sys.exit(0)
+
+
+def al_barrido(scan):
+    # Callback del hilo LiDAR: un ciclo de decision por barrido completo
+    global _t_ultimo_barrido
+    medicion = lidar_geo.procesar(scan)
+    # Corrige los tres campos traseros antes de que los vea nadie: el
+    # mastil de la camara ciega los grados 165-187 y, como los sectores
+    # toman el MINIMO del rango, deja `trasera` clavada en ~92mm y
+    # `trasera_derecha` en ~102mm. Con eso, RETROCESO sale en su primer
+    # ciclo por "obstaculo trasero" pase lo que pase, y el giro en
+    # reversa apunta siempre al mismo lado. Ver ronda_camara/README.md.
+    lidar_mascara.aplicar(medicion)
+    _t_ultimo_barrido = medicion.timestamp
+
+    heading = enlace.heading()
+    # Una sola lectura por ciclo: el hilo de camara la actualiza por su
+    # cuenta, y si se consulta otra vez para el log el CSV podria guardar
+    # un color distinto del que realmente uso la FSM en esta decision.
+    # cx_cam es la posicion horizontal del poste en el frame; la usa el
+    # apareo por rumbo de navegacion para decidir CUAL de los clusters
+    # del LiDAR es el que tiene ese color (ver APAREO COLOR <-> CLUSTER).
+    color_cam, cx_cam = vision.get_deteccion()
+    consigna = navegador.procesar(medicion, color_cam, heading, cx_cam=cx_cam)
+    if consigna is None:          # carrera terminada (parqueo o timeout)
+        apagar_sistema()
+        return
+    velocidad, angulo = consigna
+    if registro:
+        error_lateral = medicion.izquierda - medicion.derecha
+        trk = navegador.tracker
+        registro.registrar(fase=navegador.fase, estado=navegador.estado,
+                            heading=f"{heading:.2f}", error_lateral=f"{error_lateral:.1f}",
+                            angulo=f"{angulo:.2f}", velocidad=velocidad,
+                            frontal=f"{medicion.frontal:.0f}",
+                            frontal_muro=f"{medicion.frontal_muro:.0f}",
+                            izquierda=f"{medicion.izquierda:.0f}",
+                            derecha=f"{medicion.derecha:.0f}",
+                            trasera=f"{medicion.trasera:.0f}",
+                            color_cam=color_cam or "",
+                            trk_activo=int(trk.activo),
+                            trk_color=trk.color or "",
+                            trk_x=f"{trk.x:.0f}", trk_y=f"{trk.y:.0f}",
+                            angulo_muro=f"{medicion.angulo_muro:.2f}",
+                            rama_evasion=navegador.rama_evasion,
+                            rumbo_poste=f"{navegador.rumbo_poste_cam:.1f}",
+                            cmd_deseado=f"{navegador.cmd_deseado:.2f}",
+                            seguridad=navegador.seguridad,
+                            n_seguros=navegador.n_seguros,
+                            n_compatibles=navegador.n_compatibles,
+                            obj_id=trk.id if trk.activo else 0,
+                            obj_lado=trk.s_lado if trk.activo else 0,
+                            obj_sigma=f"{trk.sigma:.0f}",
+                            obj_progreso=f"{trk.progreso:.0f}",
+                            separacion_lat=f"{navegador.separacion_lat:.0f}",
+                            holgura_pilar=f"{navegador.holgura_pilar:.0f}",
+                            radio_maniobra=f"{navegador.radio_maniobra:.0f}",
+                            sentido=navegador.sentido.sentido)
+    enlace.enviar(*consigna)
+
+
+def preparar_gpio():
+    GPIO.setmode(GPIO.BCM)
+    try:
+        GPIO.setup(PIN_BOTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    except Exception as e:
+        print(f"[!] GPIO ocupado, liberando y reintentando... ({e})")
+        try:
+            GPIO.cleanup()
+        except Exception:
+            pass
+        time.sleep(0.3)
+        GPIO.setup(PIN_BOTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+
+if __name__ == '__main__':
+    signal.signal(signal.SIGINT, apagar_sistema)
+    preparar_gpio()
+
+    # 1. Camara primero, necesita ~1s para estabilizar la exposicion
+    camara = CamaraDriver()
+    threading.Thread(target=camara.hilo_captura,
+                     args=(lambda: corriendo, vision.procesar_frame), daemon=True).start()
+
+    # 2. Enlace con la Pico, direccion centrada mientras se espera
+    try:
+        enlace = EnlacePico()
+        print("[+] Conexion serial establecida con Raspberry Pi Pico 2.")
+    except Exception as e:
+        print(f"[-] Error conectando a la Pi Pico 2: {e}")
+        sys.exit(1)
+    enlace.enviar(0, 0.0)
+
+    # Arranque sin boton, SOLO para depuracion remota por SSH
+    # (WRO_ARRANQUE_AUTO=1). En competencia no se usa: el reglamento pide
+    # que la carrera la inicie una accion fisica sobre el robot. La
+    # cuenta atras existe para que quede una ventana visible en la que
+    # apartar la mano o cortar el proceso antes de que el motor arranque.
+    if os.environ.get("WRO_ARRANQUE_AUTO") == "1":
+        print("\n[LISTO] ARRANQUE AUTOMATICO (depuracion, sin boton).")
+        for queda in (3, 2, 1):
+            print(f"[LISTO] arrancando en {queda}...")
+            enlace.enviar(0, 0.0)
+            time.sleep(1.0)
+        print("\n[START] Arranque automatico! Iniciando carrera con obstaculos...")
+    else:
+        print("\n[LISTO] SISTEMA LISTO (RONDA CON OBSTACULOS). "
+              "Coloca el robot y presiona el Boton (GP21)...")
+        while GPIO.input(PIN_BOTON) == GPIO.HIGH:
+            enlace.enviar(0, 0.0)
+            time.sleep(0.05)
+        print("\n[START] Boton detectado! Iniciando carrera con obstaculos...")
+    enlace.fijar_cero()           # el yaw de este instante es el 0 de carrera
+    registro = RegistroMetricas("ronda_camara")
+
+    # 3. LiDAR y navegacion. El LiDAR arranca despues del boton para que
+    #    su primer barrido capture la firma de pared del punto de partida
+    lidar_driver = LidarDriver()
+    lidar_geo    = ProcesadorLidar()
+    navegador    = navegacion.Navegador(control_sector=lidar_geo)
+    _t_ultimo_barrido = time.time()
+    threading.Thread(target=lidar_driver.hilo_lectura,
+                     args=(lambda: corriendo, al_barrido), daemon=True).start()
+
+    # 4. Vigilancia: si la percepcion muere el robot se detiene
+    while corriendo:
+        sin_barridos = time.time() - _t_ultimo_barrido
+        if sin_barridos > WATCHDOG_LIDAR and navegador.fase in ("CARRERA", "PARQUEO"):
+            enlace.enviar(0, 0.0)
+            if sin_barridos > 5.0:
+                print("[-] LiDAR sin datos por 5s. Abortando carrera.")
+                apagar_sistema()
+        time.sleep(0.1)
