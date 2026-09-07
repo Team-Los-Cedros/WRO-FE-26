@@ -41,7 +41,7 @@ El robot cambió en cinco puntos respecto a la primera versión documentada en e
 | Integrante | Rol / Especialidad | Contribución Principal |
 | :--- | :--- | :--- |
 | **Daniel David Díaz Rivas** | Líder de Proyecto / Hardware | Diseño de chasis y distribución electrónica. |
-| **Carlos David Díaz Rivas** | Desarrollador de Software | Programación de la lógica de alto nivel en Raspberry Pi 3B. |
+| **Carlos David Díaz Rivas** | Desarrollador de Software | Programación de la lógica de alto nivel en Raspberry Pi (3B primero, Pi 5 desde el 03-09-2026). |
 | **Carlos Santiago Pinto Abreu** | Especialista en Control | Firmware y calibración inercial en Raspberry Pi Pico 2. |
 
 ---
@@ -114,7 +114,7 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 
 > **Nota de Software de Inicio:** `controlador_inicio.py` fue el orquestador maestro de la Raspberry Pi 3B, arrancado por `systemd`. En la Pi 5 el cerebro se lanza directamente (`python3 -m ronda_nueva.ronda_nueva`) y espera el botón de `GPIO 21`; las unidades `wro_start.service` y `wro_robot.service` están copiadas pero **deshabilitadas**, igual que en la 3B.
 
-> **Reproducibilidad:** el manual completo para dejar una Raspberry Pi 3B y una Pico 2 nuevas en este mismo estado (sistema operativo, dependencias, firmware, despliegue de scripts) está en [`INSTALACION.md`](INSTALACION.md).
+> **Reproducibilidad:** el manual completo para dejar una Raspberry Pi y una Pico 2 nuevas en este mismo estado (sistema operativo, dependencias, firmware, despliegue de scripts) está en [`INSTALACION.md`](INSTALACION.md).
 
 ### 2.1 Historial de Versiones y Control de Cambios
 
@@ -189,32 +189,32 @@ De acuerdo con las rigurosas restricciones de peso, inercia de rotación y estab
   Se descartó el ultrasonido **como sensor de percepción principal** (tipo HC-SR04) por sus limitaciones físicas inherentes: retrasos por eco acústico, conos de dispersión muy amplios que generan falsos positivos y bucles de lectura bloqueantes. Para eso implementamos un escáner láser **RPLIDAR C1 (ToF)** por bus USB, que da una firma geométrica de 360° en tiempo real. Ahora bien, esa decisión tiene una excepción medida: el mástil del propio LiDAR le tapa el sector **140-213°**, así que hacia atrás no ve. En el parqueo el robot entra marcha atrás contra esa pared, y la "trasera" que el LiDAR reconstruye de los hombros en oblicuo llegó a discrepar **1777 mm contra 44** del ultrasonido en la misma pose (06-09). Por eso se añadió **un** HC-SR04 mirando atrás: no compite con el LiDAR, cubre exactamente el ángulo donde el LiDAR es ciego.
 
 * **Procesamiento de Visión Nativo OpenCV contra Sensores Embebidos Cerrados:**
-  Muchos equipos optan por cámaras inteligentes con procesadores integrados de firmware cerrado (como HuskyLens). Aunque simplifican la conexión, restringen severamente la flexibilidad algorítmica. Nuestra arquitectura utiliza la **Pi Camera Module 3** conectada por la interfaz CSI de alta velocidad directo al procesador de la **Raspberry Pi 3B**. El procesamiento se realiza a nivel de software mediante código propio en **OpenCV**, permitiendo la manipulación directa de la matriz de píxeles en el dominio HSV, la aplicación de filtros morfológicos personalizados para eliminar el ruido lumínico de los boxes y la inyección dinámica de offsets angulares directo al servomotor Ackermann.
+  Muchos equipos optan por cámaras inteligentes con procesadores integrados de firmware cerrado (como HuskyLens). Aunque simplifican la conexión, restringen severamente la flexibilidad algorítmica. Nuestra arquitectura utiliza la **Pi Camera Module 3** conectada por la interfaz CSI de alta velocidad directo al procesador de la **Raspberry Pi 5**. El procesamiento se realiza a nivel de software mediante código propio en **OpenCV**, permitiendo la manipulación directa de la matriz de píxeles en el dominio HSV, la aplicación de filtros morfológicos personalizados para eliminar el ruido lumínico de los boxes y la inyección dinámica de offsets angulares directo al servomotor Ackermann.
 
 * **Por qué elegimos Baterías 21700 (2S) en lugar de LiPo clásicas o celdas 18650:**
-  Las celdas de iones de litio 21700 proporcionan una densidad de corriente de descarga continua masiva de hasta $30\,\text{A}$. Al alimentar nuestro regulador de alta potencia **XL4016 (capacidad de hasta $8.0\,\text{A}$)**, garantizamos un blindaje eléctrico absoluto contra caídas de tensión (*brownouts*). Toda la etapa lógica (Raspberry Pi 3B, Pico 2 y LiDAR) opera de manera holgada con un **margen de seguridad del $73.25\%$**, previniendo reinicios críticos del sistema operativo cuando el motor demanda torque de arranque máximo al salir de las curvas.
+  Las celdas de iones de litio 21700 proporcionan una densidad de corriente de descarga continua masiva de hasta $30\,\text{A}$. Al alimentar nuestro regulador de alta potencia **XL4016 (capacidad de hasta $8.0\,\text{A}$)**, garantizamos un blindaje eléctrico absoluto contra caídas de tensión (*brownouts*). Toda la etapa lógica (Raspberry Pi 5, Pico 2 y LiDAR) opera de manera holgada: el consumo real del sistema completo en marcha, medido con multímetro el 06-09, es de $1.39\,\text{A}$ (sección 4.4), previniendo reinicios críticos del sistema operativo cuando el motor demanda torque de arranque máximo al salir de las curvas.
 ---
 
 ## 4. Arquitectura Eléctrica y Distribución de Señales
 
 ### 4.1 Red de Distribución de Energía (Alimentación)
 
-Para asegurar el correcto funcionamiento del vehículo autónomo y prevenir reinicios imprevistos (*brownouts*) en la Raspberry Pi 3B debido a picos de consumo dinámico de los motores, se implementó un sistema de alimentación completamente desacoplado por etapas:
+Para asegurar el correcto funcionamiento del vehículo autónomo y prevenir reinicios imprevistos (*brownouts*) en la Raspberry Pi debido a picos de consumo dinámico de los motores, se implementó un sistema de alimentación completamente desacoplado por etapas:
 
 | Fuente / Regulador | Voltaje Entrada | Voltaje Salida | Corriente Máx. | Componentes Alimentados |
 | --- | --- | --- | --- | --- |
 | **Baterías 21700 (2S)** | $7.4\,\text{V} - 8.4\,\text{V}$ | Directo | $30\,\text{A}$ | Línea de alta potencia del Driver TB6612FNG (Motor DC). |
 | **Regulador XL1509** | $7.4\,\text{V} - 8.4\,\text{V}$ | $6.0\,\text{V}$ | $2.0\,\text{A}$ | Servomotor de dirección (Etapa de potencia limpia). |
-| **Regulador XL4016** | $7.4\,\text{V} - 8.4\,\text{V}$ | $5.1\,\text{V}$ | $8.0\,\text{A}$ | Raspberry Pi 3B, Cámara Module 3 y RPLIDAR C1. |
+| **Regulador XL4016** | $7.4\,\text{V} - 8.4\,\text{V}$ | $5.1\,\text{V}$ | $8.0\,\text{A}$ | Raspberry Pi 5, Cámara Module 3 y RPLIDAR C1. |
 
 >  **Nota eléctrica:** Todas las referencias de tierra (GND) del vehículo confluyen en una topología de estrella en un único punto común central. Esto unifica los umbrales lógicos y drena el ruido electromagnético generado por las conmutaciones de los motores.
 
 #### Diagrama de Cableado Oficial
 
-Diagrama de referencia usado por el equipo durante el ensamblaje, verificado contra el pinout real de `src/pico/main.py` y `src/pi3B/controlador_inicio.py`:
+Diagrama de referencia usado por el equipo durante el ensamblaje, verificado contra el pinout real de `src/pico/main.py`. La parte de la Pico 2 sigue vigente tal cual; en la Pi el diagrama muestra los **dos** botones del selector de ronda, que hoy es **uno solo en `GPIO 21`** (sección 4.2):
 
 <p align="center">
-  <img src="schemes/Alimentacion_y_Logica.png" alt="Diagrama de cableado: Pico 2, XL4016, XL1509 y GPIO de la Pi 3B" width="700px"/>
+  <img src="schemes/Alimentacion_y_Logica.png" alt="Diagrama de cableado: Pico 2, XL4016, XL1509 y GPIO de la Raspberry Pi" width="700px"/>
 </p>
 
 #### Implementación Física: Placa Perforada
@@ -237,8 +237,8 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **Geekservo Servo (Dirección)** | <img src="v-photos/Componentes/GeekservoServo.png" width="90"/> | Acoplado directo al `base_servo` del eje delantero; se eligió por compatibilidad mecánica nativa con las vigas Technic, evitando adaptadores impresos que añaden holgura al sistema de dirección. |
 | **Geekservo DC (Tracción)** | <img src="v-photos/Componentes/GeekservoDC.png" width="90"/> | Seleccionado por su torque de bloqueo de $2.4\,\text{kg}\cdot\text{cm}$, validado matemáticamente en la sección 7.4 con un margen de seguridad de 2.55×. |
 | **Driver TB6612FNG** | <img src="v-photos/Componentes/TB6612FNG.png" width="90"/> | Preferido sobre el clásico L298N por su topología MOSFET (menor caída de tensión y disipación térmica), crítico dado el presupuesto de corriente ajustado del sistema (sección 4.3). |
-| **Raspberry Pi 5** | <img src="v-photos/Componentes/Rspr3B.jpg" width="90"/> | Capa de alto nivel. **Sustituye a la Pi 3B el 03-09-2026** (migración verificada: 3325 archivos y los 170 CSV idénticos por md5). El motivo es cómputo medido, no preferencia: el mismo pipeline de visión pasó de **67-72 ms a 4,8 ms** por cuadro a 640x360, y a 1280x720 —resolución que en la 3B no cabía— cuesta **22,2 ms**. La edad del barrido LiDAR bajó de 16,0 ms de media a **0,1 ms**. Eso es lo que permitió subir la cámara a 1280x720 @ 30 fps. |
-| **Raspberry Pi Pico 2** | <img src="v-photos/Componentes/Pico2.jpg" width="90"/> | Capa de bajo nivel de tiempo real: descarga a la Pi 3B de la generación de PWM y la integración del giroscopio, evitando que el *jitter* del sistema operativo Linux afecte la estabilidad del lazo de control físico. |
+| **Raspberry Pi 5** | &mdash; <br/><sub>(sin foto propia todavía;<br/>`Rspr3B.jpg` es de la 3B)</sub> | Capa de alto nivel. **Sustituye a la Pi 3B el 03-09-2026** (migración verificada: 3325 archivos y los 170 CSV idénticos por md5). El motivo es cómputo medido, no preferencia: el mismo pipeline de visión pasó de **67-72 ms a 4,8 ms** por cuadro a 640x360, y a 1280x720 —resolución que en la 3B no cabía— cuesta **22,2 ms**. La edad del barrido LiDAR bajó de 16,0 ms de media a **0,1 ms**. Eso es lo que permitió subir la cámara a 1280x720 @ 30 fps. |
+| **Raspberry Pi Pico 2** | <img src="v-photos/Componentes/Pico2.jpg" width="90"/> | Capa de bajo nivel de tiempo real: descarga a la Pi 5 de la generación de PWM y la integración del giroscopio, evitando que el *jitter* del sistema operativo Linux afecte la estabilidad del lazo de control físico. |
 | **Reguladores XL1509 / XL4016** | <img src="v-photos/Componentes/Xl1509.png" width="90"/> <img src="v-photos/Componentes/Xl4016.png" width="90"/> | Ver arquitectura de desacoplamiento por etapas en la sección 4.1 y análisis de margen de seguridad en la sección 4.3. |
 | **Baterías 21700 (2S)** | <img src="v-photos/Componentes/baterias.jpg" width="90"/> | Ver justificación de densidad de corriente en la sección 3.4. |
 | **Botón físico de arranque (x1)** | <img src="v-photos/Componentes/Boton.png" width="90"/> | **Un solo botón, en `GPIO 21` de la Pi 5** (entrada con *pull-up*, se dispara al ponerse a nivel bajo). Antes eran dos, uno por ronda. Se dejó en uno porque la ronda ya no se elige por hardware sino por el programa que se lanza (`ronda_nueva`, `ronda_abierta` o `ronda_cerrada`), y un único pulsador reduce el cableado y los modos de fallo en la línea de salida. El arranque sin botón existe solo como opción de banco (`--arranque-inmediato`) y la ronda oficial no la usa. |
@@ -248,7 +248,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 #### Método de Calibración de Sensores
 
 * **IMU (MPU6050):** Al energizar la Pico 2, `src/pico/main.py` promedia 100 lecturas del giroscopio en el eje Z (~1 segundo, con una espera de 10 ms entre muestras) para calcular `giro_z_offset` antes de entrar al bucle de control. Esto elimina el *bias* estático de fabricación del MEMS sin necesidad de recalibración manual entre carreras.
-* **Cámara (Segmentación HSV):** `calibrar_hsv.py` transmite el feed de la Pi Camera por socket TCP a la laptop del equipo y expone sliders interactivos de OpenCV para ajustar en vivo los rangos `H/S/V` de verde y rojo (el rojo requiere dos rangos por el *wraparound* del matiz en 0°/180°). Los umbrales resultantes se copian manualmente a `src/pi3B/ronda_cerrada/vision.py` antes de cada jornada de pruebas, ya que la iluminación de los boxes varía respecto a la de la pista oficial.
+* **Cámara (Segmentación HSV):** `calibrar_hsv.py` transmite el feed de la Pi Camera por socket TCP a la laptop del equipo y expone sliders interactivos de OpenCV para ajustar en vivo los rangos `H/S/V` de verde y rojo (el rojo requiere dos rangos por el *wraparound* del matiz en 0°/180°). Los umbrales resultantes se copian al bloque `vision` de `src/pi5/ronda_nueva/configuracion.json` antes de cada jornada de pruebas, ya que la iluminación de los boxes varía respecto a la de la pista oficial.
 * **Sensor de Color de Piso (TCS3472):** al arrancar, `src/pico/main.py` promedia 25 lecturas de saturación del piso blanco bajo la iluminación real (`calibrar_suelo_inicial()`) y fija `saturacion_base_pista` como ese promedio más un margen de 0.12 — un umbral dinámico en vez de un valor fijo que se desajusta con cada cambio de luz entre el box y la pista oficial. Cada lectura pasa además por un promedio móvil de 4 muestras en tono (H) y saturación (S) antes de clasificarse, para filtrar destellos puntuales del sensor.
 * **Puntos de fallo considerados:** si la IMU se satura o pierde el bus I2C, `main.py` captura la excepción y fuerza `velocidad_z = 0.0` (el coche sigue guiándose solo por LiDAR en vez de trabar el bucle de control); si el LiDAR pierde la lectura de una pared, la Pi 5 congela el último ángulo válido (modo "Inercial", sección 5.3) en lugar de enviar un comando basado en datos corruptos.
 
@@ -283,7 +283,7 @@ Para evitar caídas de tensión críticas (*brownouts*) cuando los actuadores de
 
 | Componente | Voltaje Operativo | Corriente Nominal | Corriente de Pico (Stall) | Regulador Asociado |
 | :--- | :---: | :---: | :---: | :---: |
-| **Raspberry Pi 3B** | $5.1\,\text{V}$ | $600\,\text{mA}$ | $1200\,\text{mA}$ | XL4016 (Línea lógica) |
+| **Raspberry Pi 3B** *(estimación original)* | $5.1\,\text{V}$ | $600\,\text{mA}$ | $1200\,\text{mA}$ | XL4016 (Línea lógica) |
 | **RPLIDAR C1** | $5.0\,\text{V}$ | $250\,\text{mA}$ | $450\,\text{mA}$ | XL4016 (Línea lógica) |
 | **Pi Camera Module 3**| $3.3\,\text{V} (CSI)$ | $280\,\text{mA}$ | $400\,\text{mA}$ | XL4016 / Interno Pi |
 | **Geekservo Dirección**| $6.0\,\text{V}$ | $180\,\text{mA}$ | $800\,\text{mA}$ | XL1509 (Línea limpia) |
@@ -294,13 +294,13 @@ Para evitar caídas de tensión críticas (*brownouts*) cuando los actuadores de
 
 La tabla anterior es **estimada por hoja de datos**. Estas son las medidas reales, tomadas con un multímetro ANENG M118A en serie con la batería y la fuente de banco a $8.4\,\text{V}$, que es lo que da un 2S de 21700 a plena carga. Se midieron tres estados, y el tercero (con la Pi apagada) es el que permite separar lo que consume el cerebro de lo que consume el resto:
 
-| Estado | Corriente medida | Evidencia | Qué incluye |
-| :--- | :---: | :---: | :--- |
-| **En funcionamiento** | $\mathbf{1.39\,\text{A}}$ | <img src="v-photos/Amperaje/En_funcionamiento.jpeg" width="200px"/> | Todo: Pi 5, LiDAR girando, cámara, Pico 2, sensores, servo y motor de tracción en marcha. |
-| **En reposo** | $\mathbf{0.61\,\text{A}}$ | <img src="v-photos/Amperaje/En_reposo.jpeg" width="200px"/> | Sistema energizado y ejecutándose, sin tracción. |
-| **Con la Pi 5 apagada** | $\mathbf{0.21\,\text{A}}$ | <img src="v-photos/Amperaje/Con_raspi_apagada.jpeg" width="200px"/> | Solo Pico 2, IMU, ultrasonido, servo y electrónica de potencia. |
+| Estado | Corriente | Lectura de la foto | Evidencia | Qué incluye |
+| :--- | :---: | :---: | :---: | :--- |
+| **En funcionamiento** | $\mathbf{1.39\,\text{A}}$ | $1.499\,\text{A}$ | <img src="v-photos/Amperaje/En_funcionamiento.jpeg" width="200px"/> | Todo: Pi 5, LiDAR girando, cámara, Pico 2, sensores, servo y motor de tracción en marcha. |
+| **En reposo** | $\mathbf{0.61\,\text{A}}$ | $0.678\,\text{A}$ | <img src="v-photos/Amperaje/En_reposo.jpeg" width="200px"/> | Sistema energizado y ejecutándose, sin tracción. |
+| **Con la Pi 5 apagada** | $\mathbf{0.21\,\text{A}}$ | $0.219\,\text{A}$ | <img src="v-photos/Amperaje/Con_raspi_apagada.jpeg" width="200px"/> | Solo Pico 2, IMU, ultrasonido, servo y electrónica de potencia. |
 
-> Las fotos capturan el valor instantáneo del multímetro, que oscila; las lecturas de la tabla son las representativas de cada estado. La foto `En_reposo_mostrando_voltaje.jpeg` documenta además la tensión de alimentación del banco durante la prueba.
+> El multímetro oscila y la foto congela un instante, por eso se dan las dos cifras. Dos de las tres coinciden casi exactas (0,219 contra 0,21 y 0,611 contra 0,61, esta última en `En_reposo_mostrando_voltaje.jpeg`); la de funcionamiento difiere porque 1,499 A es un pico de arranque del motor y 1,39 A el valor sostenido, que es el que manda para el presupuesto. Los cálculos de abajo usan las cifras sostenidas. La foto `En_reposo_mostrando_voltaje.jpeg` documenta además la tensión de alimentación del banco durante la prueba.
 
 **Lo que se deduce restando estados:**
 
@@ -375,7 +375,9 @@ graph TD
 
 ### 5.1 Orquestación del Sistema y Demonio de Arranque Autónomo
 
-Para garantizar que el vehículo sea 100% autónomo desde el momento en que se conecta la batería en la pista (requisito estricto de la WRO), la Raspberry Pi 3B ejecuta el script `controlador_inicio.py` en segundo plano desde el arranque del sistema operativo.
+Para garantizar que el vehículo sea 100% autónomo desde el momento en que se conecta la batería (requisito estricto de la WRO), la Raspberry Pi 3B ejecutaba `controlador_inicio.py` en segundo plano desde el arranque del sistema operativo, con la unidad `systemd` que se documenta abajo.
+
+> **Estado actual con la Pi 5.** Las unidades `wro_start.service` y `wro_robot.service` están copiadas en la Pi 5 pero **deshabilitadas**, igual que quedaron en la 3B. Hoy el cerebro se lanza a mano (`python3 -m ronda_nueva.ronda_nueva`) y **espera el pulsador de `GPIO 21`**, que es lo que da la salida en la ronda oficial. Volver a habilitar el arranque por `systemd` en la Pi 5 está pendiente y depende de decidir qué ronda se lanza por defecto, ya que el selector de dos botones desapareció (sección 4.2). La unidad de abajo se conserva como referencia de reproducción.
 
 #### Configuración del Servicio del Sistema (`systemd`)
 
@@ -509,7 +511,7 @@ el script aplica una ganancia proporcional (`KP_LATERAL`) para enviar micro-corr
 
 En la Ronda Cerrada, la presencia de pilares de obstáculos (bloques rojos y verdes) rompe la simetría de las paredes del circuito, requiriendo una estrategia asimétrica:
 
-* **Detección por Visión (Capa OpenCV):** La cámara Pi Module 3 captura el frente de la pista. El hilo de cámara en `src/pi3B/ronda_cerrada/vision.py` (ver sección 8.2 para el historial de depuración) transforma la matriz de imágenes al espacio de color HSV (Hue-Saturation-Value) para aislar los bloques mediante máscaras de umbralización calibradas con `calibrar_hsv.py`. Se extraen los contornos y se calcula el centroide del objeto más grande.
+* **Detección por Visión (Capa OpenCV):** La cámara Pi Module 3 captura el frente de la pista. El hilo de cámara en `src/pi3B/ronda_cerrada/vision.py` (portado a `src/pi5/ronda_cerrada/` y superado por `ronda_nueva/vision_pista.py`) (ver sección 8.2 para el historial de depuración) transforma la matriz de imágenes al espacio de color HSV (Hue-Saturation-Value) para aislar los bloques mediante máscaras de umbralización calibradas con `calibrar_hsv.py`. Se extraen los contornos y se calcula el centroide del objeto más grande.
 * **Lógica de Esquiva y Evasión:** Cuando un obstáculo es detectado, se activa la lógica de evasión según las reglas del torneo:
 1. Si el bloque es **Verde**, el carro debe evadir por el carril **izquierdo**. El software inyecta un offset angular negativo a la dirección.
 2. Si el bloque es **Rojo**, el carro debe evadir por el carril **derecho**. El software inyecta un offset angular positivo.
@@ -580,7 +582,7 @@ stateDiagram-v2
     end note
 ```
 
-> El bloque `RETROCESO` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en él), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/ronda_cerrada/navegacion.py` como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `ronda_cerrada.py` quedó como orquestador delgado con *watchdog* de percepción. El LiDAR (`src/pi3B/comun/lidar_geometria.py`) construye un perfil de distancia mínima en los 360° completos (1 grado por bin) en cada barrido; los sectores fijos (pared, frontal, diagonales traseras) son consultas sobre ese perfil, no cálculos independientes.
+> El bloque `RETROCESO` es un chequeo de seguridad que se evalúa en **cada ciclo, sin importar el estado actual** (excepto si ya está en él), por eso el diagrama lo muestra como alcanzable desde los cuatro estados normales de la maniobra. La lógica completa vive en `src/pi3B/ronda_cerrada/navegacion.py` -- portada sin cambios a `src/pi5/ronda_cerrada/` -- como clase pura sin I/O (probada con barridos sintéticos fuera del robot); `ronda_cerrada.py` quedó como orquestador delgado con *watchdog* de percepción. El LiDAR (`src/pi3B/comun/lidar_geometria.py`) construye un perfil de distancia mínima en los 360° completos (1 grado por bin) en cada barrido; los sectores fijos (pared, frontal, diagonales traseras) son consultas sobre ese perfil, no cálculos independientes.
 >
 > Los timeouts de `APROXIMACION` y `SOBREPASO` no son constantes sueltas: `navegacion.py` los calcula a partir de `tracker.MM_POR_SEG_A_PWM100` (400mm/s, medido en pista — sección 8.3) y la velocidad de PWM de cada fase, con un margen de 1.3× sobre el tiempo teórico. Son **red de seguridad**, no la vía normal — la transición esperada es geométrica (por posición del tracker), y si el timeout es más corto que la física, se convierte en la ruta principal sin que nadie lo note (exactamente lo que pasaba antes de medir la velocidad real).
 
@@ -617,7 +619,7 @@ Los valores numéricos vigentes en `ronda_abierta.py`, obtenidos empíricamente 
 
 #### Métricas de Validación de Rendimiento
 
-Cada corrida de `ronda_abierta.py`/`ronda_cerrada.py` instancia [`comun/registro_metricas.py`](src/pi3B/comun/registro_metricas.py), que escribe un CSV en `logs/` con una fila por barrido de LiDAR procesado (`fase`, `estado`, `heading`, `error_lateral`, `angulo`, `velocidad`) — error lateral promedio/máximo/mediano en mm, porcentaje de ciclos con el servo saturado en su límite físico y número de eventos de emergencia (transiciones a `RETROCESO`).
+Cada corrida de `ronda_abierta.py`/`ronda_cerrada.py` instancia [`comun/registro_metricas.py`](src/pi3B/comun/registro_metricas.py) (en `ronda_nueva` ese papel lo cumple `telemetria.py`), que escribe un CSV en `logs/` con una fila por barrido de LiDAR procesado (`fase`, `estado`, `heading`, `error_lateral`, `angulo`, `velocidad`) — error lateral promedio/máximo/mediano en mm, porcentaje de ciclos con el servo saturado en su límite físico y número de eventos de emergencia (transiciones a `RETROCESO`).
 
 Formato de salida (ejemplo ilustrativo con datos sintéticos, no una corrida real):
 
@@ -648,7 +650,7 @@ $$\theta_{\text{servo}} = 90^\circ + \theta_{\text{objetivo}} - (\omega_z \cdot 
 Donde:
 
 * $90^\circ$ (constante `CENTRO` en `src/pico/main.py`) representa el punto central calibrado por software para la marcha en línea recta del servomotor. Este valor se validó y corrigió en pista: el equipo probó inicialmente $180^\circ$ como centro (ver historial de versiones, sección 2.1) y lo revirtió a $90^\circ$ tras detectar desalineación física del servo con ese offset.
-* $\theta_{\text{objetivo}}$ es el ángulo macro de guiado espacial solicitado dinámicamente por el script de la Raspberry Pi 3B.
+* $\theta_{\text{objetivo}}$ es el ángulo macro de guiado espacial solicitado dinámicamente por el script de la Raspberry Pi.
 * $\omega_z$ es la velocidad angular instantánea sobre el eje de rotación vertical (Yaw), obtenida tras sustraer el offset estático de calibración: 
 
 $$\omega_z = \text{Gyro}_{z} - \text{Offset}_{z}$$
@@ -1057,6 +1059,9 @@ Registra **9-10 casillas donde hay 5 bloques**, en todas las configuraciones pro
 * **Radio de giro en REVERSA.** Es la única entrada geométrica del parqueo sin medir. La inferencia desde la IMU da ~306 mm contra los 228 de marcha adelante, un 34 % peor, pero es inferencia. Se cierra en dos minutos con cinta: marcar, girar en reversa a tope hasta 90°, marcar, medir la cuerda; `R = cuerda / raíz(2)`.
 * **Los 40 mm de la separación de la bahía.** El detector mide 389-391 mm y la regla dice 350 entre centros. No cuadra con ninguna lectura posible (caras 330, centros 350, bordes externos 370). `lidar.bay_expected_separation_mm` se deja en 390 **a propósito**: bajarlo sin entender la discrepancia rompe el único detector de hueco que funciona.
 * **`approach_lateral_mm = 270` deja cero holgura.** Con el volante a tope el semiancho es 70, y 270 − 70 = 200, exactamente la profundidad de la bahía: el borde roza la punta de los delimitadores al pasar.
+* **Foto de la Raspberry Pi 5 para el catálogo.** La entrada de la sección 4.2 no tiene imagen: `v-photos/Componentes/Rspr3B.jpg` es de la 3B y usarla ahí sería engañoso.
+* **Arranque automático en la Pi 5.** `wro_start.service` y `wro_robot.service` están copiadas pero deshabilitadas. Rehabilitarlas exige decidir qué ronda se lanza por defecto, porque el selector de dos botones ya no existe (sección 5.1).
+* **Comentarios del firmware de la Pico.** `src/pico/main.py` sigue diciendo "Pi 3B" en tres comentarios. **No se tocaron a propósito**: el `main.py` que corre en el robot va unos 1000 bytes por delante del que hay en el repo y sin commitear, así que editar el del repo aumenta la divergencia. Primero hay que traerse el del robot.
 * **`self_echo_*` probablemente sobra.** Enmascara un eco de rueda que el *mastilfix* del 05-09 eliminó. Recuperar esa cobertura angular es gratis, pero hay que verificarlo antes de quitarlo.
 
 ### 9.3 Descartado con Datos (no repetir)
