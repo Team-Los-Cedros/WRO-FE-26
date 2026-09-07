@@ -45,14 +45,15 @@ recibidos directamente de la Raspi:
   LiDAR en `/dev/ttyUSB0`, la Pico en `/dev/ttyACM0` y el botón de inicio en
   GPIO 21.
 - `ronda_curvas/` contiene el conjunto de módulos usado en la Raspi para la
-  ronda con cámara y curvas. Su punto de entrada es `ronda_camara.py`.
+  ronda con cámara y curvas. Es una copia completa del código Python de
+  `/home/pi/ronda_curvas` en la Pi 5; su punto de entrada es
+  `ronda_camara.py`.
 
-`ronda_curvas/` se guarda como una copia fiel del código de la Raspi, no como
-un paquete autónomo: su punto de entrada además requiere los módulos vecinos
-`vision.py`, `lidar_geometria.py`, `lidar_mascara.py`, `geometria_robot.py`,
-`optica.py` y `registro_metricas.py`. Consulta su README antes de desplegarlo.
-No sustituye a `ronda_nueva/`, que sigue siendo la implementación modular de
-Pi 5.
+`ronda_curvas/` incluye sus módulos de visión, LiDAR, geometría y pruebas. No
+incluye los CSV de `logs/` ni `__pycache__/`, porque son datos generados al
+correr el robot. Consulta su README antes de desplegarla: requiere el hardware
+y las librerías de Raspberry Pi. No sustituye a `ronda_nueva/`, que sigue
+siendo la implementación modular de Pi 5.
 
 ---
 
