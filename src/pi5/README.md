@@ -41,9 +41,10 @@ src/pi5/
 Además de la implementación modular `ronda_nueva/`, se preservan dos códigos
 recibidos directamente de la Raspi:
 
-- `prueba_abierta.py` es una prueba independiente para la ronda abierta. Usa el
-  LiDAR en `/dev/ttyUSB0`, la Pico en `/dev/ttyACM0` y el botón de inicio en
-  GPIO 21.
+- `prueba_abierta.py` es la copia sincronizada de
+  `/home/pi/prueba_abierta.py` en la Pi 5: una prueba independiente para la
+  ronda abierta. Usa el LiDAR en `/dev/ttyUSB0`, la Pico en `/dev/ttyACM0` y
+  el botón de inicio en GPIO 21.
 - `ronda_curvas/` contiene el conjunto de módulos usado en la Raspi para la
   ronda con cámara y curvas. Es una copia completa del código Python de
   `/home/pi/ronda_curvas` en la Pi 5; su punto de entrada es
