@@ -143,7 +143,9 @@ El desarrollo de nuestro vehículo autónomo no fue un proceso lineal. Para alca
 
 Para alcanzar la estabilidad operativa actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento dinámico, telemetría inercial y análisis de fallos mecánicos destructivos en pista:
 
-| Criterio Técnico | Prototipo Inicial (V1) | Prototipo de Producción Actual (V2) | Justificación de Ingeniería / Análisis de Fatiga |
+> **El prototipo actual es la V3.** Esta tabla documenta el salto **V1 → V2**, que fue *mecánico*: chasis, masa, tracción y topología de potencia. El salto **V2 → V3** fue *electrónico* y no cambió el chasis, así que se documenta aparte en la [sección 0](#0-estado-actual-del-hardware-última-revisión-06-09-2026): Raspberry Pi 5, mástil del LiDAR, ultrasonido trasero, retirada del sensor de color y botón único de arranque.
+
+| Criterio Técnico | Prototipo Inicial (V1) | Rediseño Mecánico (V2) | Justificación de Ingeniería / Análisis de Fatiga |
 | :--- | :--- | :--- | :--- |
 | **Arquitectura Estructural** | Monocasco impreso en 3D (PLA / Filamento) | Chasis Híbrido de Vigas de Fricción LEGO | **Mitigación de Resonancia:** El filamento rígido transmitía las vibraciones mecánicas de alta frecuencia de los motores directo a la cámara, descalibrando el software de visión. El chasis LEGO absorbe el ruido vibracional por flexión elástica y permite reconfiguraciones geométricas inmediatas en boxes. |
 | **Masa Inercial Global** | $\approx 800\,\text{g}$ (Diseño robusto impreso) | **613 gramos exactos** (Reducción del $23.37\%$) | **Optimización Dinámica:** Al remover casi una cuarta parte del peso total, se redujo drásticamente la inercia lineal ($I$). El servomotor requiere menor torque para vencer la fricción estática en las curvas de Ackermann, eliminando por completo el subviraje físico. |
@@ -151,18 +153,18 @@ Para alcanzar la estabilidad operativa actual, el prototipo pasó por una transi
 | **Eficiencia de Tracción** | Llantas rígidas de plástico (Bajo agarre) | Neumáticos de Caucho LEGO ($36\,\text{mm}$ diámetro) | **Transferencia de Potencia:** Las ruedas plásticas patinaban al acelerar bruscamente a PWM máximos, disipando energía por calor. El compuesto de caucho incrementa el coeficiente de fricción ($\mu_e \approx 0.85$), garantizando un grip total sin derrapes laterales. |
 | **Topología de Potencia** | Regulador único lineal (Sujeto a picos) | Desacoplamiento por etapas (XL4016 + XL1509) | **Blindaje Electrónico:** La conmutación del motor causaba caídas de tensión lógicas (*brownouts*). Al meter el **XL4016 de $8.0\,\text{A}$** dedicado a la Pi 3B, la etapa de control trabaja fría y con un margen de seguridad del **$73.25\%$**. |
 
-### 3.2 Registro Fotográfico de la Evolución e Iteración Geométrica (Matriz V1 vs. V2)
+### 3.2 Registro Fotográfico de la Evolución e Iteración Geométrica (Matriz V1 / V2 / V3)
 
-Para evidenciar la transformación del vehículo y el rediseño de los tres ejes espaciales, se presenta el registro fotográfico emparejado de ambas iteraciones del prototipo:
+Para evidenciar la transformación del vehículo y el rediseño de los tres ejes espaciales, se presenta el registro fotográfico emparejado de las tres iteraciones. Entre la V2 y la V3 el chasis no cambió: lo que cambió es lo que va montado encima, y por eso las siluetas se parecen mientras la electrónica no:
 
-| Vista | Prototipo Anterior (V1) — ≈800 g | Prototipo Actual (V2) — 613 g |
-| :---: | :---: | :---: |
-| **Superior** | <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" width="260px"/> | <img src="v-photos/Topview.jpeg" alt="V2 Superior" width="260px"/> |
-| **Frontal** | <img src="v-photos/V1/Frontview.jpeg" alt="V1 Frontal" width="260px"/> | <img src="v-photos/frontview.jpeg" alt="V2 Frontal" width="260px"/> |
-| **Trasera** | <img src="v-photos/V1/Backview.jpeg" alt="V1 Trasera" width="260px"/> | <img src="v-photos/backview.jpeg" alt="V2 Trasera" width="260px"/> |
-| **Inferior** | <img src="v-photos/V1/butview.jpeg" alt="V1 Inferior" width="260px"/> | <img src="v-photos/Bottomview.jpeg" alt="V2 Inferior" width="260px"/> |
-| **Lateral Izquierda** | <img src="v-photos/V1/leftview.jpeg" alt="V1 Izquierda" width="260px"/> | <img src="v-photos/Leftview.jpeg" alt="V2 Izquierda" width="260px"/> |
-| **Lateral Derecha** | <img src="v-photos/V1/Rightview.jpeg" alt="V1 Derecha" width="260px"/> | <img src="v-photos/Rightview.jpeg" alt="V2 Derecha" width="260px"/> |
+| Vista | V1 — ≈800 g | V2 — 613 g | **V3 — actual** |
+| :---: | :---: | :---: | :---: |
+| **Superior** | <img src="v-photos/V1/Topview.jpeg" alt="V1 Superior" width="260px"/> | <img src="v-photos/Topview.jpeg" alt="V2 Superior" width="260px"/> | <img src="v-photos/V3/Topview.jpeg" alt="V3 Superior" width="260px"/> |
+| **Frontal** | <img src="v-photos/V1/Frontview.jpeg" alt="V1 Frontal" width="260px"/> | <img src="v-photos/frontview.jpeg" alt="V2 Frontal" width="260px"/> | <img src="v-photos/V3/Frontview.jpeg" alt="V3 Frontal" width="260px"/> |
+| **Trasera** | <img src="v-photos/V1/Backview.jpeg" alt="V1 Trasera" width="260px"/> | <img src="v-photos/backview.jpeg" alt="V2 Trasera" width="260px"/> | <img src="v-photos/V3/Backview.jpeg" alt="V3 Trasera" width="260px"/> |
+| **Inferior** | <img src="v-photos/V1/butview.jpeg" alt="V1 Inferior" width="260px"/> | <img src="v-photos/Bottomview.jpeg" alt="V2 Inferior" width="260px"/> | <img src="v-photos/V3/Bottomview.jpeg" alt="V3 Inferior" width="260px"/> |
+| **Lateral Izquierda** | <img src="v-photos/V1/leftview.jpeg" alt="V1 Izquierda" width="260px"/> | <img src="v-photos/Leftview.jpeg" alt="V2 Izquierda" width="260px"/> | <img src="v-photos/V3/Leftview.jpeg" alt="V3 Izquierda" width="260px"/> |
+| **Lateral Derecha** | <img src="v-photos/V1/Rightview.jpeg" alt="V1 Derecha" width="260px"/> | <img src="v-photos/Rightview.jpeg" alt="V2 Derecha" width="260px"/> | <img src="v-photos/V3/Rightview.jpeg" alt="V3 Derecha" width="260px"/> |
 
 ---
 ### 3.3 Galería de Inspección Técnica Obligatoria (Las 6 Capturas Reglamentarias)
@@ -788,7 +790,7 @@ Donde:
 * $\delta_i$ es el ángulo de orientación de la rueda directriz interior.
 * El factor constante de **$0.845$** es integrado directamente en la matriz de transferencia de control de la Raspberry Pi Pico 2 para ajustar dinámicamente el pulso de PWM enviado al Geekservo de dirección, garantizando giros limpios con cero subviraje o pérdida de tracción por fricción estática destructiva en las curvas de la WRO.
 
-### 7.2 Renderizado del Chasis de Producción (V2)
+### 7.2 Renderizado del Chasis de Producción (V2, compartido con la V3)
 A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis. El archivo fuente reproducible (`.io` de BrickLink Studio) y el listado completo de las 83 piezas Technic están en [`3d-Models/Chasis-LEGO-V2/`](3d-Models/Chasis-LEGO-V2/README.md):
 
 <p align="center">
@@ -821,6 +823,8 @@ El rango operativo del actuador Geekservo se restringe a los siguientes umbrales
 Para validar científicamente que nuestro motor de tracción acoplado al driver **TB6612FNG** es capaz de romper la fricción estática del neumático sin sobrecalentar las etapas de potencia ni patinar en pista, se realizó el modelo matemático de torque dinámico basado en las mediciones reales del vehículo:
 
 #### A. Variables Físicas del Prototipo (V2):
+
+> **Aviso: la masa es la de la V2.** Los $613\,\text{g}$ se pesaron con la Raspberry Pi 3B. La V3 monta la Pi 5, el mástil del LiDAR y el ultrasonido trasero, así que **pesa más y el margen de torque calculado abajo es optimista**. Volver a pesar el robot está en la [sección 9](#9-estado-actual-y-trabajo-pendiente); el chasis y la geometría Ackermann no cambiaron, así que el resto del cálculo sigue valiendo.
 * **Masa total del vehículo ($m$):** $613\,\text{g} = 0.613\,\text{kg}$
 * **Fuerza de Gravedad ($g$):** $9.81\,\text{m/s}^2$
 * **Radio del neumático de tracción ($r$):** $18\,\text{mm} = 0.018\,\text{m}$ (Diámetro de $36\,\text{mm}$)
@@ -1059,6 +1063,7 @@ Registra **9-10 casillas donde hay 5 bloques**, en todas las configuraciones pro
 * **Radio de giro en REVERSA.** Es la única entrada geométrica del parqueo sin medir. La inferencia desde la IMU da ~306 mm contra los 228 de marcha adelante, un 34 % peor, pero es inferencia. Se cierra en dos minutos con cinta: marcar, girar en reversa a tope hasta 90°, marcar, medir la cuerda; `R = cuerda / raíz(2)`.
 * **Los 40 mm de la separación de la bahía.** El detector mide 389-391 mm y la regla dice 350 entre centros. No cuadra con ninguna lectura posible (caras 330, centros 350, bordes externos 370). `lidar.bay_expected_separation_mm` se deja en 390 **a propósito**: bajarlo sin entender la discrepancia rompe el único detector de hueco que funciona.
 * **`approach_lateral_mm = 270` deja cero holgura.** Con el volante a tope el semiancho es 70, y 270 − 70 = 200, exactamente la profundidad de la bahía: el borde roza la punta de los delimitadores al pasar.
+* **Pesar la V3.** El margen de torque de la sección 7.4 usa los $613\,\text{g}$ de la V2, pesados con la Pi 3B. La V3 lleva más encima y ese margen es optimista.
 * **Foto de la Raspberry Pi 5 para el catálogo.** La entrada de la sección 4.2 no tiene imagen: `v-photos/Componentes/Rspr3B.jpg` es de la 3B y usarla ahí sería engañoso.
 * **Arranque automático en la Pi 5.** `wro_start.service` y `wro_robot.service` están copiadas pero deshabilitadas. Rehabilitarlas exige decidir qué ronda se lanza por defecto, porque el selector de dos botones ya no existe (sección 5.1).
 * **Comentarios del firmware de la Pico.** `src/pico/main.py` sigue diciendo "Pi 3B" en tres comentarios. **No se tocaron a propósito**: el `main.py` que corre en el robot va unos 1000 bytes por delante del que hay en el repo y sin commitear, así que editar el del repo aumenta la divergencia. Primero hay que traerse el del robot.
