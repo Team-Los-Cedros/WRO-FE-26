@@ -357,31 +357,44 @@ graph TD
 
 ### 5.1 Orquestación del Sistema y Demonio de Arranque Autónomo
 
-Para garantizar que el vehículo sea 100% autónomo desde el momento en que se conecta la batería (requisito estricto de la WRO), la Raspberry Pi 3B ejecutaba `controlador_inicio.py` en segundo plano desde el arranque del sistema operativo, con la unidad `systemd` que se documenta abajo.
-
-> **Estado actual con la Pi 5.** Las unidades `wro_start.service` y `wro_robot.service` están copiadas en la Pi 5 pero **deshabilitadas**, igual que quedaron en la 3B. Hoy el cerebro se lanza a mano (`python3 -m ronda_nueva.ronda_nueva`) y **espera el pulsador de `GPIO 21`**, que es lo que da la salida en la ronda oficial. Volver a habilitar el arranque por `systemd` en la Pi 5 está pendiente y depende de decidir qué ronda se lanza por defecto, ya que el selector de dos botones desapareció (sección 4.2). La unidad de abajo se conserva como referencia de reproducción.
+Para garantizar que el vehículo sea 100% autónomo desde el momento en que se conecta la batería (requisito estricto de la WRO), la Raspberry Pi 5 lanza la ronda completa al arrancar el sistema operativo mediante una unidad `systemd`.
 
 #### Configuración del Servicio del Sistema (`systemd`)
 
-Se implementó un demonio de sistema mediante un archivo de unidad en Linux localizado en `/etc/systemd/system/wro_start.service`. El archivo real, listo para copiar durante la reproducción del sistema, está incluido en el repositorio en [`src/pi3B/wro_start.service`](src/pi3B/wro_start.service):
+La unidad se instala en `/etc/systemd/system/wro.service` y el archivo real, listo para copiar durante la reproducción del sistema, está en [`src/pi5/wro.service`](src/pi5/wro.service):
 
 ```ini
 [Unit]
-Description=Servicio Maestro de Inicio - Team Los Cedros WRO
-After=multi-user.target serial-getty@ttyAMA0.service
+Description=Ronda de obstaculos WRO - Team Los Cedros
+After=multi-user.target
+Conflicts=shutdown.target
 
 [Service]
-Type=simple
+Type=oneshot
 User=pi
-WorkingDirectory=/home/pi
-ExecStart=/usr/bin/python3 /home/pi/controlador_inicio.py
-Restart=on-failure
-RestartSec=2
+WorkingDirectory=/home/pi/ronda_curvas
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/bin/sleep 10
+ExecStart=/bin/bash /home/pi/correr_completa.sh
+RemainAfterExit=yes
+TimeoutStartSec=0
+StandardOutput=append:/home/pi/ronda_curvas/logs/servicio.log
+StandardError=append:/home/pi/ronda_curvas/logs/servicio.log
 
 [Install]
 WantedBy=multi-user.target
-
 ```
+
+El servicio no arranca el motor: ejecuta [`correr_completa.sh`](src/pi5/correr_completa.sh), que **espera el pulsador de `GPIO 21`** antes de mover nada. Mientras espera, el LED de la Pico parpadea; esa es la señal visible de que el sistema está cargado y listo. Al pulsar, el LED se apaga y arranca la secuencia: salida del estacionamiento, ronda, y parada en el cuadrante de salida. Esto cumple las dos condiciones a la vez — el sistema es autónomo desde que se conecta la batería, y la salida la da una acción física sobre el robot, como exige el reglamento.
+
+Cuatro decisiones de esta unidad no son cosméticas:
+
+* **`After=multi-user.target` y `ExecStartPre=/bin/sleep 10`.** El enlace con la Pico se abre en el primer segundo del script; sin margen para que el USB enumere `/dev/ttyACM0`, el servicio arranca antes que el hardware y muere.
+* **Sin `Restart=`.** La unidad anterior tenía `Restart=always`, que relanzaba la ronda entera en cuanto terminaba: el robot volvía a salir del estacionamiento solo, una y otra vez. Una carrera se lanza una sola vez.
+* **`TimeoutStartSec=0`.** El servicio se pasa la mayor parte del tiempo esperando el pulsador, y el límite de 90 s que `systemd` aplica por defecto a los `oneshot` lo mataría antes de que nadie lo pulsara.
+* **Registro a archivo además del diario.** `logs/servicio.log` sobrevive al reinicio y no depende de `journalctl`, que en una tarjeta SD con escritura volátil puede quedarse corto.
+
+> **Para lanzar a mano por SSH hay que parar el servicio antes** (`sudo systemctl stop wro.service`). Si no, los dos procesos se disputan el GPIO del pulsador y el lanzamiento manual aborta con `GPIO ocupado`.
 
 ### 5.2 Estructura Modular del Script de Carrera (Fragmentos Clave)
 
@@ -608,7 +621,7 @@ Los valores numéricos vigentes en `ronda_abierta.py`, obtenidos empíricamente 
 
 #### Métricas de Validación de Rendimiento
 
-Cada corrida de `ronda_abierta.py`/`ronda_cerrada.py` instancia [`comun/registro_metricas.py`](src/pi3B/comun/registro_metricas.py) (en `ronda_nueva` ese papel lo cumple `telemetria.py`), que escribe un CSV en `logs/` con una fila por barrido de LiDAR procesado (`fase`, `estado`, `heading`, `error_lateral`, `angulo`, `velocidad`) — error lateral promedio/máximo/mediano en mm, porcentaje de ciclos con el servo saturado en su límite físico y número de eventos de emergencia (transiciones a `RETROCESO`).
+Cada corrida de `ronda_abierta.py`/`ronda_cerrada.py` instancia [`registro_metricas.py`](src/pi5/ronda_curvas/registro_metricas.py) (en `ronda_nueva` ese papel lo cumple `telemetria.py`), que escribe un CSV en `logs/` con una fila por barrido de LiDAR procesado (`fase`, `estado`, `heading`, `error_lateral`, `angulo`, `velocidad`) — error lateral promedio/máximo/mediano en mm, porcentaje de ciclos con el servo saturado en su límite físico y número de eventos de emergencia (transiciones a `RETROCESO`).
 
 Formato de salida (ejemplo ilustrativo con datos sintéticos, no una corrida real):
 
