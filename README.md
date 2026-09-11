@@ -25,7 +25,7 @@ El robot cambió en cinco puntos respecto a la primera versión documentada en e
 | **Cerebro de alto nivel** | Raspberry Pi 3B | **Raspberry Pi 5** (migrado el 03-09-2026) | 4.2 y 5 |
 | **Soporte del LiDAR** | Sin mástil documentado | **Mástil** con el plano de barrido a 69 mm del piso; se enmascara el sector 140-213° que él mismo ocupa | 4.2 |
 | **Medida trasera** | Ninguna | **Ultrasonido HC-SR04** en `GP14`/`GP15`, único sensor que ve hacia atrás | 4.2 y 4.3 |
-| **Sensor de color de piso** | TCS3472 bajo el chasis | **Retirado.** El sentido se resuelve por cámara y por asimetría de paredes | 4.2 y 5.3-C |
+| **Sensor de color de piso** | TCS3472 bajo el chasis | **Sigue montado.** Se desconectó durante la migración a la Pi 5 y se volvió a conectar; hoy es una de las tres evidencias del sentido, junto a la cámara y la asimetría de paredes | 4.2 y 5.3-C |
 | **Arranque** | Dos botones (uno por ronda) | **Un solo botón en `GPIO 21`** | 4.2 y 4.3 |
 
 ---
@@ -132,7 +132,7 @@ El desarrollo de nuestro vehículo autónomo no fue un proceso lineal. Para alca
 
 Para alcanzar la estabilidad operativa actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento dinámico, telemetría inercial y análisis de fallos mecánicos destructivos en pista:
 
-> **El prototipo actual es la V3.** Esta tabla documenta el salto **V1 → V2**, que fue *mecánico*: chasis, masa, tracción y topología de potencia. El salto **V2 → V3** fue *electrónico* y no cambió el chasis, así que se documenta aparte en la [sección 0](#0-estado-actual-del-hardware-última-revisión-06-09-2026): Raspberry Pi 5, mástil del LiDAR, ultrasonido trasero, retirada del sensor de color y botón único de arranque.
+> **El prototipo actual es la V3.** Esta tabla documenta el salto **V1 → V2**, que fue *mecánico*: chasis, masa, tracción y topología de potencia. El salto **V2 → V3** fue *electrónico* y no cambió el chasis, así que se documenta aparte en la [sección 0](#0-estado-actual-del-hardware-última-revisión-06-09-2026): Raspberry Pi 5, mástil del LiDAR, ultrasonido trasero y botón único de arranque.
 
 | Criterio Técnico | Prototipo Inicial (V1) | Rediseño Mecánico (V2) | Justificación de Ingeniería / Análisis de Fatiga |
 | :--- | :--- | :--- | :--- |
@@ -223,7 +223,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | Componente | Foto | Justificación de selección y ubicación |
 | :--- | :---: | :--- |
 | **RPLiDAR C1** | <img src="v-photos/Componentes/RPLiDAR_C1.png" width="90"/> | Montado sobre un **mástil** que lo eleva por encima de la cámara. El plano de barrido quedó medido con regla el 06-09 a **69 mm del piso**, altura a la que el haz intersecta tanto postes como paredes (ambos de 100 mm según el reglamento); la distinción entre uno y otro **no es por altura**, la hace la clasificación geométrica del cluster. El mástil tiene un coste conocido y medido: se ve a sí mismo. `diag_mastil.py` lo midió en **141-212° a 35-68 mm** con presencia en prácticamente el 100 % de los barridos, y por eso `lidar.blind_sectors_deg` enmascara `140-213`. El arreglo mecánico del 05-09 (*mastilfix*) eliminó además el eco de la propia rueda: `diag_eco_volante.py` no encuentra un solo punto bajo 500 mm en los sectores laterales, con el volante recto y a tope. |
-| **Pi Camera Module 3 Wide** (FOV ~102°) | <img src="v-photos/Componentes/Camara.png" width="90"/> | Ubicada al frente, debajo del LiDAR y retrasada respecto al parachoques (ver sección 3.4) para proteger el sensor de impactos directos, montada a **0° de inclinación** (mirando derecho al frente, sin tilt hacia el piso). |
+| **Pi Camera Module 3** (estándar; HFOV efectivo **53,8° medidos**, no la Wide) | <img src="v-photos/Componentes/Camara.png" width="90"/> | Ubicada al frente, debajo del LiDAR y retrasada respecto al parachoques (ver sección 3.4) para proteger el sensor de impactos directos, montada a **0° de inclinación** (mirando derecho al frente, sin tilt hacia el piso). **Es la Module 3 estándar, no la Wide**, aunque durante un tiempo se documentó al revés: `medir_fov.py` emparejó una esquina que el LiDAR sitúa en −21,5° con su borde en el frame y sale un HFOV efectivo de **53,8°**, que concuerda con los 51,9° previstos para la estándar recortada a 4:3 y no con los 85,6° de la Wide (ver [`optica.py`](src/pi5/ronda_curvas/optica.py)). Suponer el catálogo de la Wide inflaba el rumbo calculado de cada pilar 2,3 veces. |
 | **MPU6050 (IMU)** | <img src="v-photos/Componentes/MPU6050.png" width="90"/> | Montado rígidamente sobre la placa perforada, alineado con el eje longitudinal del chasis para que la lectura del eje Z corresponda exactamente al *yaw* del vehículo sin necesidad de compensar desalineación mecánica. |
 | **Geekservo Servo (Dirección)** | <img src="v-photos/Componentes/GeekservoServo.png" width="90"/> | Acoplado directo al `base_servo` del eje delantero; se eligió por compatibilidad mecánica nativa con las vigas Technic, evitando adaptadores impresos que añaden holgura al sistema de dirección. |
 | **Geekservo DC (Tracción)** | <img src="v-photos/Componentes/GeekservoDC.png" width="90"/> | Seleccionado por su torque de bloqueo de $2.4\,\text{kg}\cdot\text{cm}$, validado matemáticamente en la sección 7.4 con un margen de seguridad de **2.18×** sobre los 720 g de la V3 (era 2.55× con los 613 g de la V2). |
@@ -234,7 +234,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **Baterías 21700 (2S)** | <img src="v-photos/Componentes/baterias.jpg" width="90"/> | Ver justificación de densidad de corriente en la sección 3.4. |
 | **Botón físico de arranque (x1)** | <img src="v-photos/Componentes/Boton.png" width="90"/> | **Un solo botón, en `GPIO 21` de la Pi 5** (entrada con *pull-up*, se dispara al ponerse a nivel bajo). Antes eran dos, uno por ronda. Se dejó en uno porque la ronda ya no se elige por hardware sino por el programa que se lanza (`ronda_nueva`, `ronda_abierta` o `ronda_cerrada`), y un único pulsador reduce el cableado y los modos de fallo en la línea de salida. El arranque sin botón existe solo como opción de banco (`--arranque-inmediato`) y la ronda oficial no la usa. |
 | **Ultrasonido trasero HC-SR04** | <img src="v-photos/Componentes/Ultrasonido.png" width="90"/> | Añadido para el parqueo, la única maniobra en que el robot va marcha atrás contra una pared que **el LiDAR no puede ver**: el soporte del propio sensor le tapa el sector 140-213°, así que la "pared trasera" que el LiDAR reporta se reconstruye de los hombros en oblicuo y no es una medida. Medido el 06-09 con el robot aparcado a mano: el ultrasonido leía 44 mm y el LiDAR 1777 mm con calidad 0,95. Va en la Pico 2 (`GP14` trigger / `GP15` echo) y está **34 mm por delante del punto más atrasado del robot**, así que la holgura real de la culata es su lectura menos esos 34. |
-| **Sensor de Color TCS3472** | <img src="v-photos/Componentes/TCS3472.jpg" width="90"/> | **RETIRADO del robot.** Iba bajo el chasis leyendo la línea de color del punto de arranque para fijar el sentido de carrera. Desde la migración a la Pi 5 la Pico responde `COLOR:SIN_SENSOR` y el sentido se resuelve por otras dos vías (sección 5.3-C): la **línea de piso vista por la cámara** y, si no hay línea, la **asimetría de las paredes** que mide el LiDAR. Se documenta porque el firmware que lo lee sigue en `src/pico/main.py` y se reactiva solo si el sensor vuelve a conectarse. |
+| **Sensor de Color TCS3472** | <img src="v-photos/Componentes/TCS3472.jpg" width="90"/> | Montado bajo el chasis, leyendo la lona directamente. Clasifica la línea del piso como `AZUL` o `NARANJA` y la Pico 2 la transmite en la trama de telemetría. Es la **única evidencia absoluta** del sentido de carrera: no depende del yaw ni de interpretar la geometría, porque las líneas están pintadas en la pista y su orden al cruzarlas no admite ambigüedad. Por eso puede *corregir* un sentido ya comprometido por geometría, cosa que ninguna otra fuente puede hacer (sección 5.3-C). Estuvo desconectado un tiempo tras la migración a la Pi 5 —la Pico respondía `COLOR:SIN_SENSOR`— y se volvió a conectar. |
 
 #### Método de Calibración de Sensores
 
@@ -258,8 +258,8 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **MPU6050 (SCL)** | Pin 22 | `GP17` | $\text{I}^2\text{C0}$ SCL | Línea de reloj síncrono del bus inercial ($400\,\text{kHz}$). |
 | **HC-SR04 (TRIG)** | Pin 19 | `GP14` | Salida Digital | Disparo del ultrasonido trasero, usado por el parqueo (sección 4.2). |
 | **HC-SR04 (ECHO)** | Pin 20 | `GP15` | Entrada Digital | Retorno de eco. Es la única medida trasera real: el LiDAR tiene ciego el sector 140-213°. |
-| **TCS3472 (SDA)** | Pin 24 | `GP18` | $\text{I}^2\text{C1}$ SDA | Línea de datos del sensor de color de piso. **El sensor está retirado** (sección 4.2); el bus y el firmware se conservan por si vuelve a montarse. |
-| **TCS3472 (SCL)** | Pin 25 | `GP19` | $\text{I}^2\text{C1}$ SCL | Línea de reloj del bus de color, hoy sin sensor conectado ($100\,\text{kHz}$, más lento que el de la IMU porque el TCS3472 no soporta $400\,\text{kHz}$ de forma confiable). |
+| **TCS3472 (SDA)** | Pin 24 | `GP18` | $\text{I}^2\text{C1}$ SDA | Línea de datos del sensor de color de piso. |
+| **TCS3472 (SCL)** | Pin 25 | `GP19` | $\text{I}^2\text{C1}$ SCL | Línea de reloj del bus de color ($100\,\text{kHz}$, más lento que el de la IMU porque el TCS3472 no soporta $400\,\text{kHz}$ de forma confiable). |
 
 #### Conexiones Maestras de la Raspberry Pi 5
 
@@ -588,20 +588,24 @@ stateDiagram-v2
 >
 > Los timeouts de `APROXIMACION` y `SOBREPASO` no son constantes sueltas: `navegacion.py` los calcula a partir de `tracker.MM_POR_SEG_A_PWM100` (400mm/s, medido en pista — sección 8.3) y la velocidad de PWM de cada fase, con un margen de 1.3× sobre el tiempo teórico. Son **red de seguridad**, no la vía normal — la transición esperada es geométrica (por posición del tracker), y si el timeout es más corto que la física, se convierte en la ruta principal sin que nadie lo note (exactamente lo que pasaba antes de medir la velocidad real).
 
-#### C. Sentido de Carrera — El Sensor de Color Ya No Está
+#### C. Sentido de Carrera — Tres Evidencias, y una que puede Corregir a las Otras
 
-El reglamento fija que la dirección de circulación (horario o antihorario) se sortea antes de cada ronda, así que el robot no puede asumirla. La solución original era un **TCS3472** bajo el chasis que leía la línea de color del punto de arranque y la Pico 2 clasificaba como `AZUL` (antihorario) o `NARANJA` (horario), transmitiéndola en la trama de telemetría (`IMU:<grados>,COLOR:<nombre>`).
+El reglamento fija que la dirección de circulación (horario o antihorario) se sortea antes de cada ronda, así que el robot no puede asumirla. Equivocarse no cuesta puntos: cuesta la ronda entera, porque el lado por el que hay que pasar cada pilar depende del sentido.
 
-**Ese sensor está retirado.** Desde la migración a la Pi 5 la Pico responde `COLOR:SIN_SENSOR`. El firmware que lo lee sigue en `src/pico/main.py` y volvería a funcionar solo si el sensor se reconecta, pero hoy no hay que contar con él.
+El sistema vivo (`sentido_vuelta.py`) lo resuelve con tres fuentes de distinta calidad, y las trata como tales:
 
-El sentido se resuelve ahora en `ronda_nueva/piloto.py` (`_resolver_sentido`) con dos evidencias, y basta con una:
+1. **Las líneas de piso vistas por la cámara** (`fijar_por_camara`). Es la primera en llegar: en cuanto la cámara ve una línea de esquina, el color de la que tiene *más cerca* fija el sentido — naranja primero significa horario, azul primero antihorario. Se compromete una sola vez y no se revisa, porque a esa distancia el dato es inequívoco.
 
-1. **La línea de piso vista por la cámara.** Es la misma señal oficial que usaba el TCS3472, pero leída con la Pi Camera y proyectada al suelo por la homografía: un blob azul o naranja por delante del robot. `diag_lineas.py` mide dónde cae cada una a la resolución real de la ronda.
-2. **La asimetría de las paredes.** El bloque interior siempre está más cerca que el muro exterior, así que comparar la mínima izquierda contra la derecha da el sentido sin ver ninguna línea. Es la red de seguridad cuando la lona está sucia, hay un reflejo o un pilar tapa la línea.
+2. **El TCS3472 bajo el chasis** (`observar_linea`). No mira el color de una línea suelta sino **el orden en que se cruza la pareja** de líneas de una misma esquina. Esa es la única evidencia absoluta del sistema: no depende del yaw del robot ni de interpretar la geometría de la pista. Por eso es la única que puede **corregir un sentido ya comprometido**, y tiene tres salvaguardas medidas en pista:
+   * **Marcha atrás no cuenta.** Retroceder sobre una línea la cruza en orden inverso, o sea que afirma el sentido contrario del real.
+   * **La pareja tiene que ser de la misma esquina.** Sin una ventana temporal se emparejaba la naranja de una esquina con la azul de la siguiente, y el sentido oscilaba: cinco cambios en una sola corrida.
+   * **Desdecir a otra línea exige dos parejas seguidas.** Corregir a la geometría es inmediato, porque la línea es mejor evidencia; contradecir a otra lectura de línea no, porque entonces una de las dos está mal y hace falta desempate.
 
-Si en `direction_timeout_s` (10 s) ninguna de las dos resuelve, se arranca en horario por defecto: es la mitad de las veces, y quedarse parado son cero puntos seguros.
+   Requiere calibrar el orden una sola vez con `calibrar_lineas.py`, empujando el robot una vuelta a mano en un sentido conocido. **Sin esa calibración no se inventa nada: la fuente se ignora por completo.**
 
-`control.turn_direction` permite además fijarlo a `LEFT` o `RIGHT` para las pruebas de banco. La ronda oficial va en `AUTO`.
+3. **La asimetría de las paredes** (`SentidoPorGeometria`). El bloque interior siempre está más cerca que el muro exterior, así que comparar la distancia mínima izquierda contra la derecha da el sentido sin ver ninguna línea. Es la red de seguridad cuando la lona está sucia, hay un reflejo o un pilar tapa la línea.
+
+La jerarquía no es arbitraria: una fuente absoluta corrige a una interpretativa, nunca al revés. Y ninguna de las tres inventa un valor cuando no tiene evidencia — se prefiere no tener dato a tener uno fabricado, porque un sentido equivocado con confianza alta es peor que no tener sentido.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 
