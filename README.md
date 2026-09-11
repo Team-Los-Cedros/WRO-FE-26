@@ -188,6 +188,15 @@ De acuerdo con las rigurosas restricciones de peso, inercia de rotación y estab
 
 ## 4. Arquitectura Eléctrica y Distribución de Señales
 
+Antes del detalle de cada etapa, esta es la vista completa de cómo viaja la información por el vehículo: qué sensor entra por dónde, qué decide cada una de las dos capas de cómputo y cómo llega la orden hasta las ruedas.
+
+<p align="center">
+  <img src="schemes/Diagrama_Bloques_Senales.svg" alt="Diagrama de bloques de señales: sensores, Raspberry Pi 5, Pico 2 y actuadores" width="900px"/>
+</p>
+
+> **El diagrama se lee de arriba abajo y la división horizontal es la decisión de arquitectura más importante del proyecto.** Todo lo que exige juicio — reconocer un pilar, decidir por qué lado pasarlo, saber en qué vuelta va — ocurre en la Raspberry Pi 5. Todo lo que exige puntualidad — el ancho de cada pulso del servo, la integración del giroscopio — ocurre en la Pico 2. Entre las dos hay un único cable serie y un protocolo de dos líneas de texto, y esa estrechez es deliberada: obliga a que la frontera entre "decidir" y "ejecutar" sea explícita y auditable en el log de cualquier corrida.
+
+
 ### 4.1 Red de Distribución de Energía (Alimentación)
 
 Para asegurar el correcto funcionamiento del vehículo autónomo y prevenir reinicios imprevistos (*brownouts*) en la Raspberry Pi debido a picos de consumo dinámico de los motores, se implementó un sistema de alimentación completamente desacoplado por etapas:

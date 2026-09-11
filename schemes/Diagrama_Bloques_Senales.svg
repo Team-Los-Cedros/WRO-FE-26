@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1220 900" width="1220" height="900" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="f" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L7.5,3.2 L0,6.4 z" fill="#4a4a4a"/>
+    </marker>
+    <marker id="fb" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L7.5,3.2 L0,6.4 z" fill="#1565c0"/>
+    </marker>
+    <marker id="fo" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L7.5,3.2 L0,6.4 z" fill="#e65100"/>
+    </marker>
+    <marker id="fp" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L7.5,3.2 L0,6.4 z" fill="#6a1b9a"/>
+    </marker>
+  </defs>
+
+  <rect width="1220" height="900" fill="#ffffff"/>
+
+  <text x="40" y="44" font-size="25" font-weight="600" fill="#1a1a1a">Diagrama de bloques de señales</text>
+  <text x="40" y="70" font-size="14.5" fill="#5a5a5a">Team Los Cedros — WRO Future Engineers 2026. Flujo de datos entre sensores, las dos capas de cómputo y los actuadores.</text>
+  <text x="40" y="90" font-size="13" fill="#8a8a8a">La distribución de energía es un circuito aparte y está en la sección 4.1 del README.</text>
+
+  <!-- ============ PERCEPCION (Pi 5) ============ -->
+  <text x="40" y="132" font-size="13" font-weight="600" fill="#1565c0" letter-spacing="1">PERCEPCIÓN — ENTRA POR LA PI 5</text>
+
+  <rect x="40" y="144" width="212" height="74" rx="8" fill="#e9f1fd" stroke="#1565c0" stroke-width="1.6"/>
+  <text x="56" y="170" font-size="15.5" font-weight="600" fill="#0d3c6e">RPLiDAR C1</text>
+  <text x="56" y="190" font-size="12.5" fill="#3a5a7a">360° · plano a 69 mm del piso</text>
+  <text x="56" y="207" font-size="12" fill="#6a7a8a">USB · UART 460 800 bps</text>
+
+  <rect x="266" y="144" width="212" height="74" rx="8" fill="#e9f1fd" stroke="#1565c0" stroke-width="1.6"/>
+  <text x="282" y="170" font-size="15.5" font-weight="600" fill="#0d3c6e">Pi Camera Module 3</text>
+  <text x="282" y="190" font-size="12.5" fill="#3a5a7a">IMX708 · HFOV 53,8° medido</text>
+  <text x="282" y="207" font-size="12" fill="#6a7a8a">CSI · cable plano 15 pines</text>
+
+  <rect x="492" y="144" width="192" height="74" rx="8" fill="#e9f1fd" stroke="#1565c0" stroke-width="1.6"/>
+  <text x="508" y="170" font-size="15.5" font-weight="600" fill="#0d3c6e">Pulsador de salida</text>
+  <text x="508" y="190" font-size="12.5" fill="#3a5a7a">GPIO 21 · pull-up interno</text>
+  <text x="508" y="207" font-size="12" fill="#6a7a8a">Flanco a nivel bajo</text>
+
+  <path d="M146,218 L146,260" stroke="#1565c0" stroke-width="1.8" marker-end="url(#fb)" fill="none"/>
+  <path d="M372,218 L372,260" stroke="#1565c0" stroke-width="1.8" marker-end="url(#fb)" fill="none"/>
+  <path d="M588,218 L588,260" stroke="#1565c0" stroke-width="1.8" marker-end="url(#fb)" fill="none"/>
+  <text x="152" y="242" font-size="11.5" fill="#6a7a8a">barridos</text>
+  <text x="378" y="242" font-size="11.5" fill="#6a7a8a">cuadros</text>
+  <text x="594" y="242" font-size="11.5" fill="#6a7a8a">arranque</text>
+
+  <!-- ============ RASPBERRY PI 5 ============ -->
+  <rect x="40" y="264" width="644" height="176" rx="10" fill="#eaf6ec" stroke="#2e7d32" stroke-width="2"/>
+  <text x="58" y="292" font-size="17.5" font-weight="600" fill="#1b4d20">Raspberry Pi 5</text>
+  <text x="58" y="312" font-size="12.5" fill="#4a7a50">Capa de alto nivel · Python 3 · decide, no cronometra</text>
+
+  <rect x="58" y="326" width="140" height="44" rx="6" fill="#ffffff" stroke="#8bc49a" stroke-width="1.3"/>
+  <text x="68" y="344" font-size="12.5" font-weight="600" fill="#1b4d20">vision.py</text>
+  <text x="68" y="361" font-size="11" fill="#6a8a70">HSV · pilares y líneas</text>
+
+  <rect x="210" y="326" width="148" height="44" rx="6" fill="#ffffff" stroke="#8bc49a" stroke-width="1.3"/>
+  <text x="220" y="344" font-size="12.5" font-weight="600" fill="#1b4d20">lidar_geometria.py</text>
+  <text x="220" y="361" font-size="11" fill="#6a8a70">paredes y clusters</text>
+
+  <rect x="370" y="326" width="120" height="44" rx="6" fill="#ffffff" stroke="#8bc49a" stroke-width="1.3"/>
+  <text x="380" y="344" font-size="12.5" font-weight="600" fill="#1b4d20">tracker.py</text>
+  <text x="380" y="361" font-size="11" fill="#6a8a70">pilar activo</text>
+
+  <rect x="502" y="326" width="164" height="44" rx="6" fill="#ffffff" stroke="#8bc49a" stroke-width="1.3"/>
+  <text x="512" y="344" font-size="12.5" font-weight="600" fill="#1b4d20">sentido_vuelta.py</text>
+  <text x="512" y="361" font-size="11" fill="#6a8a70">horario / antihorario</text>
+
+  <rect x="58" y="382" width="608" height="42" rx="6" fill="#ffffff" stroke="#2e7d32" stroke-width="1.6"/>
+  <text x="68" y="400" font-size="13" font-weight="600" fill="#1b4d20">navegacion.py — máquina de estados de carrera, evasión y estacionamiento</text>
+  <text x="68" y="416" font-size="11" fill="#6a8a70">Una consigna por barrido: trayectoria nominal, regla de lado obligatorio y arbitraje de seguridad</text>
+
+  <!-- ============ ENLACE SERIE ============ -->
+  <path d="M240,440 L240,488" stroke="#4a4a4a" stroke-width="1.8" marker-end="url(#f)" fill="none"/>
+  <path d="M470,488 L470,440" stroke="#4a4a4a" stroke-width="1.8" marker-end="url(#f)" fill="none"/>
+
+  <rect x="120" y="488" width="484" height="70" rx="8" fill="#f5f5f3" stroke="#9a9a9a" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <text x="136" y="510" font-size="13.5" font-weight="600" fill="#3a3a3a">Enlace serie USB · clase COM virtual · 115 200 bps</text>
+  <text x="136" y="530" font-size="12" fill="#5a5a5a">Bajada — consigna:  <tspan font-family="Consolas, monospace" fill="#1a1a1a">velocidad,angulo[,kd]</tspan></text>
+  <text x="136" y="548" font-size="12" fill="#5a5a5a">Subida — telemetría: <tspan font-family="Consolas, monospace" fill="#1a1a1a">IMU:&#176; COLOR: US:mm WD:OK|STOP</tspan></text>
+
+  <!-- ============ PICO 2 ============ -->
+  <path d="M362,558 L362,606" stroke="#e65100" stroke-width="1.8" marker-end="url(#fo)" fill="none"/>
+
+  <rect x="40" y="610" width="644" height="132" rx="10" fill="#fdf2e6" stroke="#e65100" stroke-width="2"/>
+  <text x="58" y="638" font-size="17.5" font-weight="600" fill="#8a3d00">Raspberry Pi Pico 2</text>
+  <text x="58" y="658" font-size="12.5" fill="#a06030">Capa de tiempo real · MicroPython · ejecuta con puntualidad garantizada</text>
+
+  <rect x="58" y="672" width="190" height="52" rx="6" fill="#ffffff" stroke="#f0a060" stroke-width="1.3"/>
+  <text x="68" y="691" font-size="12.5" font-weight="600" fill="#8a3d00">Generación de PWM</text>
+  <text x="68" y="708" font-size="11" fill="#a06030">Servo 50 Hz · motor 2 kHz</text>
+
+  <rect x="260" y="672" width="190" height="52" rx="6" fill="#ffffff" stroke="#f0a060" stroke-width="1.3"/>
+  <text x="270" y="691" font-size="12.5" font-weight="600" fill="#8a3d00">Integración del giro</text>
+  <text x="270" y="708" font-size="11" fill="#a06030">Sesgo del MEMS al arrancar</text>
+
+  <rect x="462" y="672" width="204" height="52" rx="6" fill="#fff0f0" stroke="#c62828" stroke-width="1.5"/>
+  <text x="472" y="691" font-size="12.5" font-weight="600" fill="#8a1f1f">Watchdog de 500 ms</text>
+  <text x="472" y="708" font-size="11" fill="#a04040">Sin consigna válida: frena y centra</text>
+
+  <!-- ============ NOTA DE ARQUITECTURA (arriba a la derecha) ============ -->
+  <rect x="744" y="144" width="436" height="184" rx="8" fill="#fafafa" stroke="#c8c8c8" stroke-width="1.3"/>
+  <text x="762" y="172" font-size="14.5" font-weight="600" fill="#3a3a3a">Por qué hay dos cerebros</text>
+  <text x="762" y="198" font-size="12" fill="#5a5a5a">La Pi 5 decide y la Pico 2 ejecuta. Linux no da garantías de</text>
+  <text x="762" y="216" font-size="12" fill="#5a5a5a">tiempo: un retraso del planificador movería el ancho del pulso</text>
+  <text x="762" y="234" font-size="12" fill="#5a5a5a">del servo y el coche temblaría en recta.</text>
+  <text x="762" y="262" font-size="12" fill="#5a5a5a">Separarlos hace además el sistema seguro por omisión. Si la Pi</text>
+  <text x="762" y="280" font-size="12" fill="#5a5a5a">se cuelga o el USB se desconecta, la Pico deja de recibir</text>
+  <text x="762" y="298" font-size="12" fill="#5a5a5a">consignas y a los 500 ms frena sola, en vez de seguir para</text>
+  <text x="762" y="316" font-size="12" fill="#5a5a5a">siempre con la última orden que le llegó.</text>
+
+  <!-- ============ SENSORES DE LA PICO (junto a la Pico) ============ -->
+  <text x="744" y="380" font-size="13" font-weight="600" fill="#6a1b9a" letter-spacing="1">SENSORES EMBARCADOS EN LA PICO 2</text>
+
+  <rect x="744" y="392" width="436" height="68" rx="8" fill="#f5eafb" stroke="#6a1b9a" stroke-width="1.6"/>
+  <text x="760" y="416" font-size="15" font-weight="600" fill="#4a1070">MPU6050 — unidad inercial</text>
+  <text x="760" y="435" font-size="12" fill="#7a4a9a">Yaw del vehículo: cuenta vueltas y sostiene el rumbo</text>
+  <text x="760" y="452" font-size="11.5" fill="#9a7aaa" font-family="Consolas, monospace">I²C0 · GP16 SDA / GP17 SCL · 400 kHz</text>
+
+  <rect x="744" y="474" width="436" height="68" rx="8" fill="#f5eafb" stroke="#6a1b9a" stroke-width="1.6"/>
+  <text x="760" y="498" font-size="15" font-weight="600" fill="#4a1070">TCS3472 — color del piso</text>
+  <text x="760" y="517" font-size="12" fill="#7a4a9a">Orden de la pareja de líneas: evidencia absoluta del sentido</text>
+  <text x="760" y="534" font-size="11.5" fill="#9a7aaa" font-family="Consolas, monospace">I²C1 · GP18 SDA / GP19 SCL · 100 kHz</text>
+
+  <rect x="744" y="556" width="436" height="68" rx="8" fill="#f5eafb" stroke="#6a1b9a" stroke-width="1.6"/>
+  <text x="760" y="580" font-size="15" font-weight="600" fill="#4a1070">HC-SR04 — ultrasonido trasero</text>
+  <text x="760" y="599" font-size="12" fill="#7a4a9a">Única medida hacia atrás: el mástil ciega al LiDAR en 140-213°</text>
+  <text x="760" y="616" font-size="11.5" fill="#9a7aaa" font-family="Consolas, monospace">GP14 disparo / GP15 eco</text>
+
+  <path d="M900,624 L900,676 L692,676" stroke="#6a1b9a" stroke-width="1.8" marker-end="url(#fp)" fill="none"/>
+  <text x="712" y="668" font-size="11.5" fill="#7a4a9a">lecturas crudas</text>
+
+  <!-- ============ ACTUADORES ============ -->
+  <text x="40" y="790" font-size="13" font-weight="600" fill="#c62828" letter-spacing="1">ACTUACIÓN</text>
+
+  <path d="M240,742 L240,806" stroke="#e65100" stroke-width="1.8" marker-end="url(#fo)" fill="none"/>
+  <path d="M520,742 L520,806" stroke="#e65100" stroke-width="1.8" marker-end="url(#fo)" fill="none"/>
+  <text x="249" y="772" font-size="11.5" font-family="Consolas, monospace" fill="#a06030">GP12 · 50 Hz</text>
+  <text x="529" y="758" font-size="11.5" font-family="Consolas, monospace" fill="#a06030">GP22 PWMB · 2 kHz</text>
+  <text x="529" y="774" font-size="11.5" font-family="Consolas, monospace" fill="#a06030">GP26/27 dirección</text>
+  <text x="529" y="790" font-size="11.5" font-family="Consolas, monospace" fill="#a06030">GP28 habilitación</text>
+
+  <rect x="126" y="810" width="228" height="62" rx="8" fill="#fdecea" stroke="#c62828" stroke-width="1.6"/>
+  <text x="142" y="834" font-size="15" font-weight="600" fill="#8a1f1f">Geekservo — dirección</text>
+  <text x="142" y="853" font-size="12" fill="#a04040">Ackermann · pulso de posición</text>
+
+  <rect x="406" y="810" width="228" height="62" rx="8" fill="#fdecea" stroke="#c62828" stroke-width="1.6"/>
+  <text x="422" y="834" font-size="15" font-weight="600" fill="#8a1f1f">TB6612FNG</text>
+  <text x="422" y="853" font-size="12" fill="#a04040">Puente H MOSFET</text>
+
+  <path d="M634,841 L700,841" stroke="#c62828" stroke-width="1.8" marker-end="url(#f)" fill="none"/>
+  <text x="642" y="834" font-size="11" fill="#a04040">potencia</text>
+
+  <rect x="708" y="810" width="240" height="62" rx="8" fill="#fdecea" stroke="#c62828" stroke-width="1.6"/>
+  <text x="724" y="834" font-size="15" font-weight="600" fill="#8a1f1f">Geekservo DC — tracción</text>
+  <text x="724" y="853" font-size="12" fill="#a04040">Par de bloqueo 2,4 kg·cm</text>
+</svg>
