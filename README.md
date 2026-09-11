@@ -96,6 +96,8 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 ├── video/                        # Enlace oficial del video de pista y borradores de prueba
 ├── schemes/                      # Diagrama de cableado y fotos de la placa perforada
 ├── README.md                      # Documentación técnica principal (este archivo)
+├── BOM.md                         # Lista de materiales: qué comprar y para qué sirve cada pieza
+├── ENSAMBLAJE.md                  # Manual de montaje físico, etapa a etapa y con su verificación
 ├── INSTALACION.md                 # Manual paso a paso para reproducir el entorno desde cero
 └── CHANGELOG.md                   # Notas de versión por hito, referenciadas a commits reales
 
@@ -103,7 +105,7 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 
 > **Nota de Software de Inicio:** `controlador_inicio.py` fue el orquestador maestro de la Raspberry Pi 3B, arrancado por `systemd`. En la Pi 5 el cerebro se lanza directamente (`python3 -m ronda_nueva.ronda_nueva`) y espera el botón de `GPIO 21`; las unidades `wro_start.service` y `wro_robot.service` están copiadas pero **deshabilitadas**, igual que en la 3B.
 
-> **Reproducibilidad:** el manual completo para dejar una Raspberry Pi y una Pico 2 nuevas en este mismo estado (sistema operativo, dependencias, firmware, despliegue de scripts) está en [`INSTALACION.md`](INSTALACION.md).
+> **Reproducibilidad.** Reconstruir este vehículo desde cero son tres documentos encadenados: [`BOM.md`](BOM.md) dice qué comprar y por qué se eligió cada pieza, [`ENSAMBLAJE.md`](ENSAMBLAJE.md) cómo montarlo etapa por etapa con la comprobación que cierra cada una, e [`INSTALACION.md`](INSTALACION.md) cómo dejar la Raspberry Pi 5 y la Pico 2 en este mismo estado de software.
 
 ### 2.1 Historial de Versiones y Control de Cambios
 

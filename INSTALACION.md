@@ -23,7 +23,7 @@ Esta guía documenta, paso a paso, cómo dejar una **Raspberry Pi 5** y una **Ra
 * **Raspberry Pi 5** con **Raspberry Pi OS (64-bit)**, Bookworm o superior, ya flasheada en la microSD. Usa [Raspberry Pi Imager](https://www.raspberrypi.com/software/) y, en las opciones avanzadas, habilita SSH y configura el usuario `pi` **antes** de grabar.
 * **Raspberry Pi Pico 2** (RP2350), sin flashear.
 * Laptop en la misma red que la Pi 5, con cliente SSH.
-* Hardware ensamblado y cableado según la sección 4 del [README principal](README.md#4-arquitectura-eléctrica-y-distribución-de-señales): RPLiDAR C1 por USB, Pi Camera Module 3 por CSI, Pico 2 por USB, botón de arranque en GPIO 21.
+* Hardware ya montado siguiendo [`ENSAMBLAJE.md`](ENSAMBLAJE.md), y cableado según la sección 4 del [README principal](README.md#4-arquitectura-eléctrica-y-distribución-de-señales): RPLiDAR C1 por USB, Pi Camera Module 3 por CSI, Pico 2 por USB, botón de arranque en GPIO 21.
 
 > **Si tienes las dos Raspberry encendidas, cuidado:** ambas responden al hostname `wro-fe`. Distínguelas por IP o por kernel — `uname -r` termina en `-2712` en la Pi 5 y en `-v8` en la Pi 3B. No te confíes del nombre que muestra la terminal al conectarte: es idéntico en las dos placas. Se perdió media jornada de trabajo el 03-09 por estar probando contra la equivocada sin saberlo.
 
