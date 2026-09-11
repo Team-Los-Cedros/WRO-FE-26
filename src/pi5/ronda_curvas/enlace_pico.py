@@ -23,6 +23,21 @@ BAUDRATE_PICO = 115200
 # Si la Pico no reporta IMU en este tiempo damos la telemetria por caida
 TIMEOUT_TELEMETRIA = 0.5
 
+# Rango util del HC-SR04 trasero. Fuera de el la lectura no significa
+# nada: el firmware ya acota con US_MINIMA_MM/US_MAXIMA_MM, esto es el
+# candado del lado de la Pi.
+US_MIN_VALIDO = 20.0
+US_MAX_VALIDO = 4000.0
+
+# Del sensor al tope trasero del chasis, medido en el banco del 06-09
+# (`chassis.ultrasound_rear_to_tail_mm`). Lo que le queda al robot antes
+# de tocar es la lectura MENOS esto.
+US_SENSOR_A_CULATA = 34.0
+
+# Valores que el firmware puede emitir en COLOR. Cualquier otra cosa es
+# una linea truncada y se descarta: ver el candado en _parsear.
+COLORES_PISO = ("NARANJA", "AZUL", "PISTA", "NINGUNO", "ERROR", "SIN_SENSOR")
+
 
 class EnlacePico:
     def __init__(self, puerto=PUERTO_PICO, baudrate=BAUDRATE_PICO):
@@ -32,6 +47,17 @@ class EnlacePico:
         self._yaw_crudo    = 0.0
         self._cero_yaw     = None
         self._t_ultima_imu = 0.0
+
+        # Campos que la Pico ya emitia y este modulo tiraba al hacer
+        # split(",")[0]. Medido el 10-09 con el LiDAR y el ultrasonido a
+        # la vez, en la misma pose: el LiDAR reportaba 47mm por detras
+        # (era su propia estructura, ver lidar_mascara) y el ultrasonido
+        # 1085mm, que era la verdad. Sin este campo el estado RETROCESO
+        # sale en su primer ciclo SIEMPRE, y el robot no puede desatascarse.
+        self._us_mm        = None
+        self._t_ultimo_us  = 0.0
+        self._color_piso   = None
+        self._watchdog_ok  = False
 
         self._corriendo = True
         self._hilo = threading.Thread(target=self._hilo_lectura, daemon=True)
@@ -43,26 +69,92 @@ class EnlacePico:
                 if self._ser.in_waiting > 0:
                     linea = self._ser.readline().decode('utf-8', errors='ignore').strip()
                     if linea.startswith("IMU:"):
-                        # El firmware con sensor de piso emite
-                        # "IMU:<grados>,COLOR:<nombre>"; el que no lo tiene
-                        # emite solo "IMU:<grados>". Hay que recortar por la
-                        # coma ANTES de partir por ":": si no, el split deja
-                        # "<grados>,COLOR" y el float() revienta con
-                        # ValueError, que el except de abajo se traga en
-                        # silencio. El sintoma es una IMU clavada en 0.0 sin
-                        # ningun mensaje de error.
-                        campo_imu = linea.split(",")[0]
-                        valor = float(campo_imu.split(":", 1)[1])
-                        with self._lock:
-                            self._yaw_crudo    = valor
-                            self._t_ultima_imu = time.time()
-                            if self._cero_yaw is None:
-                                self._cero_yaw = valor
+                        self._parsear(linea)
             except (ValueError, IndexError):
                 pass
             except serial.SerialException:
                 time.sleep(0.2)
             time.sleep(0.005)
+
+    def _parsear(self, linea):
+        """Trama completa: "IMU:<g>,COLOR:<n>,US:<mm>,WD:<OK|STOP>".
+
+        Se recorre POR NOMBRE, no por posicion, y cada campo se aisla en
+        su propio try: una trama vieja de tres campos, o un campo
+        corrupto, no puede tumbar a los demas. El firmware de tres campos
+        ("IMU:<g>,COLOR:<n>") y el de dos siguen funcionando igual.
+
+        El bug que esto sustituye era `linea.split(",")[0]`: se quedaba
+        con el yaw y descartaba los otros tres campos sin que nadie lo
+        supiera. US es la unica medida trasera fiable que tiene el robot
+        (ver lidar_mascara), y WD dice si la Pico se paro sola.
+        """
+        ahora = time.time()
+        campos = {}
+        for trozo in linea.split(","):
+            if ":" in trozo:
+                clave, _, valor = trozo.partition(":")
+                campos[clave.strip()] = valor.strip()
+
+        with self._lock:
+            if "IMU" in campos:
+                try:
+                    self._yaw_crudo    = float(campos["IMU"])
+                    self._t_ultima_imu = ahora
+                    if self._cero_yaw is None:
+                        self._cero_yaw = self._yaw_crudo
+                except ValueError:
+                    pass
+            if "US" in campos:
+                try:
+                    # El firmware manda SIN_MEDIDA (un centinela) cuando el
+                    # disparo se perdio. Fuera del rango util del HC-SR04 la
+                    # lectura no significa nada: mejor None que un numero.
+                    us = float(campos["US"])
+                    if US_MIN_VALIDO <= us <= US_MAX_VALIDO:
+                        self._us_mm = us
+                        self._t_ultimo_us = ahora
+                    else:
+                        self._us_mm = None
+                except ValueError:
+                    self._us_mm = None
+            if "COLOR" in campos:
+                # SOLO valores conocidos. `readline()` puede devolver una
+                # linea cortada a mitad cuando el timeout vence, y sin
+                # este candado "COLOR:PIST" se acepta como un color
+                # valido. Medido el 10-09: 1 de cada 120 lecturas llegaba
+                # truncada. El parser anterior no lo sufria porque
+                # descartaba el campo entero.
+                c = campos["COLOR"]
+                if c in COLORES_PISO:
+                    self._color_piso = None if c in ("SIN_SENSOR", "PISTA",
+                                                     "NINGUNO", "ERROR") else c
+            if "WD" in campos and campos["WD"] in ("OK", "STOP"):
+                self._watchdog_ok = (campos["WD"] == "OK")
+
+    def ultrasonido_mm(self):
+        """Hueco REAL por detras del parachoques, en mm, o None.
+
+        Devuelve None -- SIN EVIDENCIA -- si la lectura es vieja o esta
+        fuera de rango, para que el llamador decida. Se descuenta la
+        distancia del sensor al tope trasero (medida el 06-09), asi que
+        el numero es "cuanto me falta para tocar", no "que lee el sensor".
+        """
+        with self._lock:
+            if self._us_mm is None:
+                return None
+            if (time.time() - self._t_ultimo_us) > TIMEOUT_TELEMETRIA:
+                return None
+            return max(0.0, self._us_mm - US_SENSOR_A_CULATA)
+
+    def color_piso(self):
+        with self._lock:
+            return self._color_piso
+
+    def watchdog_ok(self):
+        # False = la Pico dejo de recibir consignas y se paro sola.
+        with self._lock:
+            return self._watchdog_ok
 
     def fijar_cero(self):
         # Se llama al presionar el boton: el yaw de ese momento pasa a ser 0
@@ -92,6 +184,22 @@ class EnlacePico:
             linea += f",{kd:.2f}"
         try:
             self._ser.write((linea + "\n").encode())
+        except serial.SerialException:
+            pass
+
+    def led(self, modo):
+        """Enciende o apaga el parpadeo del LED de la Pico.
+
+        `modo` es "BLINK" (parpadear) o "OFF". El firmware acepta el
+        comando desde hace tiempo (LED:BLINK / LED:OFF); no hacia falta
+        reflashear nada para esto.
+
+        Un firmware antiguo que no lo conozca simplemente ignora la linea:
+        su parser descarta lo que no sabe leer, asi que esto no puede
+        dejar el robot sin consignas.
+        """
+        try:
+            self._ser.write(("LED:" + modo + "\n").encode())
         except serial.SerialException:
             pass
 

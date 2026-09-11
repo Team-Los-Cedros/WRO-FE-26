@@ -11,9 +11,18 @@
 # frontal_muro, el angulo_muro y los sectores los calcula el mismo
 # codigo que corre en el robot; aqui solo se generan los rayos.
 #
-# El robot simulado usa radios de giro DISTINTOS de los que supone
-# geometria_evasion.py (239/341 medidos frente a 260/360 asumidos): si
-# la maniobra solo funciona cuando el modelo es exacto, no sirve.
+# El robot simulado usa radios de giro algo DISTINTOS de los que supone
+# geometria_evasion.py: si la maniobra solo funciona cuando el modelo es
+# exacto, no sirve. Pero el desajuste tiene que ser realista, no
+# inventado: los 239/341 que habia aqui venian de la epoca en que se
+# creia que el robot giraba mucho mas abierto a la derecha, y hacian que
+# el robot SIMULADO no se pareciera al de verdad.
+#
+# Los radios reales, medidos con cinta el 10-09-2026 sobre el centro del
+# eje trasero, son 242.5 (izq) y 243.8 (der) -- practicamente simetricos.
+# Aqui se aplica un +-5% de desajuste, que es del orden de la dispersion
+# real de las medidas (+-16 mm entre las dos ruedas traseras del mismo
+# giro), para que el modelo siga sin ser exacto.
 import math
 import os
 import sys
@@ -31,8 +40,8 @@ from lidar_geometria import ProcesadorLidar   # noqa: E402
 
 # Radios REALES del simulador, deliberadamente distintos de los que
 # geometria_evasion da por buenos.
-RADIO_REAL_IZQ = 239.0
-RADIO_REAL_DER = 341.0
+RADIO_REAL_IZQ = 231.0   # 242.5 medido, -5%
+RADIO_REAL_DER = 256.0   # 243.8 medido, +5%
 BATALLA_REAL_IZQ = RADIO_REAL_IZQ * math.tan(math.radians(25.0))
 BATALLA_REAL_DER = RADIO_REAL_DER * math.tan(math.radians(20.0))
 

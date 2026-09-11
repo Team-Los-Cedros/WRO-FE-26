@@ -115,6 +115,13 @@ class TrackerObstaculo:
         self.asociaciones = 0
         self.ciclos_predichos = 0
         self.ambiguo = False
+        # Autopsia de la asociacion, para el CSV. Sin esto, "estimacion
+        # perdida" no dice si el pilar dejo de verse, si se vio y no paso
+        # las puertas, o si se vio doble y se descarto por ambiguo -- que
+        # piden arreglos distintos.
+        self.n_candidatos = 0
+        self.n_en_puerta = 0
+        self.motivo_no_asoc = ""
 
         # Progreso geometrico alrededor del pilar
         self.barrido = 0.0         # grados de rumbo mundo barridos (con signo)
@@ -253,7 +260,13 @@ class TrackerObstaculo:
         margen para dudar: bastaba un ciclo malo para cambiar de objeto y
         seguir la maniobra contra el objeto equivocado.
         """
-        if not self.activo or not candidatos:
+        self.n_candidatos = len(candidatos)
+        self.n_en_puerta = 0
+        self.motivo_no_asoc = ""
+        if not self.activo:
+            return False
+        if not candidatos:
+            self.motivo_no_asoc = "sin_candidatos"
             return False
 
         with self._lock:
@@ -281,7 +294,9 @@ class TrackerObstaculo:
             mejores.append((d / puerta_pos, cx, cy))
 
         self.ambiguo = False
+        self.n_en_puerta = len(mejores)
         if not mejores:
+            self.motivo_no_asoc = "fuera_de_puerta"
             return False
         mejores.sort()
         if len(mejores) > 1:
@@ -290,6 +305,7 @@ class TrackerObstaculo:
             # maniobra entera.
             if (mejores[1][0] - mejores[0][0]) < MARGEN_AMBIGUEDAD:
                 self.ambiguo = True
+                self.motivo_no_asoc = "ambiguo"
                 return False
 
         _, cx, cy = mejores[0]

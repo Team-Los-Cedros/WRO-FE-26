@@ -1,36 +1,36 @@
 # -*- coding: utf-8 -*-
 """
-Mascara de oclusion del LiDAR y sectores traseros recalculados.
+Mascara de oclusion del LiDAR y sectores traseros.
 
-Desde que la camara se monto en un mastil trasero, el mastil se mete en
-el barrido del C1 y lo ciega en un arco fijo. Medido con mapa_oclusion.py
-(40 barridos, robot quieto):
+El robot se ve a si mismo por detras: el mastil de la camara y el soporte
+del ultrasonido se meten en el barrido del C1 y lo ciegan en un arco fijo.
+Remedido con `diag_lidar_360.py` el 10-09-2026 (25 barridos, robot quieto):
 
-    grados 165-187  ->  eco constante a 90-107 mm, dispersion 3-8 mm
+    grados 136-198  ->  eco a 32-79 mm, tasa 25-100%, dispersion 2-9 mm
 
-Esos 23 grados no son entorno: son el robot mirandose a si mismo. El
+Esos 63 grados no son entorno: son el robot mirandose a si mismo. Y el
 problema no es perder resolucion trasera, es que los sectores de
 lidar_geometria.py toman el MINIMO del rango, asi que un eco fijo de
-~92mm gana siempre y deja tres cosas rotas en navegacion.py:
+~45mm gana siempre.
 
-  - `med.trasera` (rango [170,190], 18 de sus 21 grados tapados) vale
-    ~92mm de forma permanente. Como el estado RETROCESO sale en cuanto
-    `med.trasera < EMERGENCIA_TRASERA (250mm)`, el retroceso se aborta
-    en su primer ciclo pase lo que pase: el robot pierde la maniobra de
-    desatasco entera.
-  - `med.trasera_derecha` (rango [90,170]) incluye 165-170 y tambien se
-    queda clavado en ~104mm. El control P del retroceso usa
-    `trasera_derecha - trasera_izquierda`, asi que su error queda
-    dominado por una constante del chasis: gira siempre al mismo lado,
-    saturado, sin relacion con el espacio libre real.
+Lo que costo tenerlo mal medido (la version anterior decia 165-187, del
+montaje de antes del mastilfix del 05-09), en los CSV del 09-09:
+
+  - `med.trasera` valio 35-50 mm en el 99,9% de 1634 ciclos. Como
+    RETROCESO sale en cuanto `med.trasera < EMERGENCIA_TRASERA (250mm)`,
+    los 447 episodios de retroceso duraron TODOS 1 ciclo: 16 mm de marcha
+    atras por intento. El robot no podia desatascarse ni en principio.
+  - Las dos diagonales traseras quedaban clavadas tambien, asi que el
+    control P del retroceso (`trasera_derecha - trasera_izquierda`) veia
+    un error de cero y retrocedia siempre recto.
   - Los grados sin eco NO son mejores: construir_perfil_360 los rellena
-    con 8000.0, que significa "via libre". Un sector ciego que se
-    reporta despejado es peor que uno que se reporta ocupado.
+    con 8000.0, que significa "via libre". Un sector ciego que se reporta
+    despejado es peor que uno que se reporta ocupado.
 
-La correccion no es tapar los bins y ya: hay que recuperar la medida
-trasera desde los grados que SI ven. Este modulo hace las dos cosas y
-mantiene la simetria izquierda/derecha, que es de lo que depende el
-control P del retroceso.
+La conclusion honesta tras remedirlo es que con este montaje **el LiDAR
+no puede medir hacia atras**: no queda ni un grado util a menos de 46
+grados del eje trasero. La distancia trasera sale del ULTRASONIDO de la
+Pico (campo US de su telemetria), que `enlace_pico.py` descartaba.
 
 Convenciones heredadas de lidar_geometria: 0 = frente, horario,
 perfil = 360 floats (distancia minima por grado).
@@ -40,12 +40,29 @@ import math
 # ==========================================
 # ARCO CIEGO
 # ==========================================
-# Medido 165-187. Se guarda con 2 grados de margen a cada lado porque los
-# bordes (165 y 188) salieron con tasa de eco parcial: el haz roza el
-# canto del mastil y unas veces vuelve y otras no, que es el caso que peor
-# se comporta (alterna entre 100mm y 8000mm en ciclos seguidos).
-MASTIL_MIN = 163
-MASTIL_MAX = 189
+# REMEDIDO EL 10-09-2026 con `diag_lidar_360.py` (25 barridos, robot
+# quieto). Lo que ciega el LiDAR por detras NO es solo el mastil de la
+# camara: es el conjunto mastil + soporte del ultrasonido, y ocupa
+#
+#     grados 136-198  ->  eco a 32-79 mm, tasa 25-100%, dispersion 2-9 mm
+#
+# El valor anterior (163-189, eco a 90-107 mm) describia el montaje de
+# antes del `mastilfix` del 05-09 y dejaba 136-162 y 190-198 SIN TAPAR.
+# Como los sectores toman el MINIMO del rango, esos 35 grados de
+# estructura a ~45 mm mandaban sobre todo lo demas.
+#
+# Lo que costo, medido en los CSV del 09-09 (tres corridas, 1634 ciclos):
+# `med.trasera` valio 35-50 mm en el 99,9% de los ciclos, y los 447
+# episodios de RETROCESO duraron TODOS exactamente 1 ciclo -- salian por
+# `trasera < EMERGENCIA_TRASERA` antes de retroceder nada. A -35 PWM y
+# 0,1 s eso son 16 mm de marcha atras por intento: el robot no podia
+# desatascarse ni en principio.
+#
+# Se guarda con 1 grado de margen a cada lado: los bordes (135 y 199)
+# salieron con tasa de eco parcial, que es el caso que peor se comporta
+# (alterna entre 45 mm y 8000 mm en ciclos seguidos).
+MASTIL_MIN = 135
+MASTIL_MAX = 199
 BINS_CIEGOS = frozenset(range(MASTIL_MIN, MASTIL_MAX + 1))
 
 # Distancia por debajo de la cual un eco es estructura del robot, no pista.
@@ -58,26 +75,32 @@ SIN_DATO = 8000.0
 # ==========================================
 # SECTORES TRASEROS RECALCULADOS
 # ==========================================
-# El arco ciego llega hasta 18 grados del eje trasero por el lado derecho
-# (180-162) y hasta 9 por el izquierdo (189-180). Se recorta el MISMO
-# margen de 18 grados en ambos lados aunque por la izquierda sobre sitio:
-# el control P del retroceso resta un sector del otro, y dos sectores de
-# ancho distinto meten un sesgo constante hacia el lado mas ancho.
-MARGEN_MASTIL = 18
+# El arco ciego llega a 45 grados del eje trasero por el lado derecho
+# (180-135) y a 19 por el izquierdo (199-180). Se recorta el MISMO margen
+# de 45 en ambos lados aunque por la izquierda sobre sitio: el control P
+# del retroceso resta un sector del otro, y dos sectores de ancho
+# distinto meten un sesgo constante hacia el lado mas ancho -- que es
+# justo el fallo que se persigue.
+MARGEN_MASTIL = 45
 
 # Diagonales traseras (eran [90,170] y [190,270] en lidar_geometria)
-TRASDER_MIN, TRASDER_MAX = 90, 180 - MARGEN_MASTIL          # [ 90, 162]
-TRASIZQ_MIN, TRASIZQ_MAX = 180 + MARGEN_MASTIL, 270         # [198, 270]
+TRASDER_MIN, TRASDER_MAX = 90, 180 - MARGEN_MASTIL          # [ 90, 135]
+TRASIZQ_MIN, TRASIZQ_MAX = 180 + MARGEN_MASTIL, 270         # [225, 270]
 
-# Ventanas para la distancia trasera "de frente". El sector original
-# [170,190] esta tapado casi entero, asi que se mide por los dos hombros
-# que quedan: +-18 a +-35 grados del eje. Se proyecta cada haz sobre el
-# eje trasero (d * cos(offset)) para que el numero siga siendo "cuanto
-# me falta para tocar la pared de atras" y no la distancia oblicua, que
-# es mayor y haria creer que hay mas sitio del que hay.
-SEMIANCHO_TRASERA = 35
-HOMBRO_DER = (180 - SEMIANCHO_TRASERA, 180 - MARGEN_MASTIL)  # [145, 162]
-HOMBRO_IZQ = (180 + MARGEN_MASTIL, 180 + SEMIANCHO_TRASERA)  # [198, 215]
+# NO HAY VENTANA TRASERA. Con el arco ciego real (135-199), los hombros
+# que la version anterior usaba -- [145,162] y [198,215] -- caen DENTRO
+# de la estructura: eran los que devolvian 47 mm en todos los ciclos.
+#
+# La conclusion honesta es que este LiDAR, con este montaje, NO PUEDE
+# medir hacia atras: los 45 grados a la derecha del eje trasero estan
+# tapados por completo. Inventar una "trasera" a partir de haces
+# oblicuos de +-46 grados o mas seria repetir el error con otro numero.
+#
+# La medida buena existe y esta en el otro sensor: el HC-SR04 que la
+# Pico publica en el campo US de su telemetria. Comprobado el 10-09 en
+# la misma pose: LiDAR 47 mm, ultrasonido 1085 mm, verdad ~1 m.
+# `ronda_camara.py` sobrescribe `med.trasera` con ese valor.
+
 
 
 def _indices(ang_min, ang_max):
@@ -98,26 +121,21 @@ def distancia_util(perfil, ang_min, ang_max):
 
 
 def distancia_trasera(perfil):
-    """Distancia a lo que haya detras, proyectada sobre el eje trasero.
+    """SIN_DATO, siempre y a proposito: este LiDAR no ve hacia atras.
 
-    Sustituye a `Medicion.trasera` (rango [170,190]), que con el mastil
-    montado vale ~92mm siempre. Mide por los dos hombros que quedan
-    visibles y se queda con el minimo proyectado, que es el criterio
-    conservador: si un haz oblicuo ve algo a 300mm a 30 grados, lo que
-    falta por detras son 300*cos(30) = 260mm, no 300.
+    Con el arco ciego real (135-199) no queda ni un grado util a menos de
+    46 grados del eje trasero, asi que no hay ninguna ventana con la que
+    reconstruir la distancia axial. Devolver SIN_DATO es decir "no lo
+    puedo ver", que es la verdad; devolver un numero sacado de haces muy
+    oblicuos seria repetir el fallo de la version anterior con otra
+    cifra.
+
+    Quien mide por detras es el ultrasonido de la Pico (campo US de la
+    telemetria). `ronda_camara.py` pisa `med.trasera` con el, y si el
+    ultrasonido no responde deja este SIN_DATO -- que la FSM interpreta
+    como "no hay obstaculo confirmado detras", no como "hay uno encima".
     """
-    mejor = SIN_DATO
-    for a_min, a_max in (HOMBRO_DER, HOMBRO_IZQ):
-        for i in _indices(a_min, a_max):
-            if i in BINS_CIEGOS:
-                continue
-            d = perfil[i]
-            if d >= SIN_DATO:
-                continue
-            axial = d * math.cos(math.radians(i - 180))
-            if axial < mejor:
-                mejor = axial
-    return mejor
+    return SIN_DATO
 
 
 def distancia_trasera_derecha(perfil):

@@ -1,0 +1,31 @@
+[Unit]
+Description=Ronda de obstaculos WRO - Team Los Cedros
+# multi-user, no basic: hace falta que el USB haya enumerado la Pico
+# (/dev/ttyACM0) y la camara antes de abrir el enlace.
+After=multi-user.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+User=pi
+WorkingDirectory=/home/pi/ronda_curvas
+Environment=PYTHONUNBUFFERED=1
+# Margen para que terminen de aparecer los dispositivos USB.
+ExecStartPre=/bin/sleep 10
+ExecStart=/bin/bash /home/pi/correr_completa.sh
+RemainAfterExit=yes
+
+# SIN Restart. La unidad anterior tenia Restart=always, que relanzaba la
+# ronda ENTERA en cuanto terminaba: el robot volvia a salir del
+# estacionamiento solo, una y otra vez. Una carrera se lanza una vez.
+
+# Sin limite de arranque: el servicio se pasa la mayor parte del tiempo
+# esperando el boton, y el limite de 90 s que systemd le pone por defecto
+# a los oneshot lo mataria antes de que nadie lo pulse.
+TimeoutStartSec=0
+
+StandardOutput=append:/home/pi/ronda_curvas/logs/servicio.log
+StandardError=append:/home/pi/ronda_curvas/logs/servicio.log
+
+[Install]
+WantedBy=multi-user.target

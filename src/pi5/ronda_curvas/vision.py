@@ -44,6 +44,7 @@ UMBRAL_CY = 240
 # defecto -- no agrega I/O a disco en carrera normal. Activar con
 # WRO_DEBUG_VISION=1 antes de lanzar el script.
 DEPURAR_FRAMES = os.environ.get("WRO_DEBUG_VISION") == "1"
+_PANEL = os.environ.get("WRO_PANEL") == "1"
 _DIR_DEPURACION = "/home/pi/diag_vision"
 _MAX_FRAMES_DEPURACION = 200  # limite duro, no llenar la SD en una corrida larga
 _n_frames_guardados = 0
@@ -59,6 +60,34 @@ ROJO_BAJO_1 = np.array([0,   151,  99]);  ROJO_ALTO_1 = np.array([15,  255, 255]
 ROJO_BAJO_2 = np.array([158, 160,  82]);  ROJO_ALTO_2 = np.array([179, 255, 255])
 VERDE_BAJO  = np.array([43,   68,  50]);  VERDE_ALTO  = np.array([85,  255, 255])
 
+# LINEAS DE ESQUINA DEL SUELO. Las pinta el reglamento y su ORDEN
+# determina el sentido de la vuelta sin ambiguedad -- es la unica fuente
+# que no depende del yaw ni de interpretar la geometria.
+#
+# Se detectan por CAMARA porque el sensor de piso apenas las ve: medido
+# el 11-09, 35 lecturas AZUL y 13 NARANJA en 1310 ciclos, y en otra
+# corrida UNA sola. Con eso el sentido lo acababa decidiendo la
+# geometria, que es el metodo debil y el que fallo en pista.
+#
+# EL NARANJA COMPARTE TONO CON EL ROJO DE LOS PILARES (H 0-15), asi que
+# el color NO basta para distinguirlos. Lo que los separa es la forma y
+# el sitio: una linea es una banda ANCHA y BAJA en el frame, un pilar es
+# un bloque ALTO. De ahi los dos filtros de _buscar_lineas.
+# MEDIDOS sobre el frame real del 11-09 (logs/linea.jpg), no supuestos:
+# la naranja da H 13-15, S 87-133, V 121-189; la azul H 118, S 82, V 52.
+# El primer intento exigia S>=110 y dejaba fuera media linea naranja.
+NARANJA_BAJO = np.array([  4,  65,  85]); NARANJA_ALTO = np.array([ 26, 255, 255])
+AZUL_BAJO    = np.array([ 95,  55,  38]); AZUL_ALTO    = np.array([135, 255, 255])
+
+LINEA_ANCHO_SOBRE_ALTO = 1.8    # una linea es mas ancha que alta; un pilar no
+# 0.33, no 0.62. Las lineas NO caen en el tercio inferior: en el frame
+# medido estan en las filas 136-210 de 360, o sea la banda 0,38-0,58. El
+# recorte anterior las cortaba enteras y la deteccion daba cero. Por
+# debajo de 0,33 queda el muro y el horizonte, que es lo que hay que
+# dejar fuera.
+LINEA_FILA_MINIMA = 0.33
+LINEA_AREA_MINIMA = 150
+
 _KERNEL = np.ones((5, 5), np.uint8)
 
 # Estado compartido (protegido por lock_vision)
@@ -70,6 +99,7 @@ area_cruda   = 0
 poste_color = None
 poste_cx    = None
 poste_area  = 0
+_t_ultimo_frame = None
 _contador_entrada = 0
 _contador_salida  = 0
 
@@ -104,10 +134,66 @@ def _aplicar_histeresis():
                 _contador_entrada = 0
 
 
-def get_color():
-    """Lectura segura (con lock) del color detectado y estabilizado por histéresis."""
+_linea = {"color": None, "cy": 0.0, "t": 0.0}
+
+
+def linea_a_la_vista():
+    """('NARANJA'|'AZUL', cy) de la linea de suelo mas CERCANA, o None.
+
+    `cy` va en fraccion del alto del frame: 0 arriba, 1 abajo.
+
+    Mas cerca = mas abajo en el frame, que es el criterio del equipo: si
+    se ve primero la naranja la vuelta es horaria; si se ve primero la
+    azul, antihoraria.
+    """
+    if _linea["color"] is None:
+        return None
+    return (_linea["color"], _linea["cy"])
+
+
+def _buscar_lineas(hsv, alto):
+    fila_min = int(alto * LINEA_FILA_MINIMA)
+    mejor_color, mejor_cy = None, -1.0
+    for nombre, bajo, altoc in (("NARANJA", NARANJA_BAJO, NARANJA_ALTO),
+                                ("AZUL", AZUL_BAJO, AZUL_ALTO)):
+        mask = cv2.inRange(hsv, bajo, altoc)
+        mask[:fila_min, :] = 0
+        # SIN APERTURA. El kernel de 5x5 borra todo lo mas fino que 5 px,
+        # y una linea de suelo vista en diagonal tiene 3-8: las disolvia
+        # enteras. Aqui el ruido lo filtran el area minima y, sobre todo,
+        # la forma -- una linea es ancha y plana, una mancha no. Lo que si
+        # ayuda es cerrar los huecos que deja la costura del tapete.
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, _KERNEL)
+        cont, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in cont:
+            x, y, w, h = cv2.boundingRect(c)
+            if cv2.contourArea(c) < LINEA_AREA_MINIMA:
+                continue
+            if w < h * LINEA_ANCHO_SOBRE_ALTO:
+                continue                      # eso es un pilar, no una linea
+            cy = y + h / 2.0
+            if cy > mejor_cy:
+                mejor_color, mejor_cy = nombre, cy
+    # cy en FRACCION del alto (0 = arriba, 1 = abajo), no en pixeles: asi
+    # el umbral del contador de vueltas no depende de la resolucion.
+    _linea["color"] = mejor_color
+    _linea["cy"] = (mejor_cy / float(alto)) if mejor_color else 0.0
+    _linea["t"] = time.time()
+
+
+def edad_deteccion():
+    """Segundos desde el ultimo frame PROCESADO, o None si no hubo ninguno.
+
+    El hilo de camara puede morir en silencio: si `Picamera2()` falla al
+    inicializar, `hilo_captura` hace return y se acaba. Sin esta marca de
+    tiempo, `get_deteccion()` sigue devolviendo el ultimo color visto
+    para siempre y la FSM persigue un pilar que ya nadie ve. El LiDAR ya
+    tenia watchdog; la camara no.
+    """
     with lock_vision:
-        return poste_color
+        if _t_ultimo_frame is None:
+            return None
+        return time.time() - _t_ultimo_frame
 
 
 def get_deteccion():
@@ -157,13 +243,14 @@ def procesar_frame(frame):
     captura). Segmenta por color, elige el mejor contorno y actualiza el
     estado compartido con histéresis.
     """
-    global color_crudo, cx_crudo, area_cruda
+    global color_crudo, cx_crudo, area_cruda, _t_ultimo_frame
 
     try:
         # Picamera2 con formato "RGB888" entrega los bytes en orden BGR
         # (comportamiento documentado de la librería, pese al nombre).
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
+        _buscar_lineas(hsv, frame.shape[0])
         mask_rojo  = cv2.inRange(hsv, ROJO_BAJO_1, ROJO_ALTO_1) | \
                      cv2.inRange(hsv, ROJO_BAJO_2, ROJO_ALTO_2)
         mask_verde = cv2.inRange(hsv, VERDE_BAJO, VERDE_ALTO)
@@ -200,7 +287,14 @@ def procesar_frame(frame):
                         mejor_cx    = int(M["m10"] / M["m00"])
                         mejor_area  = area
 
+        if _PANEL:
+            try:
+                import panel_web
+                panel_web.publicar_frame(frame)
+            except Exception:
+                pass
         with lock_vision:
+            _t_ultimo_frame = time.time()
             color_anterior = color_crudo
             if mejor_area > 0:
                 color_crudo = mejor_color

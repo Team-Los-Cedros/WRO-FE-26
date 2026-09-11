@@ -134,3 +134,24 @@ def rumbo_camara_de_cluster(x_mm, y_mm):
     error de paralaje a distancia de evasion corta.
     """
     return math.degrees(math.atan2(x_mm - CAM_X, y_mm - CAM_Y))
+
+
+# ==========================================
+# CANDADO DE COHERENCIA CON LA CAPTURA
+# ==========================================
+# ANCHO_FRAME/ALTO_FRAME estan definidos aqui Y en camara_driver.py, y
+# tienen que valer lo mismo: si alguien cambia el tamaño de captura y no
+# toca esto, la focal y el centro optico siguen siendo los del tamaño
+# viejo y todos los rumbos de camara salen mal EN SILENCIO -- que es
+# exactamente como geometria_robot acabo con un frame de 320x240 del
+# montaje anterior. Aqui se prefiere morir en el import.
+try:
+    import camara_driver as _cam
+except Exception:                      # sin picamera2 (tests en el PC)
+    _cam = None
+if _cam is not None:
+    if (_cam.ANCHO_FRAME, _cam.ALTO_FRAME) != (int(ANCHO_FRAME), int(ALTO_FRAME)):
+        raise RuntimeError(
+            "optica.py esta calibrada para %dx%d y camara_driver captura %dx%d. "
+            "Recalibrar con calib_fov.py / reescalar antes de correr."
+            % (ANCHO_FRAME, ALTO_FRAME, _cam.ANCHO_FRAME, _cam.ALTO_FRAME))
