@@ -2,6 +2,36 @@
 
 Bienvenidos al repositorio oficial del **Team Los Cedros**, integrado por estudiantes del Colegio Los Cedros en Valera, Estado Trujillo, Venezuela. Aquí compartimos la documentación técnica, diseños de hardware, esquemas eléctricos y el software modular de nuestro vehículo autónomo para la World Robot Olympiad (WRO) 2026.
 
+<p align="center">
+  <img src="v-photos/V3/Topview.jpeg" alt="Vehiculo autonomo del Team Los Cedros, vista superior" width="520px"/>
+</p>
+
+---
+
+## El robot en una página
+
+Un coche autónomo de **242 x 138 mm y 720 g** sobre chasis LEGO Technic, con dirección Ackermann. Lo gobiernan **dos cerebros**: una Raspberry Pi 5 que decide (visión, LiDAR y máquina de estados) y una Pico 2 que ejecuta con puntualidad garantizada (PWM, giroscopio y un watchdog que frena solo si la Pi calla). Ve el mundo con un **RPLiDAR C1** a 360°, una **Pi Camera Module 3** y cuatro sensores embarcados.
+
+| Prueba | Estado | Evidencia |
+| :--- | :--- | :--- |
+| **Ronda Abierta** | Completa y grabada | [Vídeo del 06-09-2026](video/ronda_abierta_20260906.mp4) |
+| **Ronda de Obstáculos** | El vehículo ejecuta la secuencia entera —sale del estacionamiento, esquiva los pilares por el lado que marca su color y vuelve al cuadrante de salida—, pero **la corrida limpia de tres vueltas sigue pendiente**. Las dos causas que lo impiden están identificadas y medidas. | [Las cinco corridas, una por una](video/video.md#ronda-cerrada) |
+
+> Ese "pendiente" está escrito a propósito. Todo lo que este repositorio afirma se puede comprobar: cada corrida deja un CSV por barrido de LiDAR, y el marcador que usamos no es el registro interno del robot sino un verificador independiente que solo cuenta un pilar como superado cuando el eje trasero cruza su posición con separación positiva del lado obligatorio. Cuando el vídeo y el registro se contradicen, mandamos el vídeo.
+
+## Dónde mirar
+
+| Si busca... | Está en |
+| :--- | :--- |
+| **Movilidad y diseño mecánico** | [§7 Geometría de dirección](#7-geometría-de-dirección-y-movilidad-mecánica) — cinemática Ackermann, límites de giro calibrados en pista y el cálculo de torque con su margen. [§3.2 y §3.3](#32-registro-fotográfico-de-la-evolución-e-iteración-geométrica-matriz-v1--v2--v3) — evolución V1→V3 y las seis vistas reglamentarias. CAD reproducible pieza a pieza en [`3d-Models/`](3d-Models/). |
+| **Arquitectura de potencia y sensores** | [§4 completa](#4-arquitectura-eléctrica-y-distribución-de-señales) — empieza por el [diagrama de bloques de señales](schemes/Diagrama_Bloques_Senales.svg). Alimentación desacoplada en tres etapas, pinout calibrado pin a pin y **consumo real medido con multímetro**, no estimado por hoja de datos. |
+| **Arquitectura de software y estrategia de obstáculos** | [§5 Percepción y alto nivel](#5-capa-de-percepción-y-alto-nivel-raspberry-pi-5) — máquina de estados de carrera, evasión y estacionamiento. [§5.3](#53-estrategia-de-navegación-justificada-por-rondas-geometría-del-campo) — la estrategia por rondas, deducida de la geometría del campo. [§6](#6-capa-de-control-de-bajo-nivel-raspberry-pi-pico-2) — el firmware de tiempo real. |
+| **Pensamiento sistémico y decisiones de ingeniería** | [§3.4 Trade-offs](#34-justificación-de-ingeniería-para-la-selección-de-componentes-y-arquitectura-de-sistemas-trade-offs) — por qué cada componente y qué se descartó. [§8](#8-análisis-de-riesgos-y-registro-de-iteraciones) — interacción entre subsistemas y **cuatro casos de estudio con datos de pista**. [§9](#9-estado-actual-y-trabajo-pendiente) — lo que falta, y lo que se descartó midiendo. |
+| **Reproducibilidad** | Tres documentos encadenados: [`BOM.md`](BOM.md) qué comprar → [`ENSAMBLAJE.md`](ENSAMBLAJE.md) cómo montarlo, con la comprobación que cierra cada etapa → [`INSTALACION.md`](INSTALACION.md) cómo dejar las dos placas en este mismo estado. Y [`CHANGELOG.md`](CHANGELOG.md), con los hashes de commit de cada hito. |
+| **El código que corre hoy** | [`src/pi5/ronda_curvas/`](src/pi5/ronda_curvas/) en la Raspberry Pi 5 y [`src/pico/`](src/pico/) en la Pico 2. Lo archivado está separado a propósito en `legacy/`. |
+
+---
+
 ### Índice
 
 1. [Introducción y Equipo](#1-introducción-y-equipo)
@@ -13,6 +43,8 @@ Bienvenidos al repositorio oficial del **Team Los Cedros**, integrado por estudi
 7. [Geometría de Dirección y Movilidad Mecánica](#7-geometría-de-dirección-y-movilidad-mecánica)
 8. [Análisis de Riesgos y Registro de Iteraciones](#8-análisis-de-riesgos-y-registro-de-iteraciones)
 9. [Estado Actual y Trabajo Pendiente](#9-estado-actual-y-trabajo-pendiente)
+
+**Documentos que acompañan a este README:** [`BOM.md`](BOM.md) · [`ENSAMBLAJE.md`](ENSAMBLAJE.md) · [`INSTALACION.md`](INSTALACION.md) · [`CHANGELOG.md`](CHANGELOG.md) · [`video/video.md`](video/video.md)
 
 ---
 
