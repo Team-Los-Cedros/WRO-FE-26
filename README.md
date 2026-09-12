@@ -245,6 +245,35 @@ De acuerdo con las rigurosas restricciones de peso, inercia de rotación y estab
   Las celdas de iones de litio 21700 proporcionan una densidad de corriente de descarga continua masiva de hasta $30\,\text{A}$. Al alimentar nuestro regulador de alta potencia **XL4016 (capacidad de hasta $8.0\,\text{A}$)**, garantizamos un blindaje eléctrico absoluto contra caídas de tensión (*brownouts*). Toda la etapa lógica (Raspberry Pi 5, Pico 2 y LiDAR) opera de manera holgada: el consumo real del sistema completo en marcha, medido con multímetro el 06-09, es de $1.39\,\text{A}$ (sección 4.4), previniendo reinicios críticos del sistema operativo cuando el motor demanda torque de arranque máximo al salir de las curvas.
 ---
 
+### 3.5 Línea de Tiempo del Proyecto: qué se intentó, qué midió y qué cambió por eso
+
+Las tablas anteriores comparan versiones de hardware. Esta cuenta **el orden en que se aprendieron las cosas**, porque el proyecto no avanzó de forma lineal y el punto de inflexión no fue un componente nuevo. Todo lo de abajo está respaldado por [`CHANGELOG.md`](CHANGELOG.md), que lleva el hash de commit de cada hito.
+
+| Fase | Cuándo | Qué se resolvió | Qué obligó a cambiar |
+| :--- | :---: | :--- | :--- |
+| **Construir** | ene – jun 2026 | Estructura reglamentaria del repositorio, protocolo serie Pi↔Pico y máquina de estados base en la Pico 2. | La Pi 5 no estaba disponible para el equipo, así que la capa de alto nivel **bajó a una Pi 3B**. No fue una preferencia técnica: fue el hardware que había. |
+| **Mecanizar** | jul 2026 | Chasis V2 en LEGO Technic ($613\,\text{g}$) y primera Ronda Cerrada funcional: calibración HSV propia, *tracker* del LiDAR y evasión con control proporcional. | El lado de evasión salía invertido y la cámara trabajaba en el espacio de color equivocado. Se arregló en pista, y de ahí sale el caso de estudio de la sección 8.2. |
+| **Medir** | 27-07-2026 | **El punto de inflexión.** Se instrumentó telemetría por ciclo en CSV y un analizador que la resume. | Hasta aquí los parámetros de control se ajustaban por **observación cualitativa**. Desde aquí, con datos. Todo lo que este README afirma a partir de esta fecha tiene un CSV detrás. |
+| **Chocar contra un límite** | 27 – 29-08-2026 | Asistencia de esquina, escape frontal y desempate de esquina simétrica con memoria persistente. | Se documentó el **límite de la reactividad pura**: un controlador que solo responde a lo que ve *ahora* no puede desempatar dos esquinas que se ven idénticas. Hizo falta memoria de estado, no más ganancia. |
+| **Ampliar el cómputo** | 03 – 05-09-2026 | Vuelta a la **Raspberry Pi 5**. | La decisión se tomó con números, no por preferencia: el mismo procesado de imagen pasó de $67-72\,\text{ms}$ a $\mathbf{4.8\,\text{ms}}$ por cuadro, y la edad del barrido del LiDAR de $16.0\,\text{ms}$ de media a $\mathbf{0.1\,\text{ms}}$. Eso es lo que permitió subir la cámara a $1280\times720$. |
+| **Cerrar la ronda** | 06 – 11-09-2026 | Ronda Abierta completa y grabada. Después, la secuencia entera de la Ronda de Obstáculos: salir del estacionamiento, tres vueltas y volver al cuadrante. | El conteo de vueltas dejó de hacerse por tiempo y pasó a contarse por **líneas de pista**, porque contar tramos devuelve el robot al mismo cuadrante del que salió sin importar dónde arrancara dentro de él. |
+
+#### La decisión que más enseñó no fue técnica
+
+El cambio de rumbo del proyecto ocurrió el **27 de julio**, y no fue un sensor ni un algoritmo: fue empezar a **grabar un CSV por ciclo** y a comparar corridas con un analizador en vez de con la memoria de quien miraba.
+
+Lo que eso hizo posible se ve en la sección 9.3: cuatro hipótesis razonables que resultaron **falsas y se pudieron descartar con datos** en vez de seguir arrastrándolas. Frenar al ver un bloque sin color parecía prudente y empeoró el resultado (de 8 pilares sin fallo a 3 con 2 fallos). Encararlo para identificarlo parecía obvio y bajó el reconocimiento de color del $39.2\,\%$ al $26.8\,\%$. El consumo eléctrico parecía una restricción y resultó estar sobrado por un factor de $1.5\times$. La cámara parecía el problema de la fusión y era el denominador, lleno de bultos que no eran pilares.
+
+Ninguna de esas cuatro conclusiones se podía alcanzar mirando al robot dar vueltas.
+
+#### El ir y venir de la Raspberry Pi
+
+Vale la pena registrarlo porque es el tipo de restricción que un equipo escolar encuentra de verdad: el proyecto **empezó** con una Raspberry Pi 5, **bajó** a una Pi 3B en junio por disponibilidad de hardware, y **volvió** a la Pi 5 en septiembre cuando se pudo. El código sobrevivió a las dos migraciones porque la frontera entre la capa que decide y la que ejecuta es un cable serie y dos líneas de texto: la Pico 2 nunca se enteró de qué computadora tenía enfrente.
+
+Esa es la ventaja real de la arquitectura de dos cerebros, y no se eligió por eso — se descubrió al tener que cambiar de computadora dos veces.
+
+---
+
 ## 4. Arquitectura Eléctrica y Distribución de Señales
 
 Antes del detalle de cada etapa, esta es la vista completa de cómo viaja la información por el vehículo: qué sensor entra por dónde, qué decide cada una de las dos capas de cómputo y cómo llega la orden hasta las ruedas.
