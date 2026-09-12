@@ -48,7 +48,7 @@ Un coche autónomo de **242 x 138 mm y 720 g** sobre chasis LEGO Technic, con di
 
 ---
 
-## 0. Estado Actual del Hardware (última revisión: 06-09-2026)
+## 0. Estado Actual del Hardware (última revisión: 12-09-2026)
 
 El robot cambió en cinco puntos respecto a la primera versión documentada en este README. Cada cambio se detalla en su sección; esta tabla existe para que no haya que reconstruirlo leyendo el documento entero.
 
@@ -191,7 +191,7 @@ El desarrollo de nuestro vehículo autónomo no fue un proceso lineal. Para alca
 
 Para alcanzar la estabilidad operativa actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento dinámico, telemetría inercial y análisis de fallos mecánicos destructivos en pista:
 
-> **El prototipo actual es la V3.** Esta tabla documenta el salto **V1 → V2**, que fue *mecánico*: chasis, masa, tracción y topología de potencia. El salto **V2 → V3** fue *electrónico* y no cambió el chasis, así que se documenta aparte en la [sección 0](#0-estado-actual-del-hardware-última-revisión-06-09-2026): Raspberry Pi 5, mástil del LiDAR, ultrasonido trasero y botón único de arranque.
+> **El prototipo que compite es la V4.** Las cuatro versiones cambiaron cosas distintas, y por eso se documentan por separado: el salto **V1 → V2** fue *mecánico* (chasis, masa, tracción y topología de potencia) y es el de esta tabla; el salto **V2 → V3** fue *electrónico* (Raspberry Pi 5, mástil del LiDAR, ultrasonido trasero y botón único) y el **V3 → V4** fue de *colocación de sensores*, sin tocar el chasis. Los dos últimos están en la [sección 0](#0-estado-actual-del-hardware-última-revisión-12-09-2026), con las seis vistas del montaje que compite.
 
 | Criterio Técnico | Prototipo Inicial (V1) | Rediseño Mecánico (V2) | Justificación de Ingeniería / Análisis de Fatiga |
 | :--- | :--- | :--- | :--- |
