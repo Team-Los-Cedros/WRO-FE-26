@@ -83,7 +83,7 @@ El vehículo se reconstruyó sobre el mismo chasis para la fase final. Dos cambi
 
 En la vista inferior se ve el **TCS3472 montado sobre vigas Technic por delante del eje delantero**, fuera del contorno del chasis. Esa es la colocación que le da anticipación sobre la línea.
 
-> Las medidas de la sección 7.5 —dimensiones del chasis y radios de giro trazados con marcadores— **corresponden a este montaje**. La galería de seis vistas de la sección 3.3 es todavía del montaje anterior (V3) y se está rehaciendo.
+> Las medidas de la sección 7.5 —dimensiones del chasis y radios de giro trazados con marcadores— **corresponden a este montaje**.
 
 ---
 
@@ -217,16 +217,16 @@ Para evidenciar la transformación del vehículo y el rediseño de los tres ejes
 ---
 ### 3.3 Galería de Inspección Técnica Obligatoria (Las 6 Capturas Reglamentarias)
 
-De acuerdo con las normativas de la WRO, se presentan las 6 capturas ortogonales del prototipo de producción actual (**V3**) depositadas en `v-photos/V3/`. Esta versión es la que incorpora la Raspberry Pi 5, el mástil del LiDAR, el ultrasonido trasero y el botón único de arranque (sección 0). Las capturas de la V2 se conservan en la raíz de `v-photos/` y las de la V1 en `v-photos/V1/`, como evidencia de la evolución documentada en la sección 3.2:
+Las seis capturas ortogonales del vehículo **tal como compite**, depositadas en `v-photos/V4/`. Las del montaje anterior se conservan en `v-photos/V3/` y `v-photos/V1/` como evidencia de la evolución documentada en la sección 3.2.
 
 | Vista | Captura | Descripción |
 | :---: | :---: | :--- |
-| **Frontal** (`V3/Frontview.jpeg`) | <img src="v-photos/V3/Frontview.jpeg" alt="Vista Frontal V3" width="260px"/> | El RPLIDAR C1 al frente, a ras del parachoques, con el mástil de la cámara detrás. Geometría Ackermann y vía delantera. |
-| **Trasera** (`V3/Backview.jpeg`) | <img src="v-photos/V3/Backview.jpeg" alt="Vista Trasera V3" width="260px"/> | El **ultrasonido HC-SR04** mirando atrás, el regulador XL4016 con su display de tensión y el tren de tracción. |
-| **Perfil Izquierdo** (`V3/Leftview.jpeg`) | <img src="v-photos/V3/Leftview.jpeg" alt="Perfil Izquierdo V3" width="260px"/> | Perfil completo: LiDAR al frente, la Raspberry Pi 5 con su placa perforada encima, y el mástil trasero con cámara y ultrasonido. Se ve la celda 21700 bajo el chasis. |
-| **Perfil Derecho** (`V3/Rightview.jpeg`) | <img src="v-photos/V3/Rightview.jpeg" alt="Perfil Derecho V3" width="260px"/> | El mismo perfil desde el otro lado, con el microinterruptor de corte y el disipador del regulador. |
-| **Superior** (`V3/Topview.jpeg`) | <img src="v-photos/V3/Topview.jpeg" alt="Vista Superior V3" width="260px"/> | Disposición central: la **Pico 2** y el MPU6050 sobre la placa perforada, y el LiDAR adelantado al eje delantero. |
-| **Inferior** (`V3/Bottomview.jpeg`) | <img src="v-photos/V3/Bottomview.jpeg" alt="Vista Inferior V3" width="260px"/> | Estructura base de vigas de fricción LEGO, las dos celdas 21700 en paralelo mecánico a los lados y el servo de dirección. |
+| **Frontal** (`V4/Frontview.jpg`) | <img src="v-photos/V4/Frontview.jpg" alt="Vista Frontal" width="260px"/> | El extremo que va primero. El **RPLiDAR C1 montado bajo, sobre el chasis**, con las dos ruedas directrices a los lados y el sensor de color asomando por debajo. Al fondo se ve el mástil trasero. |
+| **Trasera** (`V4/Backview.jpg`) | <img src="v-photos/V4/Backview.jpg" alt="Vista Trasera" width="260px"/> | El **mástil**, que lleva la cámara en lo alto y el **ultrasonido HC-SR04 mirando hacia atrás**, única medida real en ese sentido. Debajo, el regulador XL4016 con su display de tensión y el tren de tracción. |
+| **Perfil Izquierdo** (`V4/Leftview.jpg`) | <img src="v-photos/V4/Leftview.jpg" alt="Perfil Izquierdo" width="260px"/> | El reparto completo de un vistazo: LiDAR bajo y delante, la Pico 2 con el MPU6050 y el TB6612FNG sobre la placa perforada en el centro, y el mástil atrás. La cámara mira hacia adelante **por encima** de todo, que es lo que impide que el LiDAR le tape el campo. |
+| **Perfil Derecho** (`V4/Rightview.jpg`) | <img src="v-photos/V4/Rightview.jpg" alt="Perfil Derecho" width="260px"/> | El mismo perfil desde el otro lado, con la Raspberry Pi 5 en su carcasa y el microinterruptor de corte de batería. |
+| **Superior** (`V4/Topview.jpg`) | <img src="v-photos/V4/Topview.jpg" alt="Vista Superior" width="260px"/> | Disposición central: el LiDAR adelantado al eje delantero y, detrás, la placa perforada con la Pico 2, la IMU y el driver. El cable plano naranja de la cámara sube al mástil. |
+| **Inferior** (`V4/Bottomview.jpg`) | <img src="v-photos/V4/Bottomview.jpg" alt="Vista Inferior" width="260px"/> | Estructura de vigas de fricción LEGO, el portapilas 21700 en rojo al centro, el servo de dirección, y el **TCS3472 sobre vigas Technic por delante del eje delantero**, fuera del contorno del chasis. |
 
 ### 3.4 Justificación de Ingeniería para la Selección de Componentes y Arquitectura de Sistemas (Trade-offs)
 
