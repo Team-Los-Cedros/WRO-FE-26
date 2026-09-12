@@ -3,7 +3,7 @@
 Bienvenidos al repositorio oficial del **Team Los Cedros**, integrado por estudiantes del Colegio Los Cedros en Valera, Estado Trujillo, Venezuela. Aquí compartimos la documentación técnica, diseños de hardware, esquemas eléctricos y el software modular de nuestro vehículo autónomo para la World Robot Olympiad (WRO) 2026.
 
 <p align="center">
-  <img src="v-photos/V3/Topview.jpeg" alt="Vehiculo autonomo del Team Los Cedros, vista superior" width="520px"/>
+  <img src="v-photos/V4/Leftview.jpg" alt="Vehiculo autonomo del Team Los Cedros, perfil izquierdo" width="620px"/>
 </p>
 
 ---
@@ -57,8 +57,33 @@ El robot cambió en cinco puntos respecto a la primera versión documentada en e
 | **Cerebro de alto nivel** | Raspberry Pi 3B | **Raspberry Pi 5** (migrado el 03-09-2026) | 4.2 y 5 |
 | **Soporte del LiDAR** | Sin mástil documentado | **Mástil** con el plano de barrido a 69 mm del piso; se enmascara el sector 140-213° que él mismo ocupa | 4.2 |
 | **Medida trasera** | Ninguna | **Ultrasonido HC-SR04** en `GP14`/`GP15`, único sensor que ve hacia atrás | 4.2 y 4.3 |
-| **Sensor de color de piso** | TCS3472 bajo el chasis | **Sigue montado.** Se desconectó durante la migración a la Pi 5 y se volvió a conectar; hoy es una de las tres evidencias del sentido, junto a la cámara y la asimetría de paredes | 4.2 y 5.3-C |
+| **Sensor de color de piso** | TCS3472 bajo el chasis | **Sigue montado, y se mudó al frente.** Se desconectó durante la migración a la Pi 5, se volvió a conectar, y en el montaje actual va por delante del eje delantero en vez de bajo el chasis. Hoy es una de las tres evidencias del sentido, junto a la cámara y la asimetría de paredes | 4.2 y 5.3-C |
 | **Arranque** | Dos botones (uno por ronda) | **Un solo botón en `GPIO 21`** | 4.2 y 4.3 |
+
+---
+
+### Montaje actual (V4)
+
+El vehículo se reconstruyó sobre el mismo chasis para la fase final. Dos cambios de colocación, y los dos por el mismo motivo: **adelantar la percepción**.
+
+* **La cámara subió a un mástil trasero**, desde donde mira hacia adelante por encima de todo el vehículo, y el LiDAR bajó al chasis por delante. Antes era al revés: el LiDAR arriba y la cámara abajo. El mástil lleva también el ultrasonido, apuntando hacia atrás.
+* **El sensor de color se adelantó**, por delante del eje delantero en vez de bajo el chasis. Leer la línea antes de pisarla da margen de reacción; leerla debajo solo avisa de que ya se cruzó.
+
+| Frontal | Trasera |
+| :---: | :---: |
+| <img src="v-photos/V4/Frontview.jpg" alt="Vista frontal: el LiDAR es el extremo que va primero" width="300px"/> | <img src="v-photos/V4/Backview.jpg" alt="Vista trasera: el mastil con la camara y el ultrasonido" width="300px"/> |
+
+| Superior | Inferior |
+| :---: | :---: |
+| <img src="v-photos/V4/Topview.jpg" alt="Vista superior del montaje actual" width="300px"/> | <img src="v-photos/V4/Bottomview.jpg" alt="Vista inferior del montaje actual, con el TCS3472 por delante del eje" width="300px"/> |
+
+| Perfil izquierdo | Perfil derecho |
+| :---: | :---: |
+| <img src="v-photos/V4/Leftview.jpg" alt="Perfil izquierdo del montaje actual" width="300px"/> | <img src="v-photos/V4/Rightview.jpg" alt="Perfil derecho del montaje actual" width="300px"/> |
+
+En la vista inferior se ve el **TCS3472 montado sobre vigas Technic por delante del eje delantero**, fuera del contorno del chasis. Esa es la colocación que le da anticipación sobre la línea.
+
+> Las medidas de la sección 7.5 —dimensiones del chasis y radios de giro trazados con marcadores— **corresponden a este montaje**. La galería de seis vistas de la sección 3.3 es todavía del montaje anterior (V3) y se está rehaciendo.
 
 ---
 
@@ -265,8 +290,8 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 
 | Componente | Foto | Justificación de selección y ubicación |
 | :--- | :---: | :--- |
-| **RPLiDAR C1** | <img src="v-photos/Componentes/RPLiDAR_C1.png" width="90"/> | Montado sobre un **mástil** que lo eleva por encima de la cámara. El plano de barrido quedó medido con regla el 06-09 a **69 mm del piso**, altura a la que el haz intersecta tanto postes como paredes (ambos de 100 mm según el reglamento); la distinción entre uno y otro **no es por altura**, la hace la clasificación geométrica del cluster. El mástil tiene un coste conocido y medido: se ve a sí mismo. `diag_mastil.py` lo midió en **141-212° a 35-68 mm** con presencia en prácticamente el 100 % de los barridos, y por eso `lidar.blind_sectors_deg` enmascara `140-213`. El arreglo mecánico del 05-09 (*mastilfix*) eliminó además el eco de la propia rueda: `diag_eco_volante.py` no encuentra un solo punto bajo 500 mm en los sectores laterales, con el volante recto y a tope. |
-| **Pi Camera Module 3** (estándar; HFOV efectivo **53,8° medidos**, no la Wide) | <img src="v-photos/Componentes/Camara.png" width="90"/> | Ubicada al frente, debajo del LiDAR y retrasada respecto al parachoques (ver sección 3.4) para proteger el sensor de impactos directos, montada a **0° de inclinación** (mirando derecho al frente, sin tilt hacia el piso). **Es la Module 3 estándar, no la Wide**, aunque durante un tiempo se documentó al revés: `medir_fov.py` emparejó una esquina que el LiDAR sitúa en −21,5° con su borde en el frame y sale un HFOV efectivo de **53,8°**, que concuerda con los 51,9° previstos para la estándar recortada a 4:3 y no con los 85,6° de la Wide (ver [`optica.py`](src/pi5/ronda_curvas/optica.py)). Suponer el catálogo de la Wide inflaba el rumbo calculado de cada pilar 2,3 veces. |
+| **RPLiDAR C1** | <img src="v-photos/Componentes/RPLiDAR_C1.png" width="90"/> | Montado **bajo sobre el chasis**, con el mástil delantero reservado para la cámara. El haz corta a la misma altura tanto postes como paredes (ambos de 100 mm según el reglamento); la distinción entre uno y otro **no es por altura**, la hace la clasificación geométrica del cluster. El soporte tiene un coste conocido y medido: el LiDAR se ve a sí mismo, y por eso `lidar.blind_sectors_deg` enmascara el arco que ocupa. El plano de barrido sigue a **69 mm del piso**: al reubicar la cámara el LiDAR no cambió de altura. |
+| **Pi Camera Module 3** (estándar; HFOV efectivo **53,8° medidos**, no la Wide) | <img src="v-photos/Componentes/Camara.png" width="90"/> | Montada en lo alto de un **mastil trasero**, desde donde mira hacia adelante por encima del vehiculo entero: asi el LiDAR, que va bajo y delante, no le tapa el campo. Estuvo al frente y por debajo del LiDAR hasta el remontaje final. **Es la Module 3 estándar, no la Wide**, aunque durante un tiempo se documentó al revés: `medir_fov.py` emparejó una esquina que el LiDAR sitúa en −21,5° con su borde en el frame y sale un HFOV efectivo de **53,8°**, que concuerda con los 51,9° previstos para la estándar recortada a 4:3 y no con los 85,6° de la Wide (ver [`optica.py`](src/pi5/ronda_curvas/optica.py)). Suponer el catálogo de la Wide inflaba el rumbo calculado de cada pilar 2,3 veces. |
 | **MPU6050 (IMU)** | <img src="v-photos/Componentes/MPU6050.png" width="90"/> | Montado rígidamente sobre la placa perforada, alineado con el eje longitudinal del chasis para que la lectura del eje Z corresponda exactamente al *yaw* del vehículo sin necesidad de compensar desalineación mecánica. |
 | **Geekservo Servo (Dirección)** | <img src="v-photos/Componentes/GeekservoServo.png" width="90"/> | Acoplado directo al `base_servo` del eje delantero; se eligió por compatibilidad mecánica nativa con las vigas Technic, evitando adaptadores impresos que añaden holgura al sistema de dirección. |
 | **Geekservo DC (Tracción)** | <img src="v-photos/Componentes/GeekservoDC.png" width="90"/> | Seleccionado por su torque de bloqueo de $2.4\,\text{kg}\cdot\text{cm}$, validado matemáticamente en la sección 7.4 con un margen de seguridad de **2.18×** sobre los 720 g de la V3 (era 2.55× con los 613 g de la V2). |
@@ -277,7 +302,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **Baterías 21700 (2S)** | <img src="v-photos/Componentes/baterias.jpg" width="90"/> | Ver justificación de densidad de corriente en la sección 3.4. |
 | **Botón físico de arranque (x1)** | <img src="v-photos/Componentes/Boton.png" width="90"/> | **Un solo botón, en `GPIO 21` de la Pi 5** (entrada con *pull-up*, se dispara al ponerse a nivel bajo). Antes eran dos, uno por ronda. Se dejó en uno porque la ronda ya no se elige por hardware sino por el programa que se lanza (`ronda_nueva`, `ronda_abierta` o `ronda_cerrada`), y un único pulsador reduce el cableado y los modos de fallo en la línea de salida. El arranque sin botón existe solo como opción de banco (`--arranque-inmediato`) y la ronda oficial no la usa. |
 | **Ultrasonido trasero HC-SR04** | <img src="v-photos/Componentes/Ultrasonido.png" width="90"/> | Añadido para el parqueo, la única maniobra en que el robot va marcha atrás contra una pared que **el LiDAR no puede ver**: el soporte del propio sensor le tapa el sector 140-213°, así que la "pared trasera" que el LiDAR reporta se reconstruye de los hombros en oblicuo y no es una medida. Medido el 06-09 con el robot aparcado a mano: el ultrasonido leía 44 mm y el LiDAR 1777 mm con calidad 0,95. Va en la Pico 2 (`GP14` trigger / `GP15` echo) y está **34 mm por delante del punto más atrasado del robot**, así que la holgura real de la culata es su lectura menos esos 34. |
-| **Sensor de Color TCS3472** | <img src="v-photos/Componentes/TCS3472.jpg" width="90"/> | Montado bajo el chasis, leyendo la lona directamente. Clasifica la línea del piso como `AZUL` o `NARANJA` y la Pico 2 la transmite en la trama de telemetría. Es la **única evidencia absoluta** del sentido de carrera: no depende del yaw ni de interpretar la geometría, porque las líneas están pintadas en la pista y su orden al cruzarlas no admite ambigüedad. Por eso puede *corregir* un sentido ya comprometido por geometría, cosa que ninguna otra fuente puede hacer (sección 5.3-C). Estuvo desconectado un tiempo tras la migración a la Pi 5 —la Pico respondía `COLOR:SIN_SENSOR`— y se volvió a conectar. |
+| **Sensor de Color TCS3472** | <img src="v-photos/Componentes/TCS3472.jpg" width="90"/> | Montado **al frente del vehículo**, por delante del eje delantero y mirando el piso. Estuvo bajo el chasis; se adelantó para que la línea se lea antes de pisarla, lo que da margen de reacción en vez de avisar cuando ya se cruzó. Clasifica la línea del piso como `AZUL` o `NARANJA` y la Pico 2 la transmite en la trama de telemetría. Es la **única evidencia absoluta** del sentido de carrera: no depende del yaw ni de interpretar la geometría, porque las líneas están pintadas en la pista y su orden al cruzarlas no admite ambigüedad. Por eso puede *corregir* un sentido ya comprometido por geometría, cosa que ninguna otra fuente puede hacer (sección 5.3-C). Estuvo desconectado un tiempo tras la migración a la Pi 5 —la Pico respondía `COLOR:SIN_SENSOR`— y se volvió a conectar. |
 
 #### Método de Calibración de Sensores
 
@@ -639,7 +664,7 @@ El sistema vivo (`sentido_vuelta.py`) lo resuelve con tres fuentes de distinta c
 
 1. **Las líneas de piso vistas por la cámara** (`fijar_por_camara`). Es la primera en llegar: en cuanto la cámara ve una línea de esquina, el color de la que tiene *más cerca* fija el sentido — naranja primero significa horario, azul primero antihorario. Se compromete una sola vez y no se revisa, porque a esa distancia el dato es inequívoco.
 
-2. **El TCS3472 bajo el chasis** (`observar_linea`). No mira el color de una línea suelta sino **el orden en que se cruza la pareja** de líneas de una misma esquina. Esa es la única evidencia absoluta del sistema: no depende del yaw del robot ni de interpretar la geometría de la pista. Por eso es la única que puede **corregir un sentido ya comprometido**, y tiene tres salvaguardas medidas en pista:
+2. **El TCS3472, al frente del vehículo** (`observar_linea`). No mira el color de una línea suelta sino **el orden en que se cruza la pareja** de líneas de una misma esquina. Esa es la única evidencia absoluta del sistema: no depende del yaw del robot ni de interpretar la geometría de la pista. Por eso es la única que puede **corregir un sentido ya comprometido**, y tiene tres salvaguardas medidas en pista:
    * **Marcha atrás no cuenta.** Retroceder sobre una línea la cruza en orden inverso, o sea que afirma el sentido contrario del real.
    * **La pareja tiene que ser de la misma esquina.** Sin una ventana temporal se emparejaba la naranja de una esquina con la azul de la siguiente, y el sentido oscilaba: cinco cambios en una sola corrida.
    * **Desdecir a otra línea exige dos parejas seguidas.** Corregir a la geometría es inmediato, porque la línea es mejor evidencia; contradecir a otra lectura de línea no, porque entonces una de las dos está mal y hace falta desempate.
@@ -828,7 +853,7 @@ La ecuación cinemática que rige las restricciones geométricas de nuestro chas
 * **Ancho de la vía ($w$):** $115\,\text{mm}$
 * **Batalla / Distancia entre ejes ($l$):** $136\,\text{mm}$
 * **Ancho de los neumáticos:** $36\,\text{mm}$
-* **Dimensiones totales del robot:** $125\,\text{mm}$ de ancho $\times$ $222\,\text{mm}$ de largo (aprox.) — dentro del límite reglamentario de $300\times200\,\text{mm}$ de WRO Future Engineers 2026 con margen amplio en ambos ejes.
+* **Dimensiones totales del robot:** $138\,\text{mm}$ de ancho $\times$ $242\,\text{mm}$ de largo **medidas con regla** (antes se documentaban 125 x 222 aproximados) — dentro del límite reglamentario de $300\times200\,\text{mm}$ de WRO Future Engineers 2026 con margen amplio en ambos ejes.
 
 $$\cot(\delta_o) - \cot(\delta_i) = \frac{w}{l} = \frac{115\,\text{mm}}{136\,\text{mm}} = 0.845$$
 
@@ -905,6 +930,33 @@ Realizando el análisis de balance de carga:
 $$\text{Margen de Torque} = \frac{T_{\text{motor}}}{T_{\text{min}}} = \frac{2.4\,\text{kg}\cdot\text{cm}}{1.102\,\text{kg}\cdot\text{cm}} = \mathbf{2.18}$$
 
 * **Conclusión de Ingeniería:** El sistema de transmisión posee un **factor de seguridad de 2.18 veces el torque mínimo necesario**. Esto significa que el motor opera al **$45.9\%$ de su capacidad máxima** durante el arranque más agresivo en pista, garantizando una aceleración explosiva (cero subviraje mecánico por falta de par), protegiendo las celdas de las baterías 21700 contra picos severos de descarga y evitando que el puente H trabaje en su zona de fatiga térmica.
+
+---
+
+### 7.5 Envolvente de Giro Medida con Marcadores
+
+Los radios de giro no se calcularon: se **dibujaron**. Se montaron cuatro marcadores en las cuatro esquinas del vehiculo, sobre vigas Technic que sobresalen del chasis, y se le hizo girar con el volante a tope sobre papel fijado a la pista. Cada esquina trazo su propia circunferencia, y esas cuatro circunferencias son la envolvente real del vehiculo girando.
+
+| El aparejo de marcadores | El trazado sobre la pista |
+| :---: | :---: |
+| <img src="v-photos/Ackermann/Radio_Giro_Metodo_Superior.jpg" alt="Cuatro marcadores montados en las esquinas del vehiculo" width="280px"/> | <img src="v-photos/Ackermann/Radio_Giro_Metodo_Pista.jpg" alt="El vehiculo trazando las circunferencias sobre el papel" width="280px"/> |
+
+Midiendo cada circunferencia sobre el papel salen estos valores. La anotacion original esta en diametro; aqui se dan las dos cifras:
+
+| Giro a la DERECHA | Diametro | Radio | Giro a la IZQUIERDA | Diametro | Radio |
+| :--- | :---: | :---: | :--- | :---: | :---: |
+| Esquina exterior | 700 mm | **350 mm** | Esquina exterior | 740 mm | **370 mm** |
+| | 615 mm | 307,5 mm | | 580 mm | 290 mm |
+| | 477 mm | 238,5 mm | | 510 mm | 255 mm |
+| Esquina interior | 360 mm | **180 mm** | Esquina interior | 390 mm | **195 mm** |
+
+| El trazado a la derecha | El trazado a la izquierda |
+| :---: | :---: |
+| <img src="v-photos/Ackermann/Radio_Giro_Derecha.jpg" alt="Circunferencias trazadas girando a la derecha" width="280px"/> | <img src="v-photos/Ackermann/Radio_Giro_Izquierda.jpg" alt="Circunferencias trazadas girando a la izquierda" width="280px"/> |
+
+**La medida se valida sola.** La banda que barre el vehiculo -- la diferencia entre la circunferencia exterior y la interior -- sale de **170 mm girando a la derecha y 175 mm a la izquierda**. El chasis mide 138 mm de ancho, asi que esa banda es el cuerpo mas el voladizo de las esquinas al girar. Que las dos bandas coincidan entre si y con la anchura fisica es lo que descarta que el trazado estuviera descentrado o que el volante no llegara al tope.
+
+**Y deja una pregunta abierta, que conviene resolver antes de competir.** El control modela los dos sentidos como practicamente simetricos: 242,5 mm a la izquierda contra 243,8 a la derecha. El trazado dice otra cosa: **el giro a la izquierda es unos 20 mm mas amplio que el de la derecha**, y lo dice en las cuatro circunferencias a la vez, asi que no es ruido de medida. Importa porque la maniobra de estacionamiento calcula sus arcos a partir de esos radios, y ahi 20 mm son la diferencia entre entrar limpio y rozar el muro magenta.
 
 ---
 

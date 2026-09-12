@@ -40,6 +40,18 @@ Para seguir el montaje pieza a pieza, abre el `.io` con [BrickLink Studio](https
 2. **Motor de tracción.** El Geekservo DC va al eje trasero. Los neumáticos son de caucho, no de plástico: los rígidos patinan al acelerar y disipan la potencia en calor.
 3. **Ruedas.** Cuatro, una por esquina. Las dos delanteras dirigen, las dos traseras traccionan.
 
+**El montaje, fotografiado.** El tren de dirección se arma como un módulo aparte y se acopla al chasis ya montado. Las imágenes van en el orden en que se tomaron durante el armado:
+
+| | | |
+| :---: | :---: | :---: |
+| <img src="v-photos/Ensamblaje/direccion_01.jpg" alt="Montaje de la direccion, paso 1" width="215px"/> | <img src="v-photos/Ensamblaje/direccion_02.jpg" alt="Montaje de la direccion, paso 2" width="215px"/> | <img src="v-photos/Ensamblaje/direccion_03.jpg" alt="Montaje de la direccion, paso 3" width="215px"/> |
+| <img src="v-photos/Ensamblaje/direccion_04.jpg" alt="Montaje de la direccion, paso 4" width="215px"/> | <img src="v-photos/Ensamblaje/direccion_05.jpg" alt="Montaje de la direccion, paso 5" width="215px"/> | <img src="v-photos/Ensamblaje/direccion_06.jpg" alt="Montaje de la direccion, paso 6" width="215px"/> |
+| <img src="v-photos/Ensamblaje/direccion_07.jpg" alt="Montaje de la direccion, paso 7" width="215px"/> | <img src="v-photos/Ensamblaje/direccion_08.jpg" alt="Montaje de la direccion, paso 8" width="215px"/> | <img src="v-photos/Ensamblaje/direccion_09.jpg" alt="Montaje de la direccion, paso 9" width="215px"/> |
+| <img src="v-photos/Ensamblaje/direccion_10.jpg" alt="Montaje de la direccion, paso 10" width="215px"/> | <img src="v-photos/Ensamblaje/direccion_11.jpg" alt="Montaje de la direccion, paso 11" width="215px"/> | <img src="v-photos/Ensamblaje/direccion_12.jpg" alt="Montaje de la direccion, paso 12" width="215px"/> |
+| <img src="v-photos/Ensamblaje/direccion_13.jpg" alt="Montaje de la direccion, paso 13" width="215px"/> | <img src="v-photos/Ensamblaje/direccion_14.jpg" alt="Montaje de la direccion, paso 14" width="215px"/> | <img src="v-photos/Ensamblaje/direccion_15.jpg" alt="Montaje de la direccion, paso 15" width="215px"/> |
+
+Fíjate en las dos últimas: el servo queda **encajado entre las vigas y sujeto por los dos lados**, no colgando de un solo punto. Es lo que impide que el par de la dirección haga palanca sobre un único pin y meta holgura en el sistema.
+
 **Comprobación de esta etapa** (con el vehículo levantado, las ruedas al aire):
 
 ```bash
@@ -114,7 +126,7 @@ Debe encontrar el mástil en torno a **141-212° a 35-68 mm**, presente en casi 
 
 **Ultrasonido trasero.** Va en la cola, y apunta su posición exacta: está **34 mm por delante del punto más atrasado del robot**, así que la holgura real de la culata es su lectura menos esos 34 mm. Es la única medida real hacia atrás, porque el mástil ciega al LiDAR justo en ese sector.
 
-**Sensor de color.** Bajo el chasis, mirando la lona.
+**Sensor de color.** Al frente del vehículo, por delante del eje delantero y mirando el piso. No va bajo el chasis: adelantarlo hace que la línea se lea antes de pisarla, y esa anticipación es la que permite reaccionar en vez de enterarse cuando ya se cruzó.
 
 **Comprobación de esta etapa.** Las pruebas de banco viven en dos sitios: las de `ronda_curvas/` se despliegan con el resto del código, y las de `src/pi5/herramientas/` se corren desde el clon del repositorio.
 
