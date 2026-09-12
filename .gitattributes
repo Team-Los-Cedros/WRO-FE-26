@@ -1,0 +1,15 @@
+# Finales de linea normalizados a LF en el repositorio.
+# Sin esto, editar desde Windows reintroduce CRLF y el siguiente diff sale
+# entero en rojo aunque solo se haya tocado una linea.
+* text=auto eol=lf
+
+# Binarios: git no debe tocarlos nunca.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.svg  text eol=lf
+*.stl  binary
+*.io   binary
+*.mp4  binary
+*.pptx binary
+*.csv  text eol=lf
