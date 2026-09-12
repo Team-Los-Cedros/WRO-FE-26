@@ -99,7 +99,7 @@ cuadro. Una **homografía 3×3** convierte el punto de contacto de cada blob en
 | El plano del LiDAR **pasa por encima** del pilar a partir de cierta distancia (el rojo a 1088 mm no se veía) | La cámara lo mide igual de bien a 400 que a 1800 mm |
 | El pilar se apagaba a una mediana de **216 mm** por la puerta angular de 15° | El criterio pasa a ser el ancho físico en mm, que no depende de la distancia |
 | El sesgo de guiñada de **+3,57°** gastaba el 36 % de la puerta de fusión | Cámara y LiDAR hablan en mm: asociar es el vecino más cercano |
-| `COLOR:SIN_SENSOR` en la Pi 5 deja sin sentido de giro ni conteo de vueltas | Las líneas azul y naranja se leen **con la cámara** |
+| El sentido de giro y el conteo de vueltas | Tres evidencias: las líneas vistas **con la cámara**, el **TCS3472** ya reconectado y adelantado al eje, y la asimetría de paredes |
 
 Si todavía no hay homografía, la visión **sigue funcionando**: estima la
 distancia por la altura aparente del poste (100 mm) y el bearing por la
@@ -163,7 +163,7 @@ Con la cámara nueva ya montada y la Pi 5 encendida, sin mover el robot:
 | Homografía del suelo | **calibrada**: suelo visible de **210 a 3121 mm** |
 | Líneas de piso | azul y naranja **detectadas**, proyectadas a 786 y 964 mm |
 | Pico | telemetría OK, ultrasonido 1089 mm, `WD:STOP` (normal en reposo) |
-| Sensor de color | `SIN_SENSOR`, como se esperaba — ya no bloquea nada |
+| Sensor de color | Reconectado y montado por delante del eje delantero; vuelve a dar `COLOR:` en la telemetría |
 
 **La calibración salió de las propias paredes**, sin colocar un solo pilar:
 `herramientas/calibrar_desde_muros.py`. La línea donde el muro toca la lona es
