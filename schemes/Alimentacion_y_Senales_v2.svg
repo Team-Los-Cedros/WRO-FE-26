@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 1010" width="1240" height="1010" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L7.5,3.2 L0,6.4 z" fill="#4a4a4a"/>
+    </marker>
+    <marker id="ap" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L7.5,3.2 L0,6.4 z" fill="#c62828"/>
+    </marker>
+    <marker id="ab" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L7.5,3.2 L0,6.4 z" fill="#1565c0"/>
+    </marker>
+    <marker id="ao" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L7.5,3.2 L0,6.4 z" fill="#e65100"/>
+    </marker>
+  </defs>
+
+  <rect width="1240" height="1010" fill="#ffffff"/>
+
+  <text x="30" y="42" font-size="23" font-weight="600" fill="#1a1a1a">Alimentación y señales — Team Los Cedros, WRO FE 2026</text>
+  <text x="30" y="66" font-size="13.5" fill="#5a5a5a">Montaje que compite. Los pines coinciden con la sección 4.3 del README y con src/pico/main.py. Un solo botón de arranque, en GPIO 21 de la Pi 5.</text>
+
+  <!-- ============ BANDA 1: ALIMENTACION ============ -->
+  <rect x="26" y="92" width="1188" height="352" rx="10" fill="#fdf6f5" stroke="#e8c9c6"/>
+  <text x="46" y="120" font-size="15" font-weight="600" fill="#c62828">ALIMENTACIÓN — tres etapas desacopladas</text>
+  <text x="46" y="140" font-size="12.5" fill="#7a5a58">Cada etapa aísla una carga distinta. El motor nunca comparte regulador con la lógica: ese desacoplo es lo que evita los reinicios por caída de tensión.</text>
+
+  <!-- Bateria -->
+  <rect x="46" y="212" width="176" height="96" rx="8" fill="#c62828"/>
+  <text x="134" y="244" font-size="15" font-weight="600" fill="#fff" text-anchor="middle">Baterías 21700</text>
+  <text x="134" y="266" font-size="13" fill="#ffd9d6" text-anchor="middle">2S · 7,4 – 8,4 V</text>
+  <text x="134" y="286" font-size="13" fill="#ffd9d6" text-anchor="middle">5,0 Ah · 30 A</text>
+
+  <!-- Ramas -->
+  <path d="M222 246 H 286 V 182 H 344" stroke="#c62828" stroke-width="2.2" fill="none" marker-end="url(#ap)"/>
+  <path d="M222 260 H 286 V 282 H 344" stroke="#c62828" stroke-width="2.2" fill="none" marker-end="url(#ap)"/>
+  <path d="M222 274 H 262 V 382 H 344" stroke="#c62828" stroke-width="2.2" fill="none" marker-end="url(#ap)"/>
+
+  <rect x="348" y="152" width="186" height="62" rx="7" fill="#fff" stroke="#c62828" stroke-width="1.6"/>
+  <text x="441" y="177" font-size="14" font-weight="600" fill="#1a1a1a" text-anchor="middle">XL4016</text>
+  <text x="441" y="197" font-size="12.5" fill="#5a5a5a" text-anchor="middle">5,1 V · 8,0 A</text>
+
+  <rect x="348" y="252" width="186" height="62" rx="7" fill="#fff" stroke="#c62828" stroke-width="1.6"/>
+  <text x="441" y="277" font-size="14" font-weight="600" fill="#1a1a1a" text-anchor="middle">XL1509</text>
+  <text x="441" y="297" font-size="12.5" fill="#5a5a5a" text-anchor="middle">6,0 V · 2,0 A</text>
+
+  <rect x="348" y="352" width="186" height="62" rx="7" fill="#fff" stroke="#c62828" stroke-width="1.6" stroke-dasharray="5 3"/>
+  <text x="441" y="377" font-size="14" font-weight="600" fill="#1a1a1a" text-anchor="middle">Línea directa</text>
+  <text x="441" y="397" font-size="12.5" fill="#5a5a5a" text-anchor="middle">sin regular</text>
+
+  <!-- Cargas -->
+  <path d="M534 183 H 596" stroke="#c62828" stroke-width="2.2" marker-end="url(#ap)"/>
+  <path d="M534 283 H 596" stroke="#c62828" stroke-width="2.2" marker-end="url(#ap)"/>
+  <path d="M534 383 H 596" stroke="#c62828" stroke-width="2.2" marker-end="url(#ap)"/>
+
+  <rect x="600" y="152" width="214" height="62" rx="7" fill="#eef4fb" stroke="#9db8d6"/>
+  <text x="707" y="177" font-size="14" font-weight="600" fill="#1a1a1a" text-anchor="middle">Raspberry Pi 5</text>
+  <text x="707" y="197" font-size="12" fill="#5a5a5a" text-anchor="middle">+ cámara CSI + LiDAR USB</text>
+
+  <rect x="600" y="252" width="214" height="62" rx="7" fill="#fdf3e8" stroke="#e0b98a"/>
+  <text x="707" y="277" font-size="14" font-weight="600" fill="#1a1a1a" text-anchor="middle">Geekservo dirección</text>
+  <text x="707" y="297" font-size="12" fill="#5a5a5a" text-anchor="middle">etapa limpia, aislada del motor</text>
+
+  <rect x="600" y="352" width="214" height="62" rx="7" fill="#fdf3e8" stroke="#e0b98a"/>
+  <text x="707" y="377" font-size="14" font-weight="600" fill="#1a1a1a" text-anchor="middle">TB6612FNG → motor DC</text>
+  <text x="707" y="397" font-size="12" fill="#5a5a5a" text-anchor="middle">tracción, la carga inductiva</text>
+
+  <!-- Pico por USB desde la Pi -->
+  <path d="M814 183 H 866 V 470" stroke="#c62828" stroke-width="2.2" fill="none" marker-end="url(#ap)"/>
+  <text x="878" y="330" font-size="12.5" fill="#c62828">5 V por USB</text>
+  <text x="878" y="348" font-size="12.5" fill="#c62828">a la Pico 2</text>
+
+  <!-- Consumo medido -->
+  <rect x="906" y="152" width="290" height="262" rx="8" fill="#fff" stroke="#e8c9c6"/>
+  <text x="924" y="177" font-size="13.5" font-weight="600" fill="#c62828">Consumo real medido (06-09-2026)</text>
+  <text x="924" y="200" font-size="12.5" fill="#3a3a3a">Multímetro en serie con la batería, a 8,4 V.</text>
+
+  <text x="924" y="232" font-size="12.5" fill="#5a5a5a">En marcha</text>
+  <text x="1178" y="232" font-size="13.5" font-weight="600" fill="#1a1a1a" text-anchor="end">1,39 A</text>
+  <text x="924" y="256" font-size="12.5" fill="#5a5a5a">En reposo</text>
+  <text x="1178" y="256" font-size="13.5" font-weight="600" fill="#1a1a1a" text-anchor="end">0,61 A</text>
+  <text x="924" y="280" font-size="12.5" fill="#5a5a5a">Con la Pi 5 apagada</text>
+  <text x="1178" y="280" font-size="13.5" font-weight="600" fill="#1a1a1a" text-anchor="end">0,21 A</text>
+
+  <line x1="924" y1="296" x2="1178" y2="296" stroke="#e8c9c6"/>
+  <text x="924" y="320" font-size="12.5" fill="#5a5a5a">Tracción y dirección</text>
+  <text x="1178" y="320" font-size="12.5" fill="#1a1a1a" text-anchor="end">0,78 A · 56 %</text>
+  <text x="924" y="342" font-size="12.5" fill="#5a5a5a">Raspberry Pi 5</text>
+  <text x="1178" y="342" font-size="12.5" fill="#1a1a1a" text-anchor="end">0,40 A · 29 %</text>
+  <text x="924" y="364" font-size="12.5" fill="#5a5a5a">Pico 2 y electrónica</text>
+  <text x="1178" y="364" font-size="12.5" fill="#1a1a1a" text-anchor="end">0,21 A · 15 %</text>
+
+  <line x1="924" y1="380" x2="1178" y2="380" stroke="#e8c9c6"/>
+  <text x="924" y="401" font-size="12.5" fill="#5a5a5a">11,7 W · autonomía 2,9 h útiles</text>
+
+  <!-- Tierra comun -->
+  <text x="46" y="336" font-size="12" fill="#7a5a58">Tierra en estrella: todas las</text>
+  <text x="46" y="353" font-size="12" fill="#7a5a58">masas confluyen en un único</text>
+  <text x="46" y="370" font-size="12" fill="#7a5a58">punto. Unifica los umbrales</text>
+  <text x="46" y="387" font-size="12" fill="#7a5a58">lógicos y drena el ruido de</text>
+  <text x="46" y="404" font-size="12" fill="#7a5a58">conmutación del motor.</text>
+
+  <!-- ============ BANDA 2: SEÑALES ============ -->
+  <rect x="26" y="470" width="1188" height="510" rx="10" fill="#f5f8fc" stroke="#c9d6e8"/>
+  <text x="46" y="498" font-size="15" font-weight="600" fill="#1565c0">SEÑALES — quién decide y quién ejecuta</text>
+  <text x="46" y="518" font-size="12.5" fill="#5a6a7a">La frontera entre las dos placas es un único cable serie y dos líneas de texto. Esa estrechez es deliberada: obliga a que "decidir" y "ejecutar" sean auditables por separado.</text>
+
+  <!-- Sensores de alto nivel -->
+  <rect x="46" y="556" width="196" height="52" rx="7" fill="#fff" stroke="#9db8d6"/>
+  <text x="144" y="578" font-size="13.5" font-weight="600" fill="#1a1a1a" text-anchor="middle">RPLiDAR C1</text>
+  <text x="144" y="596" font-size="11.5" fill="#5a5a5a" text-anchor="middle">USB · 460 800 bps</text>
+
+  <rect x="46" y="624" width="196" height="52" rx="7" fill="#fff" stroke="#9db8d6"/>
+  <text x="144" y="646" font-size="13.5" font-weight="600" fill="#1a1a1a" text-anchor="middle">Pi Camera Module 3</text>
+  <text x="144" y="664" font-size="11.5" fill="#5a5a5a" text-anchor="middle">CSI · HFOV 53,8° medido</text>
+
+  <rect x="46" y="692" width="196" height="52" rx="7" fill="#fff" stroke="#9db8d6"/>
+  <text x="144" y="714" font-size="13.5" font-weight="600" fill="#1a1a1a" text-anchor="middle">Botón de arranque</text>
+  <text x="144" y="732" font-size="11.5" fill="#5a5a5a" text-anchor="middle">GPIO 21 · pull-up</text>
+
+  <path d="M242 582 H 316" stroke="#1565c0" stroke-width="2" marker-end="url(#ab)"/>
+  <path d="M242 650 H 316" stroke="#1565c0" stroke-width="2" marker-end="url(#ab)"/>
+  <path d="M242 718 H 316" stroke="#1565c0" stroke-width="2" marker-end="url(#ab)"/>
+
+  <!-- Pi 5 -->
+  <rect x="320" y="546" width="212" height="208" rx="9" fill="#1565c0"/>
+  <text x="426" y="576" font-size="16" font-weight="600" fill="#fff" text-anchor="middle">Raspberry Pi 5</text>
+  <text x="426" y="598" font-size="12.5" fill="#cfe0f5" text-anchor="middle">DECIDE</text>
+  <text x="426" y="628" font-size="12" fill="#e8f0fb" text-anchor="middle">Visión y color de pilares</text>
+  <text x="426" y="650" font-size="12" fill="#e8f0fb" text-anchor="middle">Geometría del LiDAR</text>
+  <text x="426" y="672" font-size="12" fill="#e8f0fb" text-anchor="middle">Máquina de estados</text>
+  <text x="426" y="694" font-size="12" fill="#e8f0fb" text-anchor="middle">Conteo de vueltas</text>
+  <text x="426" y="716" font-size="12" fill="#e8f0fb" text-anchor="middle">Salida del estacionamiento</text>
+  <text x="426" y="740" font-size="11.5" fill="#a9c7ea" text-anchor="middle">sin garantía de puntualidad</text>
+
+  <!-- Enlace serie -->
+  <path d="M532 636 H 624" stroke="#4a4a4a" stroke-width="2.4" marker-end="url(#a)"/>
+  <path d="M624 668 H 532" stroke="#4a4a4a" stroke-width="2.4" marker-end="url(#a)"/>
+  <text x="578" y="626" font-size="11.5" fill="#3a3a3a" text-anchor="middle">velocidad, ángulo</text>
+  <text x="578" y="690" font-size="11.5" fill="#3a3a3a" text-anchor="middle">IMU, color, ultrasonido</text>
+  <text x="578" y="596" font-size="11.5" font-weight="600" fill="#3a3a3a" text-anchor="middle">USB serie</text>
+
+  <!-- Pico 2 -->
+  <rect x="628" y="546" width="212" height="208" rx="9" fill="#e65100"/>
+  <text x="734" y="576" font-size="16" font-weight="600" fill="#fff" text-anchor="middle">Pico 2</text>
+  <text x="734" y="598" font-size="12.5" fill="#ffe0c7" text-anchor="middle">EJECUTA</text>
+  <text x="734" y="628" font-size="12" fill="#fff1e4" text-anchor="middle">PWM del servo y del motor</text>
+  <text x="734" y="650" font-size="12" fill="#fff1e4" text-anchor="middle">Integración del giroscopio</text>
+  <text x="734" y="672" font-size="12" fill="#fff1e4" text-anchor="middle">Lectura del ultrasonido</text>
+  <text x="734" y="694" font-size="12" fill="#fff1e4" text-anchor="middle">Watchdog de 500 ms</text>
+  <text x="734" y="740" font-size="11.5" fill="#f5c9a3" text-anchor="middle">puntualidad garantizada</text>
+
+  <!-- Perifericos de la Pico -->
+  <path d="M840 578 H 908" stroke="#e65100" stroke-width="2" marker-end="url(#ao)"/>
+  <path d="M840 620 H 908" stroke="#e65100" stroke-width="2" marker-end="url(#ao)"/>
+  <path d="M840 662 H 908" stroke="#e65100" stroke-width="2" marker-end="url(#ao)"/>
+  <path d="M840 704 H 908" stroke="#e65100" stroke-width="2" marker-end="url(#ao)"/>
+  <path d="M840 746 H 908" stroke="#e65100" stroke-width="2" marker-end="url(#ao)"/>
+
+  <rect x="912" y="558" width="286" height="40" rx="6" fill="#fff" stroke="#e0b98a"/>
+  <text x="926" y="583" font-size="12.5" fill="#1a1a1a">Servo dirección</text>
+  <text x="1184" y="583" font-size="12.5" font-weight="600" fill="#e65100" text-anchor="end">GP12 · PWM 50 Hz</text>
+
+  <rect x="912" y="600" width="286" height="40" rx="6" fill="#fff" stroke="#e0b98a"/>
+  <text x="926" y="625" font-size="12.5" fill="#1a1a1a">TB6612FNG</text>
+  <text x="1184" y="625" font-size="12.5" font-weight="600" fill="#e65100" text-anchor="end">GP28 · GP27 · GP26 · GP22</text>
+
+  <rect x="912" y="642" width="286" height="40" rx="6" fill="#fff" stroke="#e0b98a"/>
+  <text x="926" y="667" font-size="12.5" fill="#1a1a1a">MPU6050</text>
+  <text x="1184" y="667" font-size="12.5" font-weight="600" fill="#e65100" text-anchor="end">I²C0 · GP16 / GP17 · 400 kHz</text>
+
+  <rect x="912" y="684" width="286" height="40" rx="6" fill="#fff" stroke="#e0b98a"/>
+  <text x="926" y="709" font-size="12.5" fill="#1a1a1a">HC-SR04 trasero</text>
+  <text x="1184" y="709" font-size="12.5" font-weight="600" fill="#e65100" text-anchor="end">GP14 trig · GP15 echo</text>
+
+  <rect x="912" y="726" width="286" height="40" rx="6" fill="#fff" stroke="#e0b98a"/>
+  <text x="926" y="751" font-size="12.5" fill="#1a1a1a">TCS3472 color de piso</text>
+  <text x="1184" y="751" font-size="12.5" font-weight="600" fill="#e65100" text-anchor="end">I²C1 · GP18 / GP19 · 100 kHz</text>
+
+  <!-- Nota del watchdog -->
+  <rect x="46" y="800" width="1152" height="150" rx="8" fill="#fff" stroke="#c9d6e8"/>
+  <text x="66" y="826" font-size="13.5" font-weight="600" fill="#1565c0">Por qué la frontera está donde está</text>
+  <text x="66" y="850" font-size="12.5" fill="#3a3a3a">Todo lo que exige JUICIO — reconocer un pilar, decidir por qué lado pasarlo, saber en qué vuelta va — ocurre en la Pi 5, que corre Linux y no puede</text>
+  <text x="66" y="870" font-size="12.5" fill="#3a3a3a">garantizar cuándo llegará el siguiente ciclo. Todo lo que exige PUNTUALIDAD — el ancho de cada pulso del servo, la integración del giroscopio — ocurre</text>
+  <text x="66" y="890" font-size="12.5" fill="#3a3a3a">en la Pico 2, donde no hay sistema operativo que se interponga.</text>
+  <text x="66" y="918" font-size="12.5" fill="#3a3a3a">El watchdog de 500 ms cierra el lazo: si la Pi deja de mandar consignas, la Pico frena el vehículo por su cuenta. Un cuelgue de la capa que decide no</text>
+  <text x="66" y="938" font-size="12.5" fill="#3a3a3a">puede convertirse en un coche que sigue acelerando.</text>
+</svg>

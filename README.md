@@ -268,12 +268,18 @@ Para asegurar el correcto funcionamiento del vehículo autónomo y prevenir rein
 
 >  **Nota eléctrica:** Todas las referencias de tierra (GND) del vehículo confluyen en una topología de estrella en un único punto común central. Esto unifica los umbrales lógicos y drena el ruido electromagnético generado por las conmutaciones de los motores.
 
-#### Diagrama de Cableado Oficial
+#### Diagrama de Alimentación y Señales
 
-Diagrama de referencia usado por el equipo durante el ensamblaje, verificado contra el pinout real de `src/pico/main.py`. La parte de la Pico 2 sigue vigente tal cual; en la Pi el diagrama muestra los **dos** botones del selector de ronda, que hoy es **uno solo en `GPIO 21`** (sección 4.2):
+Este es el diagrama **vigente**: describe el montaje que compite, con un solo botón de arranque y el consumo real medido incorporado.
 
 <p align="center">
-  <img src="schemes/Alimentacion_y_Logica.png" alt="Diagrama de cableado: Pico 2, XL4016, XL1509 y GPIO de la Raspberry Pi" width="700px"/>
+  <img src="schemes/Alimentacion_y_Senales_v2.svg" alt="Alimentacion y senales: bateria, tres etapas de regulacion, reparto Pi 5 / Pico 2 y mapa de pines" width="960px"/>
+</p>
+
+Debajo se conserva el **diagrama de cableado original** que el equipo usó durante el ensamblaje. Se mantiene porque documenta el proceso real, pero **ya no describe el vehículo actual**: la parte de la Pico 2 sigue vigente tal cual, mientras que en la Pi muestra los **dos** botones del selector de ronda, que hoy es **uno solo en `GPIO 21`** (sección 4.2). Ante cualquier discrepancia manda el diagrama de arriba.
+
+<p align="center">
+  <img src="schemes/Alimentacion_y_Logica.png" alt="Diagrama de cableado original del ensamblaje: Pico 2, XL4016, XL1509 y GPIO de la Raspberry Pi" width="620px"/>
 </p>
 
 #### Implementación Física: Placa Perforada
