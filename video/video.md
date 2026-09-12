@@ -2,7 +2,9 @@
 
 ## Ronda Abierta
 
-**Grabación oficial: [`ronda_abierta_20260906.mp4`](ronda_abierta_20260906.mp4)** (06-09-2026, cámara cenital, 1080p, 75 s)
+**[https://youtu.be/zwYa40_EVPY](https://youtu.be/zwYa40_EVPY)** (no listado)
+
+Grabación del 06-09-2026, cámara cenital, 1080p, 75 s. El mismo archivo está en el repositorio por si el enlace no estuviera disponible: [`ronda_abierta_20260906.mp4`](ronda_abierta_20260906.mp4).
 
 Recorrido autónomo del vehículo sobre la pista sin obstáculos. El operador coloca el robot, pulsa el botón de `GPIO 21` y se retira del área; a partir de ahí no hay ninguna intervención. El trazado se mantiene por centrado proporcional entre paredes con el RPLiDAR C1 y corrección inercial con la IMU (MPU6050) integrada en la Pico 2.
 

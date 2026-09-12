@@ -14,7 +14,7 @@ Un coche autónomo de **242 x 138 mm y 720 g** sobre chasis LEGO Technic, con di
 
 | Prueba | Estado | Evidencia |
 | :--- | :--- | :--- |
-| **Ronda Abierta** | Completa y grabada | [Vídeo del 06-09-2026](video/ronda_abierta_20260906.mp4) |
+| **Ronda Abierta** | Completa y grabada | [Ver el vídeo](https://youtu.be/zwYa40_EVPY) (06-09-2026) |
 | **Ronda de Obstáculos** | El vehículo ejecuta la secuencia entera —sale del estacionamiento, esquiva los pilares por el lado que marca su color y vuelve al cuadrante de salida—, pero **la corrida limpia de tres vueltas sigue pendiente**. Las dos causas que lo impiden están identificadas y medidas. | [Las cinco corridas, una por una](video/video.md#ronda-cerrada) |
 
 > Ese "pendiente" está escrito a propósito. Todo lo que este repositorio afirma se puede comprobar: cada corrida deja un CSV por barrido de LiDAR, y el marcador que usamos no es el registro interno del robot sino un verificador independiente que solo cuenta un pilar como superado cuando el eje trasero cruza su posición con separación positiva del lado obligatorio. Cuando el vídeo y el registro se contradicen, mandamos el vídeo.
