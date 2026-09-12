@@ -16,8 +16,18 @@
 # al arrancar -- o sea, en el mismo sitio del que salio. El `timeout` de
 # abajo es solo el limite del reglamento, una red, no el criterio.
 cd /home/pi/ronda_curvas || exit 1
-LIMITE_REGLAMENTO=180
+# SIN LIMITE DE RONDA. El criterio es completar las 3 vueltas, no el
+# reloj. Lo que queda es una red por si algo se cuelga -- generosa y
+# ajustable -- no el limite de 180 s del reglamento.
+LIMITE_REGLAMENTO=${WRO_LIMITE:-600}
 [ "$1" = "panel" ] && export WRO_PANEL=1
+
+# PUERTA DE ARRANQUE. El boton tiene que abrir la SECUENCIA ENTERA, no
+# solo la carrera: antes solo ronda_camara.py lo esperaba, asi que la
+# salida del estacionamiento arrancaba sola en cuanto se lanzaba esto.
+# Mientras espera, el LED de la Pico parpadea: eso es "cargado y listo".
+python3 -u esperar_boton.py obstaculos || { echo "[-] arranque cancelado"; exit 1; }
+echo
 
 echo "[1/2] $(date +%H:%M:%S)  saliendo del estacionamiento"
 INICIO=$SECONDS

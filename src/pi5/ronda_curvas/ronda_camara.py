@@ -74,6 +74,20 @@ EDAD_MAX_CAMARA = 0.4
 # depurando. Se enciende con WRO_PANEL=1.
 PANEL = os.environ.get("WRO_PANEL") == "1"
 
+# PRUEBA ABIERTA: 3 vueltas y parar, sin pilares y sin estacionamiento.
+#
+# En la abierta NO hay pilares en la pista, asi que cualquier deteccion de
+# color es un falso positivo -- y un falso positivo ahi no es inofensivo:
+# la FSM se compromete, abre, se desvia y puede terminar rozando un muro
+# por esquivar algo que no existe. Con esto la vision sigue corriendo
+# (hace falta para las LINEAS del suelo, que son las que cuentan las
+# vueltas) pero su color no llega a la maquina de estados.
+#
+# Es un interruptor, no codigo nuevo: la ronda abierta usa exactamente el
+# mismo control de carril que la de obstaculos, que es el que esta
+# probado.
+SIN_PILARES = os.environ.get("WRO_SIN_PILARES") == "1"
+
 _avisos = set()
 
 
@@ -145,6 +159,8 @@ def al_barrido(scan):
     # apareo por rumbo de navegacion para decidir CUAL de los clusters
     # del LiDAR es el que tiene ese color (ver APAREO COLOR <-> CLUSTER).
     color_cam, cx_cam = vision.get_deteccion()
+    if SIN_PILARES:
+        color_cam, cx_cam = None, None
     # Watchdog de camara y de IMU, los dos que faltaban. El hilo de
     # camara puede morir en silencio dejando un color enganchado, y
     # `enlace.heading()` devuelve el ultimo yaw para siempre si la Pico

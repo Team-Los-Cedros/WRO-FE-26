@@ -1,11 +1,13 @@
 # Deteccion HSV de postes rojo/verde con histeresis de estabilizacion.
 # No captura frames -- los recibe por callback desde camara_driver.py
 # via procesar_frame(). Umbrales y logica de contorno sin cambios.
+import json
 import os
 import threading
 import time
 
 import numpy as np
+
 import cv2
 
 # --- Umbrales reescalados al frame de 640x360 (ver camara_driver.py) ---
@@ -87,6 +89,74 @@ LINEA_ANCHO_SOBRE_ALTO = 1.8    # una linea es mas ancha que alta; un pilar no
 # dejar fuera.
 LINEA_FILA_MINIMA = 0.33
 LINEA_AREA_MINIMA = 150
+
+
+# ==========================================================
+# CALIBRACION DESDE ARCHIVO
+# ==========================================================
+# Los umbrales de arriba son los valores de casa. En competencia la luz
+# es otra -- focos, ventanas, el color del suelo del pabellon -- y hasta
+# ahora cambiarlos significaba editar este archivo por SSH, a ciegas y
+# sin ver la mascara.
+#
+# Si existe `calibracion.json` al lado de este modulo, lo que traiga
+# MANDA sobre lo de arriba. Si no existe, o esta roto, no pasa nada: se
+# usa lo de arriba, que es lo que ya corrio en pista. Esa es la regla --
+# el archivo solo puede mejorar la calibracion, nunca dejar el robot sin
+# una.
+#
+# Lo escribe `calibrador_web.py`, que ademas deja ver la mascara en vivo
+# mientras se mueven los umbrales.
+ARCHIVO_CALIBRACION = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "calibracion.json")
+
+# Que se puede calibrar: los seis umbrales de color y los cuatro numeros
+# de forma. Nada mas -- no se acepta cualquier clave del JSON, para que
+# un archivo mal escrito no pueda inyectar un nombre que no toca.
+_UMBRALES = ("ROJO_BAJO_1", "ROJO_ALTO_1", "ROJO_BAJO_2", "ROJO_ALTO_2",
+             "VERDE_BAJO", "VERDE_ALTO", "NARANJA_BAJO", "NARANJA_ALTO",
+             "AZUL_BAJO", "AZUL_ALTO")
+_ESCALARES = ("AREA_MIN_DETECCION", "LINEA_AREA_MINIMA",
+              "LINEA_FILA_MINIMA", "LINEA_ANCHO_SOBRE_ALTO")
+
+
+def valores_calibrables():
+    """Lo que hay puesto ahora mismo, en forma de diccionario."""
+    d = {n: [int(v) for v in globals()[n]] for n in _UMBRALES}
+    d.update({n: globals()[n] for n in _ESCALARES})
+    return d
+
+
+def _aplicar_calibracion():
+    try:
+        with open(ARCHIVO_CALIBRACION, "r", encoding="utf-8") as f:
+            datos = json.load(f)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        print("[!] calibracion.json ilegible (%s): se usan los valores del codigo" % e)
+        return None
+    if not isinstance(datos, dict):
+        return None
+    puestos = 0
+    for nombre in _UMBRALES:
+        v = datos.get(nombre)
+        # Un umbral HSV son tres numeros. Cualquier otra cosa se ignora
+        # en silencio: mejor el valor de casa que uno a medias.
+        if isinstance(v, (list, tuple)) and len(v) == 3:
+            globals()[nombre] = np.array([int(x) for x in v])
+            puestos += 1
+    for nombre in _ESCALARES:
+        v = datos.get(nombre)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            globals()[nombre] = type(globals()[nombre])(v)
+            puestos += 1
+    return puestos
+
+
+_puestos = _aplicar_calibracion()
+if _puestos:
+    print("[+] calibracion.json: %d valores cargados desde archivo" % _puestos)
 
 _KERNEL = np.ones((5, 5), np.uint8)
 

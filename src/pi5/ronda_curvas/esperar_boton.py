@@ -96,8 +96,13 @@ def main():
         return 1
 
     enlace.led("BLINK")
-    print("[LISTO] LED PARPADEANDO = cargado y listo.")
-    print("        Coloca el robot en el estacionamiento y pulsa el boton (GP21).")
+    # El aviso cambia con la ronda: en la abierta no hay estacionamiento,
+    # y leer "colocalo en el estacionamiento" ahi solo confunde.
+    ronda = sys.argv[1] if len(sys.argv) > 1 else "obstaculos"
+    donde = ("en el tramo de salida que te toco"
+             if ronda == "abierta" else "en el estacionamiento")
+    print("[LISTO] LED PARPADEANDO = cargado y listo (ronda %s)." % ronda)
+    print("        Coloca el robot %s y pulsa el boton (GP21)." % donde)
     try:
         while GPIO.input(PIN_BOTON) == GPIO.HIGH:
             # Se sigue mandando consigna cero: mantiene la direccion
