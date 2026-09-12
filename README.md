@@ -373,7 +373,7 @@ $$I_{\text{Pi 5}} = 0.61 - 0.21 = \mathbf{0.40\,\text{A}} \qquad I_{\text{tracci
 
 **Potencia y autonomía.** A $8.4\,\text{V}$ el consumo en marcha es $1.39 \times 8.4 = \mathbf{11.7\,\text{W}}$ ($10.3\,\text{W}$ con la batería ya a $7.4\,\text{V}$). Las celdas son INR21700/50E de $5.0\,\text{Ah}$, y **en 2S la capacidad no se suma**, solo la tensión:
 
-$$t = rac{5.0\,\text{Ah}}{1.39\,\text{A}} = 3.6\,\text{h} \quad\longrightarrow\quad \text{al } 80\,\% \text{ de descarga útil} = \mathbf{2.9\,\text{h}}$$
+$$t = \frac{5.0\,\text{Ah}}{1.39\,\text{A}} = 3.6\,\text{h} \quad\longrightarrow\quad \text{al } 80\,\% \text{ de descarga útil} = \mathbf{2.9\,\text{h}}$$
 
 Una ronda de la WRO dura 3 minutos, así que la batería da para unas **58 rondas seguidas** sin recargar. La autonomía no es una restricción de este diseño: el límite práctico lo pone el desgaste mecánico, no la energía.
 
