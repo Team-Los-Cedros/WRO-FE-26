@@ -5,7 +5,7 @@ commits (ver `git log`). Formato inspirado en [Keep a Changelog](https://keepach
 Cada versión referencia los commits representativos de ese hito para
 poder auditar el cambio exacto con `git show <hash>`.
 
-## [v0.8.0] — 2026-09-11 — Ronda completa: salir del estacionamiento, tres vueltas contadas por líneas y volver al cuadrante
+## [v0.10.0] — 2026-09-11 — Ronda completa: salir del estacionamiento, tres vueltas contadas por líneas y volver al cuadrante
 
 Primera versión en que el vehículo ejecuta la secuencia entera de la Ronda
 de Obstáculos sin intervención: sale del estacionamiento, corre esquivando
@@ -81,6 +81,119 @@ Los dos arreglos de la sesión posterior a la última corrida: el descarte
 del eco de la rueda propia y la guiñada mínima entre cruces de línea (se
 verificó que 871 grados de giro, o sea 2,4 vueltas, se estaban contando
 como tres).
+
+## [v0.9.1] — 2026-09-06 a 2026-09-07 — Ronda Abierta, medidas de banco y reorganizacion
+
+Commits representativos: `ad4e7ec`, `f566de2`, `44820da`, `8c19a03`, `bbfe582`.
+
+### Agregado
+- Ronda Abierta con el conteo de vueltas por rumbo de la IMU, y las
+  herramientas de camara en vivo por HTTP y medida de las lineas de piso.
+- `MEDICIONES_20260906.md`: chasis, bahia de parqueo y velocidad, todas
+  remedidas con regla en vez de heredadas.
+
+### Corregido
+- La masa real de la V3 son **720 g**, no los 613 de la V2, y el margen de
+  torque se rehizo con esa cifra: pasa de 2,55x a **2,18x**.
+- El consumo del README era estimado por hoja de datos y con la Pi 3B. Se
+  sustituye por medida real con multimetro: 1,39 A en marcha, 0,61 en
+  reposo y 0,21 con la Pi apagada.
+- La FSM de parqueo podia terminar en FALLO con la maniobra perfecta.
+- El robot retrocedia contra los pilares que iba a rebasar.
+
+### Reorganizado
+- `ronda_cerrada` y `ronda_nueva` pasan a `legacy/`; el codigo vivo queda
+  en `ronda_curvas` y `prueba_abierta`. La separacion es deliberada: lo
+  archivado se conserva como registro de iteracion, pero no se despliega.
+
+## [v0.9.0] — 2026-09-03 a 2026-09-05 — Migracion a Raspberry Pi 5
+
+El cambio de hardware mas grande del proyecto. La Pi 3B se sustituye por
+una Pi 5, y la decision es de computo medido, no de preferencia.
+
+Commits representativos: `0b7de6c`, `840b7d1`, `f9b011f`, `e47884b`.
+
+### Medido antes y despues
+| | Pi 3B | Pi 5 |
+| :--- | :---: | :---: |
+| Vision por cuadro a 640x360 | 67-72 ms | **4,8 ms** |
+| Vision por cuadro a 1280x720 | no cabia | **22,2 ms** |
+| Edad del barrido del LiDAR | 16,0 ms de media | **0,1 ms** |
+
+La migracion se verifico archivo a archivo: 3325 archivos identicos y los
+170 CSV de telemetria coincidiendo por md5. Nada se borro de la 3B.
+
+Eso es lo que permitio subir la camara a **1280x720 a 30 fps**. El LiDAR
+dejo de tener latencia que quitar.
+
+### Agregado
+- Cerebro nuevo en `src/pi5`: homografia del suelo y vision de pista en
+  milimetros, fusion camara-LiDAR de paredes y objetos, localizacion en la
+  recta con mapa de doce casillas, planificador y maniobra de parqueo.
+- **139 pruebas de la ronda entera que corren sin robot ni dispositivos.**
+- Panel web para ver la corrida mientras ocurre, y herramientas de
+  calibracion y diagnostico sobre el robot vivo.
+
+### Corregido
+- `RPi.GPIO` 0.7.1 no funciona en la Pi 5: la placa cambio al chip RP1 y
+  la libreria vieja escribe directo a los registros del SoC. Se desinstala
+  para que gane el shim `python3-rpi-lgpio`. Documentado en
+  `INSTALACION.md` porque se vuelve a romper cada vez que alguien instala
+  Adafruit-Blinka por pip.
+
+## [v0.8.0] — 2026-08-31 a 2026-09-02 — Recorrido determinista, parqueo verificado y watchdog en la Pico
+
+Reescritura del cerebro como `ronda_nueva`: en vez de reaccionar a lo que
+aparece, recorre la pista por esquinas conocidas. Incluye la primera
+maniobra de parqueo verificada y el watchdog que hace el sistema seguro
+por omision.
+
+Commits representativos: `3c96233`, `afdb163`, `b5c75e7`, `4cc12f5`,
+`633b4ad`.
+
+### Agregado
+- **Watchdog autonomo de 500 ms en la Pico 2** y parser acotado de
+  consignas: si la Pi se cuelga o el USB se desconecta, la Pico frena y
+  centra sola en vez de seguir con la ultima orden.
+- Recorrido determinista por esquinas, parqueo verificado y maniobra de
+  esquina en tres tiempos calibrada con el radio de giro medido en pista.
+- Ultrasonido trasero medido **por interrupcion** en la Pico, y fusion de
+  esa lectura con la trasera del LiDAR para el parqueo.
+- **67 pruebas offline** sin robot ni dispositivos, replay de corridas y
+  despliegue del firmware de la Pico desde la propia Raspberry.
+
+### Corregido
+- El LiDAR esta a **133 mm del eje trasero, no a 162**, y va al ras del
+  morro: las dos cosas medidas con regla. Los valores de montaje que se
+  venian usando estaban desviados.
+- Guiñada camara-LiDAR de **3,57 grados** y camara a 80 mm, calibradas
+  contra pilares reales en vez de supuestas alineadas.
+- El eco de la propia rueda se aleja segun cuanto gire el volante, lo que
+  bloqueaba el sentido antihorario.
+- El mecanismo de direccion se estaba tomando por una pared lateral.
+
+### Validado
+Tres corridas seguidas sin fallo terminal; seis esquinas y cero
+emergencias tras acoplar los umbrales. Tambien se documenta lo que **no**
+salio: un intento de subir la velocidad que se revirtio, y una tabla
+comparativa de las cinco configuraciones probadas.
+
+## [v0.7.3] — 2026-08-29 — Optica medida y mascara del mastil
+
+Commits representativos: `81f5d18`, `0df7cd7`, `b9b2012`.
+
+### Corregido
+- **La optica de la camara estaba supuesta, no medida.** Se calibro con
+  dos pilares reales y se dejo de rotar el cuadro, usando el sensor
+  completo. El campo de vision de catalogo no es el que llega al cuadro.
+- El color de un pilar dice **por que lado pasarlo**, no hacia donde
+  girar. Confundir las dos cosas es lo que hacia que el robot girase hacia
+  el pilar que debia esquivar.
+- Se enmascara el arco que el mastil de la camara le roba al LiDAR C1.
+
+### Agregado
+- `ronda_camara`: punto de entrada e instrumentacion de la evasion, con
+  cada medicion documentada **incluidas las que fallaron**.
 
 ## [v0.7.2] — 2026-08-28 — Escape frontal y desempate de esquina
 
