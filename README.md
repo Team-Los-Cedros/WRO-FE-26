@@ -391,6 +391,76 @@ Una ronda de la WRO dura 3 minutos, así que la batería da para unas **58 ronda
 
 ---
 
+### 4.5 Geometría de Sensores: Alcance, Zonas Ciegas y Autoecos
+
+La sección anterior dice **qué** sensores lleva el vehículo. Esta dice **desde dónde miran, hasta dónde llegan y qué no pueden ver**, porque un sensor mal ubicado no falla: miente, y miente de forma consistente, que es peor. Todos los números de abajo están medidos sobre el montaje que compite, no tomados de hoja de datos.
+
+#### Posición medida de cada sensor
+
+El origen es el eje de rotación del LiDAR. `x+` es a la derecha del vehículo, `y+` hacia adelante.
+
+| Sensor | Posición respecto al LiDAR | Cubre | No puede ver |
+| :--- | :--- | :--- | :--- |
+| **RPLiDAR C1** | origen; plano de barrido a $69\,\text{mm}$ del piso | $360°$ nominales: paredes, esquinas y bultos de pilar | El arco $135°-199°$ (estructura propia) y la rueda delantera girada a tope |
+| **Pi Camera Module 3** | mástil trasero, mirando adelante por encima del vehículo | Color de pilares y líneas del piso, $53.8°$ de HFOV **medidos** | Todo lo que quede fuera de ese cono; el color se pierde antes que el eco (ver abajo) |
+| **HC-SR04 trasero** | $34\,\text{mm}$ por delante del punto más atrasado del chasis | El sector que el LiDAR tiene ciego por detrás | Cualquier cosa fuera de su cono; no da forma, solo distancia |
+| **TCS3472** | al frente, por delante del eje delantero, mirando al piso | Las líneas naranja y azul de la pista | Nada que no esté justo debajo |
+| **MPU6050** | rígido sobre la placa perforada, alineado con el eje longitudinal | Guiñada integrada | No es un sensor de entorno; deriva con el tiempo |
+
+El chasis mide $242 \times 138\,\text{mm}$ y el LiDAR está **prácticamente centrado**: $68\,\text{mm}$ a cada costado, $54\,\text{mm}$ al morro y $188\,\text{mm}$ a la cola. Esa asimetría longitudinal —el LiDAR va muy adelantado— es lo que obliga a que la comprobación de holgura se haga **rumbo a rumbo contra la silueta real del chasis** y no contra un radio único: una lectura de $200\,\text{mm}$ deja $146\,\text{mm}$ de chapa libre mirando al frente y solo $12\,\text{mm}$ mirando atrás.
+
+#### Zona ciega trasera del LiDAR, y por qué hay un ultrasonido
+
+El conjunto mástil de cámara más soporte del ultrasonido tapa el LiDAR por detrás. **Remedido el 10-09-2026** con `diag_lidar_360.py` (25 barridos, robot quieto):
+
+| Arco | Eco de la estructura propia | Tasa de aparición | Dispersión |
+| :---: | :---: | :---: | :---: |
+| $136° - 198°$ | $32-79\,\text{mm}$ | $25-100\,\%$ | $2-9\,\text{mm}$ |
+
+Ese arco se enmascara en `lidar_mascara.py` con un grado de margen a cada lado ($135°-199°$), porque los bordes salen con tasa de eco **parcial**, que es el caso que peor se comporta: alterna entre $45\,\text{mm}$ y $8000\,\text{mm}$ en ciclos seguidos.
+
+**Lo que costó no tenerlo bien medido** está en los CSV del 09-09 (tres corridas, 1634 ciclos): la distancia trasera valía $35-50\,\text{mm}$ en el $99.9\,\%$ de los ciclos, y los 447 episodios de marcha atrás duraron **todos exactamente un ciclo** — salían por emergencia trasera antes de retroceder nada. A $-35$ de PWM y $0.1\,\text{s}$ eso son $16\,\text{mm}$ por intento: el robot no podía desatascarse ni en principio. Por eso el HC-SR04 no es redundancia, es la **única** medida trasera fiable durante el estacionamiento.
+
+#### El LiDAR se ve su propia rueda, y cómo se distingue de un muro
+
+Con el volante al tope, la rueda delantera entra en el barrido. Esto bloqueó la maniobra de salida del estacionamiento durante dos corridas completas, y el modo de fallo era engañoso: el robot cortaba cada tramo del vaivén diciendo que tenía chapa a milímetros de un obstáculo que no existía.
+
+**La medida que lo resuelve** es que un muro y una pieza propia no se comportan igual con el rumbo. Un muro plano a distancia perpendicular $D$ se lee $D/\sin(\text{rumbo})$: sube al alejarse de los $90°$. Una pieza a radio fijo del LiDAR se lee igual en todos los rumbos. Corrida del 11-09-2026 a las 13:23, tramo 23:
+
+| Rumbo | Medido | Si fuera un muro |
+| :---: | :---: | :---: |
+| $36°$ | $64\,\text{mm}$ | $80\,\text{mm}$ |
+| $38°$ | $61\,\text{mm}$ | $76\,\text{mm}$ |
+| $40°$ | $61\,\text{mm}$ | $73\,\text{mm}$ |
+| $42°$ | $64\,\text{mm}$ | $70\,\text{mm}$ |
+| $44°$ | $64\,\text{mm}$ | $67\,\text{mm}$ |
+| $46°$ | $65\,\text{mm}$ | $65\,\text{mm}$ |
+
+Plano. Y el segundo indicio es que **el radio cambia entre corridas** ($61-66\,\text{mm}$ a las 13:23, $49-56\,\text{mm}$ a las 13:44) porque cambia el ángulo del volante, cosa que un muro no hace.
+
+La corrección no enmascara un arco fijo —la rueda se mueve— sino que descarta por **distancia mínima creíble**: en los sectores donde asoma la rueda ($20°-110°$ y $250°-340°$), nada ajeno al vehículo puede estar a menos de $72\,\text{mm}$ sin que el chasis, de $68\,\text{mm}$ de semiancho, lo esté tocando ya. El muro exterior con el robot aparcado lee $80-81\,\text{mm}$: queda fuera y sigue contando. El sector frontal **no** entra en esa regla, porque ahí la silueta son $54\,\text{mm}$ y un obstáculo a $64$ sí es real.
+
+#### La cámara llega menos lejos que el LiDAR, y eso manda sobre la estrategia
+
+Dos medidas de óptica que cambiaron decisiones:
+
+* **El HFOV es $53.8°$, no $85.6°$.** `medir_fov.py` emparejó una esquina que el LiDAR sitúa en $-21.5°$ con su borde en el frame. Durante un tiempo se documentó el módulo como la versión *Wide*; suponer ese catálogo **inflaba el rumbo calculado de cada pilar 2.3 veces**, que es un error de asociación, no de precisión: el pilar se emparejaba con el bulto equivocado del LiDAR.
+* **Discrepancia cámara-LiDAR: $47\,\text{mm}$** sobre una tolerancia de $80$, con $194/194$ ciclos de fusión y $\pm 2\,\text{mm}$ de estabilidad (`diag_pilares.py`, pista montada).
+
+Pero la limitación que manda es de **alcance**: el LiDAR ve el bulto de un pilar hasta unos $1400\,\text{mm}$ y la cámara solo le pone color desde unos $1100\,\text{mm}$ hacia dentro. Entre esas dos distancias el robot **sabe que hay algo y no sabe de qué lado pasarlo**, y pasar un pilar por el lado equivocado termina el recorrido.
+
+Se probaron dos respuestas desde el control y las dos empeoraron el resultado, así que están descartadas con datos en la sección 9.3: frenar al ver un bulto sin color (el alcance bajó de $1128$ a $1056\,\text{mm}$ y la corrida pasó de 8 pilares sin fallo a 3 con 2 fallos) y encararlo para identificarlo (el color cayó del $39.2\,\%$ al $26.8\,\%$ y corrompió el estimador de sentido). `sonda_color.py` confirmó que la máscara HSV captura el $85\,\%$ del blob ideal a esa distancia: **el corte es geométrico, no de calibración**, y la salida es óptica —más resolución o más focal—, no de software.
+
+#### Calibración de color en pista
+
+Los umbrales HSV dependen de la luz del pabellón, que no es la del taller. Antes estaban fijos dentro de `vision.py`, de modo que recalibrar significaba editar Python por consola sin ver la máscara que se estaba cambiando.
+
+Ahora `vision.py` lee `calibracion.json` si existe, y `calibrador_web.py` lo sirve en el navegador: cámara y máscara lado a lado, con el **área del blob en números**, que es el valor que de verdad decide si el robot ve el pilar o no. Si el archivo falta o está corrupto se usan los valores del código, así que el archivo solo puede mejorar la calibración, nunca dejar el vehículo sin una.
+
+Se calibran cuatro colores, y los dos últimos importan tanto como los primeros: **naranja y azul son las líneas del piso, y de ellas sale el conteo de vueltas** (sección 5.3).
+
+---
+
 ## 5. Capa de Percepción y Alto Nivel (Raspberry Pi 5)
 
 La Raspberry Pi 5 se encarga de los procesos que demandan alta capacidad de cómputo. Sustituyó a la Pi 3B el 03-09-2026 (sección 4.2); los números de tiempo de este README que vengan de la 3B están marcados como tales. Mediante programación concurrentemente multihilos (`threading`), decodifica los datos en crudo del LiDAR y las imágenes de la cámara, calculando las decisiones estratégicas de navegación.
