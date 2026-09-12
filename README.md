@@ -1036,6 +1036,48 @@ Midiendo cada circunferencia sobre el papel salen estos valores. La anotacion or
 
 ---
 
+### 7.6 Materiales y Manufactura: por qué el chasis dejó de imprimirse
+
+La decisión de materiales de este vehículo es poco común y conviene explicarla, porque va en dirección contraria a la de la mayoría: **el equipo empezó con un chasis monocasco impreso en 3D y lo abandonó**. No por dificultad de fabricación, sino por una medida.
+
+#### Lo que forzó el cambio
+
+El filamento rígido es un buen conductor de vibración. El monocasco de la V1 transmitía las vibraciones de alta frecuencia del motor directamente al soporte de la cámara, y eso **descalibraba la visión durante la corrida**: la geometría que el software daba por fija dejaba de serlo. Un chasis de vigas de fricción LEGO Technic absorbe ese ruido por flexión elástica en cada unión, que es exactamente lo que una pieza impresa monolítica no puede hacer.
+
+El cambio trajo además dos cosas medibles:
+
+| | V1 — monocasco impreso | V2 en adelante — vigas Technic |
+| :--- | :---: | :---: |
+| Masa del vehículo | $\approx 800\,\text{g}$ | $\mathbf{613\,\text{g}}$ ($-23.37\,\%$) |
+| Reconfigurar la geometría | reimprimir | desmontar y volver a montar |
+| Piezas del chasis | monocasco + soportes | **83 piezas** con Design ID trazable |
+
+La masa subió después a $720\,\text{g}$ en el montaje que compite, pero por instrumentación —Raspberry Pi 5 con carcasa, mástil y ultrasonido—, no por estructura. Sigue por debajo de la V1.
+
+#### Lo que sí se imprime, y con qué
+
+No todo desapareció: las piezas de la interfaz rueda-dirección de la V1 siguen siendo referencia de diseño válida y están en [`models/V1/`](models/V1/README.md) con sus STL. El criterio de material no fue uniforme, y esa es la parte que importa:
+
+| Pieza | Material | Relleno | Por qué |
+| :--- | :---: | :---: | :--- |
+| Chasis y portapilas | PLA | $15-20\,\%$ | Piezas de volumen, sin carga concentrada. Prima la rigidez por geometría, no por material. |
+| `Eje_llanta` y `Base_llanta` | **PETG** | $\ge 50\,\%$, **concéntrico** | Transmiten el par del motor a la rueda. Aquí el modo de fallo es **torsión**, y el PLA falla de forma frágil ante par cíclico. El relleno concéntrico alinea el material con la dirección del esfuerzo. |
+| Soportes de eje y base del servo | PLA | $25\,\%$ | Exigen precisión dimensional en los diámetros internos, no resistencia. |
+
+Esa tabla es la razón de fondo por la que el proyecto pudo abandonar la impresión del chasis sin perder nada: **lo único que de verdad necesitaba un material técnico eran las dos piezas que transmiten par**, y esas se conservaron.
+
+#### Trazabilidad de la reproducción
+
+El chasis actual no se publica como una foto ni como un STL, sino como su **archivo CAD fuente**: [`models/Chasis-LEGO-V2/Chasis-V2.io`](models/Chasis-LEGO-V2/), abrible con BrickLink Studio, que es software gratuito. De ahí sale la vista explosionada y el listado de piezas con miniaturas.
+
+Las 83 piezas están catalogadas por **Design ID**, no por nombre comercial. Es una decisión deliberada de trazabilidad: el nombre comercial de una pieza Technic varía entre catálogos y traducciones, mientras que el Design ID es único y localizable en el catálogo de BrickLink. Cuando el equipo no tuvo certeza del nombre de una pieza, **dejó el Design ID sin nombre en vez de adivinarlo** — el listado lo dice explícitamente.
+
+#### Neumáticos
+
+Las llantas rígidas de plástico de la V1 patinaban al acelerar a PWM alto, disipando en calor la potencia que debía ir al suelo. Los neumáticos de caucho LEGO de $36\,\text{mm}$ suben el coeficiente de fricción a $\mu_e \approx 0.85$, y ese número no es decorativo: es el que entra en el cálculo de fuerza de tracción de la sección 7.4 y el que sostiene el margen de $2.18\times$ sobre la masa actual.
+
+---
+
 ## 8. Análisis de Riesgos y Registro de Iteraciones
 
 Consolidando los puntos de fallo detectados a lo largo de las secciones anteriores, este es el registro de riesgos identificados por el equipo, su causa raíz y la mitigación implementada. Cada fila corresponde a un problema real observado en pista o en banco de pruebas, no a un riesgo hipotético:
