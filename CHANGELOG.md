@@ -5,6 +5,83 @@ commits (ver `git log`). Formato inspirado en [Keep a Changelog](https://keepach
 Cada versión referencia los commits representativos de ese hito para
 poder auditar el cambio exacto con `git show <hash>`.
 
+## [v0.8.0] — 2026-09-11 — Ronda completa: salir del estacionamiento, tres vueltas contadas por líneas y volver al cuadrante
+
+Primera versión en que el vehículo ejecuta la secuencia entera de la Ronda
+de Obstáculos sin intervención: sale del estacionamiento, corre esquivando
+los pilares por el lado que marca su color, y para en el cuadrante del que
+salió. La salida del estacionamiento se escribió como proceso aparte a
+propósito, para no tocar ni una línea del código de carrera ya validado.
+
+Commit: `0889d41` (código y manual de instalación), `e7edad6` (manual de
+ensamblaje).
+
+### Agregado
+- `ronda_curvas/parqueo.py`: maniobra de salida del estacionamiento en
+  vaivén, con la vigilancia por silueta completa —compara cada rumbo
+  contra la chapa que hay en ESE rumbo, no contra un umbral único— y
+  enderezado final contra la pared medida por el LiDAR.
+- `ronda_curvas/esperar_boton.py`: puerta de arranque. El pulsador de
+  `GPIO 21` abre ahora la secuencia entera y no solo la carrera; mientras
+  espera, el LED de la Pico parpadea como señal visible de "cargado y
+  listo". Antes la salida del estacionamiento arrancaba sola.
+- `correr_completa.sh`, `wro.service` y `usar.sh`: encadenado de las dos
+  fases, arranque autónomo al encender y cambio de versión entre rondas
+  sin tocar los registros.
+- **Conteo de vueltas por líneas de pista** en `navegacion.py`. Cada
+  esquina lleva una línea naranja y una azul: cuatro de un color por
+  vuelta, doce para tres. Contar tramos devuelve al robot al mismo tramo
+  del que salió, propiedad que el conteo por guiñada no tiene. El yaw
+  queda solo como red de seguridad, muy por encima del umbral real.
+- `enlace_pico.led()` y `marcador_real.py`, el verificador independiente
+  que solo cuenta un pilar como superado cuando el eje trasero cruza su
+  posición con separación positiva del lado obligatorio.
+
+### Corregido
+- **El modelo del chasis estaba mal.** La silueta suponía 44 mm de
+  carrocería a un costado y 94 al otro; medido con regla son **68 y 68**.
+  Esa asimetría falsa daba holgura negativa con el robot parado y los doce
+  primeros tiempos del vaivén cortaban al primer ciclo, avanzando uno o
+  dos grados cada uno.
+- **El LiDAR se veía a sí mismo.** Los cortes eran ecos planos de 49-66 mm
+  en los sectores donde asoma la rueda delantera girada a tope. Se
+  descartan por ser planos y por cambiar de radio con el ángulo de
+  volante, que es lo que prueba que no eran un muro.
+- El enderezado tenía el signo invertido respecto al vaivén y corregía
+  **contra** el muro, cortándose en el primer ciclo. Y giraba a ciegas
+  hasta encontrar pared: se comía 93 grados de guiñada, 22 de los 42
+  segundos de la salida, y dejaba el robot mirando al revés del carril.
+  Ahora, sin pared fiable a la vista, avanza recto.
+- El vaivén se pasaba de vueltas (+97 grados acumulados) y sacaba el robot
+  casi perpendicular al carril. Con tope de guiñada, enderezar pasa a ser
+  trabajo del enderezado.
+- `wro.service` tenía `Restart=always`, que relanzaba la ronda entera al
+  terminar: el robot volvía a salir del estacionamiento solo, una y otra
+  vez.
+
+### Medido
+Cinco corridas el 11-09, puntuadas con `marcador_real.py` y no con el
+registro interno del robot:
+
+| Corrida | Vueltas reales | Por el lado prohibido | Velocidad |
+| :--- | :---: | :---: | :---: |
+| 12:47 | 3 | 1 (primer pilar, a los 7,2 s) | 210 mm/s |
+| 13:13 | 3 | 1 (cuarto pilar, a los 78 s) | 171 mm/s |
+| 13:23 | 1,5 | **0** | 221 mm/s |
+| 13:44 | 2,4 | **0** | 202 mm/s |
+
+El fallo del primer pilar rojo, que llevaba toda la sesión, **desapareció
+al arreglar la salida**: la primera medida de pared válida pasó de llegar
+3,1 s después de arrancar la carrera a llegar en el primer ciclo, y los
+costados al entregar el mando pasaron de 394 mm a 944 sobre un carril de
+1000.
+
+### Pendiente de validar en pista
+Los dos arreglos de la sesión posterior a la última corrida: el descarte
+del eco de la rueda propia y la guiñada mínima entre cruces de línea (se
+verificó que 871 grados de giro, o sea 2,4 vueltas, se estaban contando
+como tres).
+
 ## [v0.7.2] — 2026-08-28 — Escape frontal y desempate de esquina
 
 Continuación directa del pendiente de v0.7.1. Caso de estudio en README
