@@ -5,6 +5,89 @@ commits (ver `git log`). Formato inspirado en [Keep a Changelog](https://keepach
 Cada versión referencia los commits representativos de ese hito para
 poder auditar el cambio exacto con `git show <hash>`.
 
+## [v0.11.0] — 2026-09-12 — Calibración en pista, selección de ronda y saneamiento de la documentación
+
+Versión orientada a **operar el vehículo en competencia**: recalibrar el color
+sin editar código, cambiar de ronda sin editar el servicio, y dejar el
+repositorio sin defectos silenciosos.
+
+### Agregado
+
+- `ronda_curvas/calibrador_web.py`: calibrador de color por navegador. Sirve en
+  el puerto 8080 la cámara y la máscara lado a lado, con el **área del blob en
+  números**, que es el valor que decide si el robot ve el pilar o no. Guarda en
+  `calibracion.json`, que `vision.py` lee al arrancar; si el archivo falta o está
+  corrupto se usan los valores del código, de modo que el archivo solo puede
+  mejorar la calibración y nunca dejar el vehículo sin una. Se calibran los
+  cuatro colores, **incluidas las líneas naranja y azul del piso**, de las que
+  sale el conteo de vueltas.
+- `ronda.sh`, `correr_ronda.sh` y `correr_abierta.sh`: la ronda que corre el
+  servicio se elige con una palabra en un archivo, sin tocar la unidad de
+  systemd. La Prueba Abierta no añade lógica de control: es la misma ronda sin
+  `parqueo.py` y con `WRO_SIN_PILARES=1`, que deja la cámara leyendo las líneas
+  del piso —necesarias para contar vueltas— pero saca su color de la máquina de
+  estados. En la abierta no hay pilares, así que toda detección de color es un
+  falso positivo, y un falso positivo dispara una evasión contra algo que no
+  existe.
+- `ronda_curvas/esperar_boton.py`: el botón abre ahora la **secuencia entera** y
+  no solo la carrera. Antes solo `ronda_camara.py` lo esperaba, de modo que la
+  salida del estacionamiento arrancaba sola al lanzar el script. Mientras espera,
+  el LED de la Pico parpadea.
+- `herramientas/verificar_docs.py`: comprueba toda la documentación en busca de
+  caracteres de control invisibles, enlaces e imágenes rotos, anclas internas
+  muertas y finales de línea mezclados. Devuelve 1 si encuentra algo.
+- `schemes/Alimentacion_y_Senales_v2.svg`: diagrama vigente de alimentación y
+  señales, con las tres etapas de regulación, el reparto Pi 5 / Pico 2, el mapa
+  de pines completo y el consumo real medido.
+- README secciones **3.5** (línea de tiempo del proyecto y punto de inflexión),
+  **4.5** (geometría de sensores, zonas ciegas y autoecos) y **7.6** (materiales
+  y manufactura del chasis).
+- `.gitattributes`, que fija los finales de línea en LF.
+
+### Corregido
+
+- **La fórmula de autonomía no renderizaba.** No era un comando LaTeX mal
+  escrito sino un carácter de avance de página (0x0C) incrustado en el archivo:
+  la barra invertida de la fracción se interpretó como escape al generar el
+  texto y quedó como byte de control invisible. Se barrió el resto del
+  repositorio buscando los demás escapes que producen lo mismo.
+- **El diagrama de cableado no describía el vehículo.** Mostraba dos botones de
+  selección de ronda cuando hoy hay uno solo en `GPIO 21`. Se sustituye por uno
+  vigente y el original se conserva marcado como histórico.
+- **El documento se contradecía sobre la versión del prototipo.** La sección 3.1
+  decía que el actual era la V3 mientras la sección 0 y las seis vistas
+  reglamentarias son de la V4.
+- `3d-Models/` pasa a llamarse `models/`, que es el nombre de la plantilla
+  oficial de la WRO. Era la única de las seis carpetas de primer nivel que no lo
+  usaba.
+
+### Medido
+
+- **El LiDAR se ve su propia rueda** con el volante al tope, y eso bloqueaba la
+  maniobra de salida del estacionamiento. Lo que lo distingue de un muro es la
+  dependencia con el rumbo: un muro plano se lee $D/\sin(\text{rumbo})$ y sube al
+  alejarse de los 90°, mientras que una pieza a radio fijo se lee igual en todos
+  los rumbos. Medido en dos corridas: ecos planos de 61-66 mm y de 49-56 mm, con
+  el radio cambiando entre ellas porque cambiaba el ángulo del volante.
+- **El conteo de vueltas por líneas contaba de más.** Verificado contra la
+  guiñada acumulada: 871° de giro, que son 2,4 vueltas, se contaban como tres.
+  Se añadió una guiñada mínima entre cruces, porque dos líneas del mismo color
+  están separadas por una esquina.
+- **Flancos del chasis: 68 mm a cada costado**, medidos con regla. El modelo de
+  la silueta suponía 44 y 94, y esa asimetría falsa daba holgura negativa con el
+  robot parado.
+
+### Pendiente
+
+- Unificar las medidas del chasis entre `geometria_robot.py` (222 × 125 mm) y
+  `parqueo.py` (242 × 138 mm medidos). No se toca antes de competir: cambiar el
+  largo altera la geometría del parqueo, que está validada en pista con el valor
+  actual.
+- Validar en pista los dos arreglos de esta versión (autoeco de rueda y guiñada
+  mínima entre líneas).
+
+---
+
 ## [v0.10.0] — 2026-09-11 — Ronda completa: salir del estacionamiento, tres vueltas contadas por líneas y volver al cuadrante
 
 Primera versión en que el vehículo ejecuta la secuencia entera de la Ronda
