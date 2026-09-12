@@ -23,7 +23,7 @@ Un coche autónomo de **242 x 138 mm y 720 g** sobre chasis LEGO Technic, con di
 
 | Si busca... | Está en |
 | :--- | :--- |
-| **Movilidad y diseño mecánico** | [Sección 7 — Geometría de dirección](#7-geometría-de-dirección-y-movilidad-mecánica) — cinemática Ackermann, límites de giro calibrados en pista y el cálculo de torque con su margen. [Secciones 3.2 y 3.3](#32-registro-fotográfico-de-la-evolución-e-iteración-geométrica-matriz-v1--v2--v3) — evolución V1→V3 y las seis vistas reglamentarias. CAD reproducible pieza a pieza en [`3d-Models/`](3d-Models/). |
+| **Movilidad y diseño mecánico** | [Sección 7 — Geometría de dirección](#7-geometría-de-dirección-y-movilidad-mecánica) — cinemática Ackermann, límites de giro calibrados en pista y el cálculo de torque con su margen. [Secciones 3.2 y 3.3](#32-registro-fotográfico-de-la-evolución-e-iteración-geométrica-matriz-v1--v2--v3) — evolución V1→V3 y las seis vistas reglamentarias. CAD reproducible pieza a pieza en [`models/`](models/). |
 | **Arquitectura de potencia y sensores** | [Sección 4 completa](#4-arquitectura-eléctrica-y-distribución-de-señales) — empieza por el [diagrama de bloques de señales](schemes/Diagrama_Bloques_Senales.svg). Alimentación desacoplada en tres etapas, pinout calibrado pin a pin y **consumo real medido con multímetro**, no estimado por hoja de datos. |
 | **Arquitectura de software y estrategia de obstáculos** | [Sección 5 — Percepción y alto nivel](#5-capa-de-percepción-y-alto-nivel-raspberry-pi-5) — máquina de estados de carrera, evasión y estacionamiento. [Sección 5.3](#53-estrategia-de-navegación-justificada-por-rondas-geometría-del-campo) — la estrategia por rondas, deducida de la geometría del campo. [Sección 6](#6-capa-de-control-de-bajo-nivel-raspberry-pi-pico-2) — el firmware de tiempo real. |
 | **Pensamiento sistémico y decisiones de ingeniería** | [Sección 3.4 — Trade-offs](#34-justificación-de-ingeniería-para-la-selección-de-componentes-y-arquitectura-de-sistemas-trade-offs) — por qué cada componente y qué se descartó. [Sección 8](#8-análisis-de-riesgos-y-registro-de-iteraciones) — interacción entre subsistemas y **cuatro casos de estudio con datos de pista**. [Sección 9](#9-estado-actual-y-trabajo-pendiente) — lo que falta, y lo que se descartó midiendo. |
@@ -143,7 +143,7 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │       ├── prueba/               # Borradores nunca desplegados (distinto de legacy/, ver su README)
 │       ├── requirements.txt      # Dependencias Python del entorno de la Pi 3B
 │       └── wro_start.service     # Unidad systemd real para el arranque autónomo
-├── 3d-Models/                    # Modelos mecánicos: STL del chasis V1 (archivado) y CAD LEGO del V2
+├── models/                    # Modelos mecánicos: STL del chasis V1 (archivado) y CAD LEGO del V2
 │   ├── Chasis-LEGO-V2/           # Archivo .io (BrickLink Studio), render y listado de piezas del chasis actual
 │   └── V1/                       # STL, catálogo y guía de ensamblaje del chasis impreso archivado
 ├── t-photos/                     # Fotos de las jornadas de desarrollo del equipo
@@ -863,10 +863,10 @@ Donde:
 * El factor constante de **$0.845$** es integrado directamente en la matriz de transferencia de control de la Raspberry Pi Pico 2 para ajustar dinámicamente el pulso de PWM enviado al Geekservo de dirección, garantizando giros limpios con cero subviraje o pérdida de tracción por fricción estática destructiva en las curvas de la WRO.
 
 ### 7.2 Renderizado del Chasis de Producción (V2, compartido con la V3)
-A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis. El archivo fuente reproducible (`.io` de BrickLink Studio) y el listado completo de las 83 piezas Technic están en [`3d-Models/Chasis-LEGO-V2/`](3d-Models/Chasis-LEGO-V2/README.md):
+A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis. El archivo fuente reproducible (`.io` de BrickLink Studio) y el listado completo de las 83 piezas Technic están en [`models/Chasis-LEGO-V2/`](models/Chasis-LEGO-V2/README.md):
 
 <p align="center">
-  <img src="3d-Models/Chasis-LEGO-V2/Render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
+  <img src="models/Chasis-LEGO-V2/Render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
 </p>
 
 ### 7.3 Límites Angulares Calibrados y Protección Mecánica

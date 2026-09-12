@@ -1,6 +1,6 @@
 # Manual de Piezas 3D y Ensamble
 
-> ⚠️ **Estado: Prototipo V1 (Archivado).** Las piezas STL documentadas en este archivo corresponden al **chasis monocasco impreso en 3D** del prototipo inicial (≈800 g), reemplazado por decisión de ingeniería. El **prototipo de producción actual (V2, 613 g)** usa un chasis híbrido de vigas de fricción **LEGO Technic** — su archivo CAD reproducible y listado de piezas están en [`3d-Models/Chasis-LEGO-V2/`](../Chasis-LEGO-V2/README.md). La justificación completa del cambio (mitigación de resonancia en la cámara, reducción de masa del 23.37%) está en la sección 3.1 del [README principal](../../README.md).
+> ⚠️ **Estado: Prototipo V1 (Archivado).** Las piezas STL documentadas en este archivo corresponden al **chasis monocasco impreso en 3D** del prototipo inicial (≈800 g), reemplazado por decisión de ingeniería. El **prototipo de producción actual (V2, 613 g)** usa un chasis híbrido de vigas de fricción **LEGO Technic** — su archivo CAD reproducible y listado de piezas están en [`models/Chasis-LEGO-V2/`](../Chasis-LEGO-V2/README.md). La justificación completa del cambio (mitigación de resonancia en la cámara, reducción de masa del 23.37%) está en la sección 3.1 del [README principal](../../README.md).
 >
 > Conservamos este manual porque documenta el proceso real de iteración del equipo (Criterio de Pensamiento Sistémico) y porque las piezas de dirección/tracción (`Eje_llanta`, `Base_llanta`) siguen siendo relevantes como referencia de diseño.
 

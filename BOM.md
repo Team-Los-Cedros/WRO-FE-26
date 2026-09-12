@@ -47,12 +47,12 @@ Esta lista es el índice de compra. El procedimiento de instalación del softwar
 
 | # | Componente | Detalle | Cant. | Función |
 | :---: | :--- | :--- | :---: | :--- |
-| 17 | Chasis | **LEGO Technic, 83 piezas** — listado completo con Design ID de BrickLink en [`3d-Models/Chasis-LEGO-V2/`](3d-Models/Chasis-LEGO-V2/README.md) | 1 | Estructura del vehículo. El archivo CAD `.io` es reproducible pieza por pieza con BrickLink Studio, que es gratuito. |
+| 17 | Chasis | **LEGO Technic, 83 piezas** — listado completo con Design ID de BrickLink en [`models/Chasis-LEGO-V2/`](models/Chasis-LEGO-V2/README.md) | 1 | Estructura del vehículo. El archivo CAD `.io` es reproducible pieza por pieza con BrickLink Studio, que es gratuito. |
 | 18 | Ruedas y neumáticos | LEGO, Design ID `bl_56145c01` | 4 | Dos motrices traseras y dos directrices delanteras. |
 | 19 | Mástil del LiDAR | Estructura Technic incluida en las 83 piezas | 1 | Eleva el plano de barrido a **69 mm del piso**, altura a la que el haz corta tanto los pilares como las paredes (100 mm ambos según reglamento). |
 | 20 | Placa perforada | Placa de prototipado para soldadura | 1 | Soporte permanente de Pico 2, TB6612FNG y MPU6050. Se soldó en vez de usar *jumpers* porque la vibración provocaba falsos contactos. |
 
-> El chasis V1 era un monocasco impreso en 3D de ≈800 g. Se sustituyó por el actual de vigas Technic: **23,37 % menos masa**, menos resonancia en el soporte de la cámara y reconfiguración rápida en boxes sin reimprimir. Los STL del V1 se conservan en [`3d-Models/V1/`](3d-Models/V1/README.md) como registro del proceso de iteración.
+> El chasis V1 era un monocasco impreso en 3D de ≈800 g. Se sustituyó por el actual de vigas Technic: **23,37 % menos masa**, menos resonancia en el soporte de la cámara y reconfiguración rápida en boxes sin reimprimir. Los STL del V1 se conservan en [`models/V1/`](models/V1/README.md) como registro del proceso de iteración.
 
 ## 5. Cableado e integración
 

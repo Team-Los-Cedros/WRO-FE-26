@@ -20,7 +20,7 @@ Tres decisiones que condicionan todo lo demás y que cuesta caro cambiar a mitad
 
 ## Etapa 1 — Chasis
 
-El chasis son **83 piezas de LEGO Technic**. El archivo CAD reproducible está en [`3d-Models/Chasis-LEGO-V2/Chasis-V2.io`](3d-Models/Chasis-LEGO-V2/), y el listado completo con el *Design ID* de BrickLink de cada pieza, en el [README de esa carpeta](3d-Models/Chasis-LEGO-V2/README.md).
+El chasis son **83 piezas de LEGO Technic**. El archivo CAD reproducible está en [`models/Chasis-LEGO-V2/Chasis-V2.io`](models/Chasis-LEGO-V2/), y el listado completo con el *Design ID* de BrickLink de cada pieza, en el [README de esa carpeta](models/Chasis-LEGO-V2/README.md).
 
 Para seguir el montaje pieza a pieza, abre el `.io` con [BrickLink Studio](https://www.bricklink.com/v3/studio/download.page) (gratuito) y usa su generador de instrucciones: produce la vista explosionada y los pasos numerados a partir del propio modelo, así que las instrucciones nunca se desincronizan del diseño.
 
