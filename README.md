@@ -2,6 +2,36 @@
 
 Bienvenidos al repositorio oficial del **Team Los Cedros**, integrado por estudiantes del Colegio Los Cedros en Valera, Estado Trujillo, Venezuela. Aquí compartimos la documentación técnica, diseños de hardware, esquemas eléctricos y el software modular de nuestro vehículo autónomo para la World Robot Olympiad (WRO) 2026.
 
+<p align="center">
+  <img src="v-photos/V4/Leftview.jpg" alt="Vehiculo autonomo del Team Los Cedros, perfil izquierdo" width="620px"/>
+</p>
+
+---
+
+## El robot en una página
+
+Un coche autónomo de **242 x 138 mm y 720 g** sobre chasis LEGO Technic, con dirección Ackermann. Lo gobiernan **dos cerebros**: una Raspberry Pi 5 que decide (visión, LiDAR y máquina de estados) y una Pico 2 que ejecuta con puntualidad garantizada (PWM, giroscopio y un watchdog que frena solo si la Pi calla). Ve el mundo con un **RPLiDAR C1** a 360°, una **Pi Camera Module 3** y cuatro sensores embarcados.
+
+| Prueba | Estado | Evidencia |
+| :--- | :--- | :--- |
+| **Ronda Abierta** | Completa y grabada | [Ver el vídeo](https://youtu.be/zwYa40_EVPY) (06-09-2026) |
+| **Ronda de Obstáculos** | El vehículo ejecuta la secuencia entera —sale del estacionamiento, esquiva los pilares por el lado que marca su color y vuelve al cuadrante de salida—, pero **la corrida limpia de tres vueltas sigue pendiente**. Las dos causas que lo impiden están identificadas y medidas. | [Las cinco corridas, una por una](video/video.md#ronda-cerrada) |
+
+> Ese "pendiente" está escrito a propósito. Todo lo que este repositorio afirma se puede comprobar: cada corrida deja un CSV por barrido de LiDAR, y el marcador que usamos no es el registro interno del robot sino un verificador independiente que solo cuenta un pilar como superado cuando el eje trasero cruza su posición con separación positiva del lado obligatorio. Cuando el vídeo y el registro se contradicen, mandamos el vídeo.
+
+## Dónde mirar
+
+| Si busca... | Está en |
+| :--- | :--- |
+| **Movilidad y diseño mecánico** | [Sección 7 — Geometría de dirección](#7-geometría-de-dirección-y-movilidad-mecánica) — cinemática Ackermann, límites de giro calibrados en pista y el cálculo de torque con su margen. [Sección 7.6](#76-materiales-y-manufactura-por-qué-el-chasis-dejó-de-imprimirse) — por qué el chasis dejó de imprimirse, con la tabla de materiales por pieza. [Secciones 3.2 y 3.3](#32-registro-fotográfico-de-la-evolución-e-iteración-geométrica-matriz-v1--v2--v3) — evolución V1→V3 y las seis vistas reglamentarias. CAD reproducible pieza a pieza en [`models/`](models/). |
+| **Arquitectura de potencia y sensores** | [Sección 4 completa](#4-arquitectura-eléctrica-y-distribución-de-señales) — empieza por el [diagrama de bloques de señales](schemes/Diagrama_Bloques_Senales.svg). Alimentación desacoplada en tres etapas, pinout calibrado pin a pin y **consumo real medido con multímetro**, no estimado por hoja de datos. [Sección 4.5](#45-geometría-de-sensores-alcance-zonas-ciegas-y-autoecos) — desde dónde mira cada sensor, hasta dónde llega y **qué no puede ver**, incluidos los ecos del propio vehículo. |
+| **Arquitectura de software y estrategia de obstáculos** | [Sección 5 — Percepción y alto nivel](#5-capa-de-percepción-y-alto-nivel-raspberry-pi-5) — máquina de estados de carrera, evasión y estacionamiento. [Sección 5.3](#53-estrategia-de-navegación-justificada-por-rondas-geometría-del-campo) — la estrategia por rondas, deducida de la geometría del campo. [Sección 6](#6-capa-de-control-de-bajo-nivel-raspberry-pi-pico-2) — el firmware de tiempo real. |
+| **Pensamiento sistémico y decisiones de ingeniería** | [Sección 3.4 — Trade-offs](#34-justificación-de-ingeniería-para-la-selección-de-componentes-y-arquitectura-de-sistemas-trade-offs) — por qué cada componente y qué se descartó. [Sección 8](#8-análisis-de-riesgos-y-registro-de-iteraciones) — interacción entre subsistemas y **cuatro casos de estudio con datos de pista**. [Sección 3.5](#35-línea-de-tiempo-del-proyecto-qué-se-intentó-qué-midió-y-qué-cambió-por-eso) — la línea de tiempo de las trece versiones y el punto de inflexión del proyecto. [Sección 9](#9-estado-actual-y-trabajo-pendiente) — lo que falta, y lo que se descartó midiendo. |
+| **Reproducibilidad** | Tres documentos encadenados: [`BOM.md`](BOM.md) qué comprar → [`ENSAMBLAJE.md`](ENSAMBLAJE.md) cómo montarlo, con la comprobación que cierra cada etapa → [`INSTALACION.md`](INSTALACION.md) cómo dejar las dos placas en este mismo estado. Y [`CHANGELOG.md`](CHANGELOG.md), con los hashes de commit de cada hito. La documentación se comprueba sola: [`verificar_docs.py`](src/pi5/herramientas/verificar_docs.py) busca enlaces rotos, anclas muertas y los caracteres de control invisibles que rompen una formula sin que se vea. |
+| **El código que corre hoy** | [`src/pi5/ronda_curvas/`](src/pi5/ronda_curvas/) en la Raspberry Pi 5 y [`src/pico/`](src/pico/) en la Pico 2. Lo archivado está separado a propósito en `legacy/`. |
+
+---
+
 ### Índice
 
 1. [Introducción y Equipo](#1-introducción-y-equipo)
@@ -14,9 +44,11 @@ Bienvenidos al repositorio oficial del **Team Los Cedros**, integrado por estudi
 8. [Análisis de Riesgos y Registro de Iteraciones](#8-análisis-de-riesgos-y-registro-de-iteraciones)
 9. [Estado Actual y Trabajo Pendiente](#9-estado-actual-y-trabajo-pendiente)
 
+**Documentos que acompañan a este README:** [`BOM.md`](BOM.md) · [`ENSAMBLAJE.md`](ENSAMBLAJE.md) · [`INSTALACION.md`](INSTALACION.md) · [`CHANGELOG.md`](CHANGELOG.md) · [`video/video.md`](video/video.md)
+
 ---
 
-## 0. Estado Actual del Hardware (última revisión: 06-09-2026)
+## 0. Estado Actual del Hardware (última revisión: 12-09-2026)
 
 El robot cambió en cinco puntos respecto a la primera versión documentada en este README. Cada cambio se detalla en su sección; esta tabla existe para que no haya que reconstruirlo leyendo el documento entero.
 
@@ -25,8 +57,33 @@ El robot cambió en cinco puntos respecto a la primera versión documentada en e
 | **Cerebro de alto nivel** | Raspberry Pi 3B | **Raspberry Pi 5** (migrado el 03-09-2026) | 4.2 y 5 |
 | **Soporte del LiDAR** | Sin mástil documentado | **Mástil** con el plano de barrido a 69 mm del piso; se enmascara el sector 140-213° que él mismo ocupa | 4.2 |
 | **Medida trasera** | Ninguna | **Ultrasonido HC-SR04** en `GP14`/`GP15`, único sensor que ve hacia atrás | 4.2 y 4.3 |
-| **Sensor de color de piso** | TCS3472 bajo el chasis | **Retirado.** El sentido se resuelve por cámara y por asimetría de paredes | 4.2 y 5.3-C |
+| **Sensor de color de piso** | TCS3472 bajo el chasis | **Sigue montado, y se mudó al frente.** Se desconectó durante la migración a la Pi 5, se volvió a conectar, y en el montaje actual va por delante del eje delantero en vez de bajo el chasis. Hoy es una de las tres evidencias del sentido, junto a la cámara y la asimetría de paredes | 4.2 y 5.3-C |
 | **Arranque** | Dos botones (uno por ronda) | **Un solo botón en `GPIO 21`** | 4.2 y 4.3 |
+
+---
+
+### Montaje actual (V4)
+
+El vehículo se reconstruyó sobre el mismo chasis para la fase final. Dos cambios de colocación, y los dos por el mismo motivo: **adelantar la percepción**.
+
+* **La cámara subió a un mástil trasero**, desde donde mira hacia adelante por encima de todo el vehículo, y el LiDAR bajó al chasis por delante. Antes era al revés: el LiDAR arriba y la cámara abajo. El mástil lleva también el ultrasonido, apuntando hacia atrás.
+* **El sensor de color se adelantó**, por delante del eje delantero en vez de bajo el chasis. Leer la línea antes de pisarla da margen de reacción; leerla debajo solo avisa de que ya se cruzó.
+
+| Frontal | Trasera |
+| :---: | :---: |
+| <img src="v-photos/V4/Frontview.jpg" alt="Vista frontal: el LiDAR es el extremo que va primero" width="300px"/> | <img src="v-photos/V4/Backview.jpg" alt="Vista trasera: el mastil con la camara y el ultrasonido" width="300px"/> |
+
+| Superior | Inferior |
+| :---: | :---: |
+| <img src="v-photos/V4/Topview.jpg" alt="Vista superior del montaje actual" width="300px"/> | <img src="v-photos/V4/Bottomview.jpg" alt="Vista inferior del montaje actual, con el TCS3472 por delante del eje" width="300px"/> |
+
+| Perfil izquierdo | Perfil derecho |
+| :---: | :---: |
+| <img src="v-photos/V4/Leftview.jpg" alt="Perfil izquierdo del montaje actual" width="300px"/> | <img src="v-photos/V4/Rightview.jpg" alt="Perfil derecho del montaje actual" width="300px"/> |
+
+En la vista inferior se ve el **TCS3472 montado sobre vigas Technic por delante del eje delantero**, fuera del contorno del chasis. Esa es la colocación que le da anticipación sobre la línea.
+
+> Las medidas de la sección 7.5 —dimensiones del chasis y radios de giro trazados con marcadores— **corresponden a este montaje**.
 
 ---
 
@@ -86,7 +143,7 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 │       ├── prueba/               # Borradores nunca desplegados (distinto de legacy/, ver su README)
 │       ├── requirements.txt      # Dependencias Python del entorno de la Pi 3B
 │       └── wro_start.service     # Unidad systemd real para el arranque autónomo
-├── 3d-Models/                    # Modelos mecánicos: STL del chasis V1 (archivado) y CAD LEGO del V2
+├── models/                    # Modelos mecánicos: STL del chasis V1 (archivado) y CAD LEGO del V2
 │   ├── Chasis-LEGO-V2/           # Archivo .io (BrickLink Studio), render y listado de piezas del chasis actual
 │   └── V1/                       # STL, catálogo y guía de ensamblaje del chasis impreso archivado
 ├── t-photos/                     # Fotos de las jornadas de desarrollo del equipo
@@ -96,6 +153,8 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 ├── video/                        # Enlace oficial del video de pista y borradores de prueba
 ├── schemes/                      # Diagrama de cableado y fotos de la placa perforada
 ├── README.md                      # Documentación técnica principal (este archivo)
+├── BOM.md                         # Lista de materiales: qué comprar y para qué sirve cada pieza
+├── ENSAMBLAJE.md                  # Manual de montaje físico, etapa a etapa y con su verificación
 ├── INSTALACION.md                 # Manual paso a paso para reproducir el entorno desde cero
 └── CHANGELOG.md                   # Notas de versión por hito, referenciadas a commits reales
 
@@ -103,7 +162,7 @@ Estructura modular y limpia del proyecto conforme a las regulaciones oficiales d
 
 > **Nota de Software de Inicio:** `controlador_inicio.py` fue el orquestador maestro de la Raspberry Pi 3B, arrancado por `systemd`. En la Pi 5 el cerebro se lanza directamente (`python3 -m ronda_nueva.ronda_nueva`) y espera el botón de `GPIO 21`; las unidades `wro_start.service` y `wro_robot.service` están copiadas pero **deshabilitadas**, igual que en la 3B.
 
-> **Reproducibilidad:** el manual completo para dejar una Raspberry Pi y una Pico 2 nuevas en este mismo estado (sistema operativo, dependencias, firmware, despliegue de scripts) está en [`INSTALACION.md`](INSTALACION.md).
+> **Reproducibilidad.** Reconstruir este vehículo desde cero son tres documentos encadenados: [`BOM.md`](BOM.md) dice qué comprar y por qué se eligió cada pieza, [`ENSAMBLAJE.md`](ENSAMBLAJE.md) cómo montarlo etapa por etapa con la comprobación que cierra cada una, e [`INSTALACION.md`](INSTALACION.md) cómo dejar la Raspberry Pi 5 y la Pico 2 en este mismo estado de software.
 
 ### 2.1 Historial de Versiones y Control de Cambios
 
@@ -132,7 +191,7 @@ El desarrollo de nuestro vehículo autónomo no fue un proceso lineal. Para alca
 
 Para alcanzar la estabilidad operativa actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento dinámico, telemetría inercial y análisis de fallos mecánicos destructivos en pista:
 
-> **El prototipo actual es la V3.** Esta tabla documenta el salto **V1 → V2**, que fue *mecánico*: chasis, masa, tracción y topología de potencia. El salto **V2 → V3** fue *electrónico* y no cambió el chasis, así que se documenta aparte en la [sección 0](#0-estado-actual-del-hardware-última-revisión-06-09-2026): Raspberry Pi 5, mástil del LiDAR, ultrasonido trasero, retirada del sensor de color y botón único de arranque.
+> **El prototipo que compite es la V4.** Las cuatro versiones cambiaron cosas distintas, y por eso se documentan por separado: el salto **V1 → V2** fue *mecánico* (chasis, masa, tracción y topología de potencia) y es el de esta tabla; el salto **V2 → V3** fue *electrónico* (Raspberry Pi 5, mástil del LiDAR, ultrasonido trasero y botón único) y el **V3 → V4** fue de *colocación de sensores*, sin tocar el chasis. Los dos últimos están en la [sección 0](#0-estado-actual-del-hardware-última-revisión-12-09-2026), con las seis vistas del montaje que compite.
 
 | Criterio Técnico | Prototipo Inicial (V1) | Rediseño Mecánico (V2) | Justificación de Ingeniería / Análisis de Fatiga |
 | :--- | :--- | :--- | :--- |
@@ -158,16 +217,16 @@ Para evidenciar la transformación del vehículo y el rediseño de los tres ejes
 ---
 ### 3.3 Galería de Inspección Técnica Obligatoria (Las 6 Capturas Reglamentarias)
 
-De acuerdo con las normativas de la WRO, se presentan las 6 capturas ortogonales del prototipo de producción actual (**V3**) depositadas en `v-photos/V3/`. Esta versión es la que incorpora la Raspberry Pi 5, el mástil del LiDAR, el ultrasonido trasero y el botón único de arranque (sección 0). Las capturas de la V2 se conservan en la raíz de `v-photos/` y las de la V1 en `v-photos/V1/`, como evidencia de la evolución documentada en la sección 3.2:
+Las seis capturas ortogonales del vehículo **tal como compite**, depositadas en `v-photos/V4/`. Las del montaje anterior se conservan en `v-photos/V3/` y `v-photos/V1/` como evidencia de la evolución documentada en la sección 3.2.
 
 | Vista | Captura | Descripción |
 | :---: | :---: | :--- |
-| **Frontal** (`V3/Frontview.jpeg`) | <img src="v-photos/V3/Frontview.jpeg" alt="Vista Frontal V3" width="260px"/> | El RPLIDAR C1 al frente, a ras del parachoques, con el mástil de la cámara detrás. Geometría Ackermann y vía delantera. |
-| **Trasera** (`V3/Backview.jpeg`) | <img src="v-photos/V3/Backview.jpeg" alt="Vista Trasera V3" width="260px"/> | El **ultrasonido HC-SR04** mirando atrás, el regulador XL4016 con su display de tensión y el tren de tracción. |
-| **Perfil Izquierdo** (`V3/Leftview.jpeg`) | <img src="v-photos/V3/Leftview.jpeg" alt="Perfil Izquierdo V3" width="260px"/> | Perfil completo: LiDAR al frente, la Raspberry Pi 5 con su placa perforada encima, y el mástil trasero con cámara y ultrasonido. Se ve la celda 21700 bajo el chasis. |
-| **Perfil Derecho** (`V3/Rightview.jpeg`) | <img src="v-photos/V3/Rightview.jpeg" alt="Perfil Derecho V3" width="260px"/> | El mismo perfil desde el otro lado, con el microinterruptor de corte y el disipador del regulador. |
-| **Superior** (`V3/Topview.jpeg`) | <img src="v-photos/V3/Topview.jpeg" alt="Vista Superior V3" width="260px"/> | Disposición central: la **Pico 2** y el MPU6050 sobre la placa perforada, y el LiDAR adelantado al eje delantero. |
-| **Inferior** (`V3/Bottomview.jpeg`) | <img src="v-photos/V3/Bottomview.jpeg" alt="Vista Inferior V3" width="260px"/> | Estructura base de vigas de fricción LEGO, las dos celdas 21700 en paralelo mecánico a los lados y el servo de dirección. |
+| **Frontal** (`V4/Frontview.jpg`) | <img src="v-photos/V4/Frontview.jpg" alt="Vista Frontal" width="260px"/> | El extremo que va primero. El **RPLiDAR C1 montado bajo, sobre el chasis**, con las dos ruedas directrices a los lados y el sensor de color asomando por debajo. Al fondo se ve el mástil trasero. |
+| **Trasera** (`V4/Backview.jpg`) | <img src="v-photos/V4/Backview.jpg" alt="Vista Trasera" width="260px"/> | El **mástil**, que lleva la cámara en lo alto y el **ultrasonido HC-SR04 mirando hacia atrás**, única medida real en ese sentido. Debajo, el regulador XL4016 con su display de tensión y el tren de tracción. |
+| **Perfil Izquierdo** (`V4/Leftview.jpg`) | <img src="v-photos/V4/Leftview.jpg" alt="Perfil Izquierdo" width="260px"/> | El reparto completo de un vistazo: LiDAR bajo y delante, la Pico 2 con el MPU6050 y el TB6612FNG sobre la placa perforada en el centro, y el mástil atrás. La cámara mira hacia adelante **por encima** de todo, que es lo que impide que el LiDAR le tape el campo. |
+| **Perfil Derecho** (`V4/Rightview.jpg`) | <img src="v-photos/V4/Rightview.jpg" alt="Perfil Derecho" width="260px"/> | El mismo perfil desde el otro lado, con la Raspberry Pi 5 en su carcasa y el microinterruptor de corte de batería. |
+| **Superior** (`V4/Topview.jpg`) | <img src="v-photos/V4/Topview.jpg" alt="Vista Superior" width="260px"/> | Disposición central: el LiDAR adelantado al eje delantero y, detrás, la placa perforada con la Pico 2, la IMU y el driver. El cable plano naranja de la cámara sube al mástil. |
+| **Inferior** (`V4/Bottomview.jpg`) | <img src="v-photos/V4/Bottomview.jpg" alt="Vista Inferior" width="260px"/> | Estructura de vigas de fricción LEGO, el portapilas 21700 en rojo al centro, el servo de dirección, y el **TCS3472 sobre vigas Technic por delante del eje delantero**, fuera del contorno del chasis. |
 
 ### 3.4 Justificación de Ingeniería para la Selección de Componentes y Arquitectura de Sistemas (Trade-offs)
 
@@ -186,7 +245,45 @@ De acuerdo con las rigurosas restricciones de peso, inercia de rotación y estab
   Las celdas de iones de litio 21700 proporcionan una densidad de corriente de descarga continua masiva de hasta $30\,\text{A}$. Al alimentar nuestro regulador de alta potencia **XL4016 (capacidad de hasta $8.0\,\text{A}$)**, garantizamos un blindaje eléctrico absoluto contra caídas de tensión (*brownouts*). Toda la etapa lógica (Raspberry Pi 5, Pico 2 y LiDAR) opera de manera holgada: el consumo real del sistema completo en marcha, medido con multímetro el 06-09, es de $1.39\,\text{A}$ (sección 4.4), previniendo reinicios críticos del sistema operativo cuando el motor demanda torque de arranque máximo al salir de las curvas.
 ---
 
+### 3.5 Línea de Tiempo del Proyecto: qué se intentó, qué midió y qué cambió por eso
+
+Las tablas anteriores comparan versiones de hardware. Esta cuenta **el orden en que se aprendieron las cosas**, porque el proyecto no avanzó de forma lineal y el punto de inflexión no fue un componente nuevo. Todo lo de abajo está respaldado por [`CHANGELOG.md`](CHANGELOG.md), que lleva el hash de commit de cada hito.
+
+| Fase | Cuándo | Qué se resolvió | Qué obligó a cambiar |
+| :--- | :---: | :--- | :--- |
+| **Construir** | ene – jun 2026 | Estructura reglamentaria del repositorio, protocolo serie Pi↔Pico y máquina de estados base en la Pico 2. | La Pi 5 no estaba disponible para el equipo, así que la capa de alto nivel **bajó a una Pi 3B**. No fue una preferencia técnica: fue el hardware que había. |
+| **Mecanizar** | jul 2026 | Chasis V2 en LEGO Technic ($613\,\text{g}$) y primera Ronda Cerrada funcional: calibración HSV propia, *tracker* del LiDAR y evasión con control proporcional. | El lado de evasión salía invertido y la cámara trabajaba en el espacio de color equivocado. Se arregló en pista, y de ahí sale el caso de estudio de la sección 8.2. |
+| **Medir** | 27-07-2026 | **El punto de inflexión.** Se instrumentó telemetría por ciclo en CSV y un analizador que la resume. | Hasta aquí los parámetros de control se ajustaban por **observación cualitativa**. Desde aquí, con datos. Todo lo que este README afirma a partir de esta fecha tiene un CSV detrás. |
+| **Chocar contra un límite** | 27 – 29-08-2026 | Asistencia de esquina, escape frontal y desempate de esquina simétrica con memoria persistente. | Se documentó el **límite de la reactividad pura**: un controlador que solo responde a lo que ve *ahora* no puede desempatar dos esquinas que se ven idénticas. Hizo falta memoria de estado, no más ganancia. |
+| **Ampliar el cómputo** | 03 – 05-09-2026 | Vuelta a la **Raspberry Pi 5**. | La decisión se tomó con números, no por preferencia: el mismo procesado de imagen pasó de $67-72\,\text{ms}$ a $\mathbf{4.8\,\text{ms}}$ por cuadro, y la edad del barrido del LiDAR de $16.0\,\text{ms}$ de media a $\mathbf{0.1\,\text{ms}}$. Eso es lo que permitió subir la cámara a $1280\times720$. |
+| **Cerrar la ronda** | 06 – 11-09-2026 | Ronda Abierta completa y grabada. Después, la secuencia entera de la Ronda de Obstáculos: salir del estacionamiento, tres vueltas y volver al cuadrante. | El conteo de vueltas dejó de hacerse por tiempo y pasó a contarse por **líneas de pista**, porque contar tramos devuelve el robot al mismo cuadrante del que salió sin importar dónde arrancara dentro de él. |
+
+#### La decisión que más enseñó no fue técnica
+
+El cambio de rumbo del proyecto ocurrió el **27 de julio**, y no fue un sensor ni un algoritmo: fue empezar a **grabar un CSV por ciclo** y a comparar corridas con un analizador en vez de con la memoria de quien miraba.
+
+Lo que eso hizo posible se ve en la sección 9.3: cuatro hipótesis razonables que resultaron **falsas y se pudieron descartar con datos** en vez de seguir arrastrándolas. Frenar al ver un bloque sin color parecía prudente y empeoró el resultado (de 8 pilares sin fallo a 3 con 2 fallos). Encararlo para identificarlo parecía obvio y bajó el reconocimiento de color del $39.2\,\%$ al $26.8\,\%$. El consumo eléctrico parecía una restricción y resultó estar sobrado por un factor de $1.5\times$. La cámara parecía el problema de la fusión y era el denominador, lleno de bultos que no eran pilares.
+
+Ninguna de esas cuatro conclusiones se podía alcanzar mirando al robot dar vueltas.
+
+#### El ir y venir de la Raspberry Pi
+
+Vale la pena registrarlo porque es el tipo de restricción que un equipo escolar encuentra de verdad: el proyecto **empezó** con una Raspberry Pi 5, **bajó** a una Pi 3B en junio por disponibilidad de hardware, y **volvió** a la Pi 5 en septiembre cuando se pudo. El código sobrevivió a las dos migraciones porque la frontera entre la capa que decide y la que ejecuta es un cable serie y dos líneas de texto: la Pico 2 nunca se enteró de qué computadora tenía enfrente.
+
+Esa es la ventaja real de la arquitectura de dos cerebros, y no se eligió por eso — se descubrió al tener que cambiar de computadora dos veces.
+
+---
+
 ## 4. Arquitectura Eléctrica y Distribución de Señales
+
+Antes del detalle de cada etapa, esta es la vista completa de cómo viaja la información por el vehículo: qué sensor entra por dónde, qué decide cada una de las dos capas de cómputo y cómo llega la orden hasta las ruedas.
+
+<p align="center">
+  <img src="schemes/Diagrama_Bloques_Senales.svg" alt="Diagrama de bloques de señales: sensores, Raspberry Pi 5, Pico 2 y actuadores" width="900px"/>
+</p>
+
+> **El diagrama se lee de arriba abajo y la división horizontal es la decisión de arquitectura más importante del proyecto.** Todo lo que exige juicio — reconocer un pilar, decidir por qué lado pasarlo, saber en qué vuelta va — ocurre en la Raspberry Pi 5. Todo lo que exige puntualidad — el ancho de cada pulso del servo, la integración del giroscopio — ocurre en la Pico 2. Entre las dos hay un único cable serie y un protocolo de dos líneas de texto, y esa estrechez es deliberada: obliga a que la frontera entre "decidir" y "ejecutar" sea explícita y auditable en el log de cualquier corrida.
+
 
 ### 4.1 Red de Distribución de Energía (Alimentación)
 
@@ -200,12 +297,18 @@ Para asegurar el correcto funcionamiento del vehículo autónomo y prevenir rein
 
 >  **Nota eléctrica:** Todas las referencias de tierra (GND) del vehículo confluyen en una topología de estrella en un único punto común central. Esto unifica los umbrales lógicos y drena el ruido electromagnético generado por las conmutaciones de los motores.
 
-#### Diagrama de Cableado Oficial
+#### Diagrama de Alimentación y Señales
 
-Diagrama de referencia usado por el equipo durante el ensamblaje, verificado contra el pinout real de `src/pico/main.py`. La parte de la Pico 2 sigue vigente tal cual; en la Pi el diagrama muestra los **dos** botones del selector de ronda, que hoy es **uno solo en `GPIO 21`** (sección 4.2):
+Este es el diagrama **vigente**: describe el montaje que compite, con un solo botón de arranque y el consumo real medido incorporado.
 
 <p align="center">
-  <img src="schemes/Alimentacion_y_Logica.png" alt="Diagrama de cableado: Pico 2, XL4016, XL1509 y GPIO de la Raspberry Pi" width="700px"/>
+  <img src="schemes/Alimentacion_y_Senales_v2.svg" alt="Alimentacion y senales: bateria, tres etapas de regulacion, reparto Pi 5 / Pico 2 y mapa de pines" width="960px"/>
+</p>
+
+Debajo se conserva el **diagrama de cableado original** que el equipo usó durante el ensamblaje. Se mantiene porque documenta el proceso real, pero **ya no describe el vehículo actual**: la parte de la Pico 2 sigue vigente tal cual, mientras que en la Pi muestra los **dos** botones del selector de ronda, que hoy es **uno solo en `GPIO 21`** (sección 4.2). Ante cualquier discrepancia manda el diagrama de arriba.
+
+<p align="center">
+  <img src="schemes/Alimentacion_y_Logica.png" alt="Diagrama de cableado original del ensamblaje: Pico 2, XL4016, XL1509 y GPIO de la Raspberry Pi" width="620px"/>
 </p>
 
 #### Implementación Física: Placa Perforada
@@ -222,8 +325,8 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 
 | Componente | Foto | Justificación de selección y ubicación |
 | :--- | :---: | :--- |
-| **RPLiDAR C1** | <img src="v-photos/Componentes/RPLiDAR_C1.png" width="90"/> | Montado sobre un **mástil** que lo eleva por encima de la cámara. El plano de barrido quedó medido con regla el 06-09 a **69 mm del piso**, altura a la que el haz intersecta tanto postes como paredes (ambos de 100 mm según el reglamento); la distinción entre uno y otro **no es por altura**, la hace la clasificación geométrica del cluster. El mástil tiene un coste conocido y medido: se ve a sí mismo. `diag_mastil.py` lo midió en **141-212° a 35-68 mm** con presencia en prácticamente el 100 % de los barridos, y por eso `lidar.blind_sectors_deg` enmascara `140-213`. El arreglo mecánico del 05-09 (*mastilfix*) eliminó además el eco de la propia rueda: `diag_eco_volante.py` no encuentra un solo punto bajo 500 mm en los sectores laterales, con el volante recto y a tope. |
-| **Pi Camera Module 3 Wide** (FOV ~102°) | <img src="v-photos/Componentes/Camara.png" width="90"/> | Ubicada al frente, debajo del LiDAR y retrasada respecto al parachoques (ver sección 3.4) para proteger el sensor de impactos directos, montada a **0° de inclinación** (mirando derecho al frente, sin tilt hacia el piso). |
+| **RPLiDAR C1** | <img src="v-photos/Componentes/RPLiDAR_C1.png" width="90"/> | Montado **bajo sobre el chasis**, con el mástil delantero reservado para la cámara. El haz corta a la misma altura tanto postes como paredes (ambos de 100 mm según el reglamento); la distinción entre uno y otro **no es por altura**, la hace la clasificación geométrica del cluster. El soporte tiene un coste conocido y medido: el LiDAR se ve a sí mismo, y por eso `lidar.blind_sectors_deg` enmascara el arco que ocupa. El plano de barrido sigue a **69 mm del piso**: al reubicar la cámara el LiDAR no cambió de altura. |
+| **Pi Camera Module 3** (estándar; HFOV efectivo **53,8° medidos**, no la Wide) | <img src="v-photos/Componentes/Camara.png" width="90"/> | Montada en lo alto de un **mastil trasero**, desde donde mira hacia adelante por encima del vehiculo entero: asi el LiDAR, que va bajo y delante, no le tapa el campo. Estuvo al frente y por debajo del LiDAR hasta el remontaje final. **Es la Module 3 estándar, no la Wide**, aunque durante un tiempo se documentó al revés: `medir_fov.py` emparejó una esquina que el LiDAR sitúa en −21,5° con su borde en el frame y sale un HFOV efectivo de **53,8°**, que concuerda con los 51,9° previstos para la estándar recortada a 4:3 y no con los 85,6° de la Wide (ver [`optica.py`](src/pi5/ronda_curvas/optica.py)). Suponer el catálogo de la Wide inflaba el rumbo calculado de cada pilar 2,3 veces. |
 | **MPU6050 (IMU)** | <img src="v-photos/Componentes/MPU6050.png" width="90"/> | Montado rígidamente sobre la placa perforada, alineado con el eje longitudinal del chasis para que la lectura del eje Z corresponda exactamente al *yaw* del vehículo sin necesidad de compensar desalineación mecánica. |
 | **Geekservo Servo (Dirección)** | <img src="v-photos/Componentes/GeekservoServo.png" width="90"/> | Acoplado directo al `base_servo` del eje delantero; se eligió por compatibilidad mecánica nativa con las vigas Technic, evitando adaptadores impresos que añaden holgura al sistema de dirección. |
 | **Geekservo DC (Tracción)** | <img src="v-photos/Componentes/GeekservoDC.png" width="90"/> | Seleccionado por su torque de bloqueo de $2.4\,\text{kg}\cdot\text{cm}$, validado matemáticamente en la sección 7.4 con un margen de seguridad de **2.18×** sobre los 720 g de la V3 (era 2.55× con los 613 g de la V2). |
@@ -234,7 +337,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **Baterías 21700 (2S)** | <img src="v-photos/Componentes/baterias.jpg" width="90"/> | Ver justificación de densidad de corriente en la sección 3.4. |
 | **Botón físico de arranque (x1)** | <img src="v-photos/Componentes/Boton.png" width="90"/> | **Un solo botón, en `GPIO 21` de la Pi 5** (entrada con *pull-up*, se dispara al ponerse a nivel bajo). Antes eran dos, uno por ronda. Se dejó en uno porque la ronda ya no se elige por hardware sino por el programa que se lanza (`ronda_nueva`, `ronda_abierta` o `ronda_cerrada`), y un único pulsador reduce el cableado y los modos de fallo en la línea de salida. El arranque sin botón existe solo como opción de banco (`--arranque-inmediato`) y la ronda oficial no la usa. |
 | **Ultrasonido trasero HC-SR04** | <img src="v-photos/Componentes/Ultrasonido.png" width="90"/> | Añadido para el parqueo, la única maniobra en que el robot va marcha atrás contra una pared que **el LiDAR no puede ver**: el soporte del propio sensor le tapa el sector 140-213°, así que la "pared trasera" que el LiDAR reporta se reconstruye de los hombros en oblicuo y no es una medida. Medido el 06-09 con el robot aparcado a mano: el ultrasonido leía 44 mm y el LiDAR 1777 mm con calidad 0,95. Va en la Pico 2 (`GP14` trigger / `GP15` echo) y está **34 mm por delante del punto más atrasado del robot**, así que la holgura real de la culata es su lectura menos esos 34. |
-| **Sensor de Color TCS3472** | <img src="v-photos/Componentes/TCS3472.jpg" width="90"/> | **RETIRADO del robot.** Iba bajo el chasis leyendo la línea de color del punto de arranque para fijar el sentido de carrera. Desde la migración a la Pi 5 la Pico responde `COLOR:SIN_SENSOR` y el sentido se resuelve por otras dos vías (sección 5.3-C): la **línea de piso vista por la cámara** y, si no hay línea, la **asimetría de las paredes** que mide el LiDAR. Se documenta porque el firmware que lo lee sigue en `src/pico/main.py` y se reactiva solo si el sensor vuelve a conectarse. |
+| **Sensor de Color TCS3472** | <img src="v-photos/Componentes/TCS3472.jpg" width="90"/> | Montado **al frente del vehículo**, por delante del eje delantero y mirando el piso. Estuvo bajo el chasis; se adelantó para que la línea se lea antes de pisarla, lo que da margen de reacción en vez de avisar cuando ya se cruzó. Clasifica la línea del piso como `AZUL` o `NARANJA` y la Pico 2 la transmite en la trama de telemetría. Es la **única evidencia absoluta** del sentido de carrera: no depende del yaw ni de interpretar la geometría, porque las líneas están pintadas en la pista y su orden al cruzarlas no admite ambigüedad. Por eso puede *corregir* un sentido ya comprometido por geometría, cosa que ninguna otra fuente puede hacer (sección 5.3-C). Estuvo desconectado un tiempo tras la migración a la Pi 5 —la Pico respondía `COLOR:SIN_SENSOR`— y se volvió a conectar. |
 
 #### Método de Calibración de Sensores
 
@@ -258,8 +361,8 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **MPU6050 (SCL)** | Pin 22 | `GP17` | $\text{I}^2\text{C0}$ SCL | Línea de reloj síncrono del bus inercial ($400\,\text{kHz}$). |
 | **HC-SR04 (TRIG)** | Pin 19 | `GP14` | Salida Digital | Disparo del ultrasonido trasero, usado por el parqueo (sección 4.2). |
 | **HC-SR04 (ECHO)** | Pin 20 | `GP15` | Entrada Digital | Retorno de eco. Es la única medida trasera real: el LiDAR tiene ciego el sector 140-213°. |
-| **TCS3472 (SDA)** | Pin 24 | `GP18` | $\text{I}^2\text{C1}$ SDA | Línea de datos del sensor de color de piso. **El sensor está retirado** (sección 4.2); el bus y el firmware se conservan por si vuelve a montarse. |
-| **TCS3472 (SCL)** | Pin 25 | `GP19` | $\text{I}^2\text{C1}$ SCL | Línea de reloj del bus de color, hoy sin sensor conectado ($100\,\text{kHz}$, más lento que el de la IMU porque el TCS3472 no soporta $400\,\text{kHz}$ de forma confiable). |
+| **TCS3472 (SDA)** | Pin 24 | `GP18` | $\text{I}^2\text{C1}$ SDA | Línea de datos del sensor de color de piso. |
+| **TCS3472 (SCL)** | Pin 25 | `GP19` | $\text{I}^2\text{C1}$ SCL | Línea de reloj del bus de color ($100\,\text{kHz}$, más lento que el de la IMU porque el TCS3472 no soporta $400\,\text{kHz}$ de forma confiable). |
 
 #### Conexiones Maestras de la Raspberry Pi 5
 
@@ -305,7 +408,7 @@ $$I_{\text{Pi 5}} = 0.61 - 0.21 = \mathbf{0.40\,\text{A}} \qquad I_{\text{tracci
 
 **Potencia y autonomía.** A $8.4\,\text{V}$ el consumo en marcha es $1.39 \times 8.4 = \mathbf{11.7\,\text{W}}$ ($10.3\,\text{W}$ con la batería ya a $7.4\,\text{V}$). Las celdas son INR21700/50E de $5.0\,\text{Ah}$, y **en 2S la capacidad no se suma**, solo la tensión:
 
-$$t = rac{5.0\,\text{Ah}}{1.39\,\text{A}} = 3.6\,\text{h} \quad\longrightarrow\quad \text{al } 80\,\% \text{ de descarga útil} = \mathbf{2.9\,\text{h}}$$
+$$t = \frac{5.0\,\text{Ah}}{1.39\,\text{A}} = 3.6\,\text{h} \quad\longrightarrow\quad \text{al } 80\,\% \text{ de descarga útil} = \mathbf{2.9\,\text{h}}$$
 
 Una ronda de la WRO dura 3 minutos, así que la batería da para unas **58 rondas seguidas** sin recargar. La autonomía no es una restricción de este diseño: el límite práctico lo pone el desgaste mecánico, no la energía.
 
@@ -320,6 +423,76 @@ Una ronda de la WRO dura 3 minutos, así que la batería da para unas **58 ronda
 2. **Regulador XL1509 (Línea de Potencia de Dirección):**
    * *Consumo máximo en bloqueo (Stall):* $800\,\text{mA}$ ($0.8\,\text{A}$).
    * *Capacidad del regulador:* Con una salida máxima de **$2.0\,\text{A}$**, el regulador opera con un **margen del $60\%$**, previniendo que el ruido inductivo del servo se filtre al bus de la CPU o afecte los sensores.
+
+---
+
+### 4.5 Geometría de Sensores: Alcance, Zonas Ciegas y Autoecos
+
+La sección anterior dice **qué** sensores lleva el vehículo. Esta dice **desde dónde miran, hasta dónde llegan y qué no pueden ver**, porque un sensor mal ubicado no falla: miente, y miente de forma consistente, que es peor. Todos los números de abajo están medidos sobre el montaje que compite, no tomados de hoja de datos.
+
+#### Posición medida de cada sensor
+
+El origen es el eje de rotación del LiDAR. `x+` es a la derecha del vehículo, `y+` hacia adelante.
+
+| Sensor | Posición respecto al LiDAR | Cubre | No puede ver |
+| :--- | :--- | :--- | :--- |
+| **RPLiDAR C1** | origen; plano de barrido a $69\,\text{mm}$ del piso | $360°$ nominales: paredes, esquinas y bultos de pilar | El arco $135°-199°$ (estructura propia) y la rueda delantera girada a tope |
+| **Pi Camera Module 3** | mástil trasero, mirando adelante por encima del vehículo | Color de pilares y líneas del piso, $53.8°$ de HFOV **medidos** | Todo lo que quede fuera de ese cono; el color se pierde antes que el eco (ver abajo) |
+| **HC-SR04 trasero** | $34\,\text{mm}$ por delante del punto más atrasado del chasis | El sector que el LiDAR tiene ciego por detrás | Cualquier cosa fuera de su cono; no da forma, solo distancia |
+| **TCS3472** | al frente, por delante del eje delantero, mirando al piso | Las líneas naranja y azul de la pista | Nada que no esté justo debajo |
+| **MPU6050** | rígido sobre la placa perforada, alineado con el eje longitudinal | Guiñada integrada | No es un sensor de entorno; deriva con el tiempo |
+
+El chasis mide $242 \times 138\,\text{mm}$ y el LiDAR está **prácticamente centrado**: $68\,\text{mm}$ a cada costado, $54\,\text{mm}$ al morro y $188\,\text{mm}$ a la cola. Esa asimetría longitudinal —el LiDAR va muy adelantado— es lo que obliga a que la comprobación de holgura se haga **rumbo a rumbo contra la silueta real del chasis** y no contra un radio único: una lectura de $200\,\text{mm}$ deja $146\,\text{mm}$ de chapa libre mirando al frente y solo $12\,\text{mm}$ mirando atrás.
+
+#### Zona ciega trasera del LiDAR, y por qué hay un ultrasonido
+
+El conjunto mástil de cámara más soporte del ultrasonido tapa el LiDAR por detrás. **Remedido el 10-09-2026** con `diag_lidar_360.py` (25 barridos, robot quieto):
+
+| Arco | Eco de la estructura propia | Tasa de aparición | Dispersión |
+| :---: | :---: | :---: | :---: |
+| $136° - 198°$ | $32-79\,\text{mm}$ | $25-100\,\%$ | $2-9\,\text{mm}$ |
+
+Ese arco se enmascara en `lidar_mascara.py` con un grado de margen a cada lado ($135°-199°$), porque los bordes salen con tasa de eco **parcial**, que es el caso que peor se comporta: alterna entre $45\,\text{mm}$ y $8000\,\text{mm}$ en ciclos seguidos.
+
+**Lo que costó no tenerlo bien medido** está en los CSV del 09-09 (tres corridas, 1634 ciclos): la distancia trasera valía $35-50\,\text{mm}$ en el $99.9\,\%$ de los ciclos, y los 447 episodios de marcha atrás duraron **todos exactamente un ciclo** — salían por emergencia trasera antes de retroceder nada. A $-35$ de PWM y $0.1\,\text{s}$ eso son $16\,\text{mm}$ por intento: el robot no podía desatascarse ni en principio. Por eso el HC-SR04 no es redundancia, es la **única** medida trasera fiable durante el estacionamiento.
+
+#### El LiDAR se ve su propia rueda, y cómo se distingue de un muro
+
+Con el volante al tope, la rueda delantera entra en el barrido. Esto bloqueó la maniobra de salida del estacionamiento durante dos corridas completas, y el modo de fallo era engañoso: el robot cortaba cada tramo del vaivén diciendo que tenía chapa a milímetros de un obstáculo que no existía.
+
+**La medida que lo resuelve** es que un muro y una pieza propia no se comportan igual con el rumbo. Un muro plano a distancia perpendicular $D$ se lee $D/\sin(\text{rumbo})$: sube al alejarse de los $90°$. Una pieza a radio fijo del LiDAR se lee igual en todos los rumbos. Corrida del 11-09-2026 a las 13:23, tramo 23:
+
+| Rumbo | Medido | Si fuera un muro |
+| :---: | :---: | :---: |
+| $36°$ | $64\,\text{mm}$ | $80\,\text{mm}$ |
+| $38°$ | $61\,\text{mm}$ | $76\,\text{mm}$ |
+| $40°$ | $61\,\text{mm}$ | $73\,\text{mm}$ |
+| $42°$ | $64\,\text{mm}$ | $70\,\text{mm}$ |
+| $44°$ | $64\,\text{mm}$ | $67\,\text{mm}$ |
+| $46°$ | $65\,\text{mm}$ | $65\,\text{mm}$ |
+
+Plano. Y el segundo indicio es que **el radio cambia entre corridas** ($61-66\,\text{mm}$ a las 13:23, $49-56\,\text{mm}$ a las 13:44) porque cambia el ángulo del volante, cosa que un muro no hace.
+
+La corrección no enmascara un arco fijo —la rueda se mueve— sino que descarta por **distancia mínima creíble**: en los sectores donde asoma la rueda ($20°-110°$ y $250°-340°$), nada ajeno al vehículo puede estar a menos de $72\,\text{mm}$ sin que el chasis, de $68\,\text{mm}$ de semiancho, lo esté tocando ya. El muro exterior con el robot aparcado lee $80-81\,\text{mm}$: queda fuera y sigue contando. El sector frontal **no** entra en esa regla, porque ahí la silueta son $54\,\text{mm}$ y un obstáculo a $64$ sí es real.
+
+#### La cámara llega menos lejos que el LiDAR, y eso manda sobre la estrategia
+
+Dos medidas de óptica que cambiaron decisiones:
+
+* **El HFOV es $53.8°$, no $85.6°$.** `medir_fov.py` emparejó una esquina que el LiDAR sitúa en $-21.5°$ con su borde en el frame. Durante un tiempo se documentó el módulo como la versión *Wide*; suponer ese catálogo **inflaba el rumbo calculado de cada pilar 2.3 veces**, que es un error de asociación, no de precisión: el pilar se emparejaba con el bulto equivocado del LiDAR.
+* **Discrepancia cámara-LiDAR: $47\,\text{mm}$** sobre una tolerancia de $80$, con $194/194$ ciclos de fusión y $\pm 2\,\text{mm}$ de estabilidad (`diag_pilares.py`, pista montada).
+
+Pero la limitación que manda es de **alcance**: el LiDAR ve el bulto de un pilar hasta unos $1400\,\text{mm}$ y la cámara solo le pone color desde unos $1100\,\text{mm}$ hacia dentro. Entre esas dos distancias el robot **sabe que hay algo y no sabe de qué lado pasarlo**, y pasar un pilar por el lado equivocado termina el recorrido.
+
+Se probaron dos respuestas desde el control y las dos empeoraron el resultado, así que están descartadas con datos en la sección 9.3: frenar al ver un bulto sin color (el alcance bajó de $1128$ a $1056\,\text{mm}$ y la corrida pasó de 8 pilares sin fallo a 3 con 2 fallos) y encararlo para identificarlo (el color cayó del $39.2\,\%$ al $26.8\,\%$ y corrompió el estimador de sentido). `sonda_color.py` confirmó que la máscara HSV captura el $85\,\%$ del blob ideal a esa distancia: **el corte es geométrico, no de calibración**, y la salida es óptica —más resolución o más focal—, no de software.
+
+#### Calibración de color en pista
+
+Los umbrales HSV dependen de la luz del pabellón, que no es la del taller. Antes estaban fijos dentro de `vision.py`, de modo que recalibrar significaba editar Python por consola sin ver la máscara que se estaba cambiando.
+
+Ahora `vision.py` lee `calibracion.json` si existe, y `calibrador_web.py` lo sirve en el navegador: cámara y máscara lado a lado, con el **área del blob en números**, que es el valor que de verdad decide si el robot ve el pilar o no. Si el archivo falta o está corrupto se usan los valores del código, así que el archivo solo puede mejorar la calibración, nunca dejar el vehículo sin una.
+
+Se calibran cuatro colores, y los dos últimos importan tanto como los primeros: **naranja y azul son las líneas del piso, y de ellas sale el conteo de vueltas** (sección 5.3).
 
 ---
 
@@ -357,31 +530,44 @@ graph TD
 
 ### 5.1 Orquestación del Sistema y Demonio de Arranque Autónomo
 
-Para garantizar que el vehículo sea 100% autónomo desde el momento en que se conecta la batería (requisito estricto de la WRO), la Raspberry Pi 3B ejecutaba `controlador_inicio.py` en segundo plano desde el arranque del sistema operativo, con la unidad `systemd` que se documenta abajo.
-
-> **Estado actual con la Pi 5.** Las unidades `wro_start.service` y `wro_robot.service` están copiadas en la Pi 5 pero **deshabilitadas**, igual que quedaron en la 3B. Hoy el cerebro se lanza a mano (`python3 -m ronda_nueva.ronda_nueva`) y **espera el pulsador de `GPIO 21`**, que es lo que da la salida en la ronda oficial. Volver a habilitar el arranque por `systemd` en la Pi 5 está pendiente y depende de decidir qué ronda se lanza por defecto, ya que el selector de dos botones desapareció (sección 4.2). La unidad de abajo se conserva como referencia de reproducción.
+Para garantizar que el vehículo sea 100% autónomo desde el momento en que se conecta la batería (requisito estricto de la WRO), la Raspberry Pi 5 lanza la ronda completa al arrancar el sistema operativo mediante una unidad `systemd`.
 
 #### Configuración del Servicio del Sistema (`systemd`)
 
-Se implementó un demonio de sistema mediante un archivo de unidad en Linux localizado en `/etc/systemd/system/wro_start.service`. El archivo real, listo para copiar durante la reproducción del sistema, está incluido en el repositorio en [`src/pi3B/wro_start.service`](src/pi3B/wro_start.service):
+La unidad se instala en `/etc/systemd/system/wro.service` y el archivo real, listo para copiar durante la reproducción del sistema, está en [`src/pi5/wro.service`](src/pi5/wro.service):
 
 ```ini
 [Unit]
-Description=Servicio Maestro de Inicio - Team Los Cedros WRO
-After=multi-user.target serial-getty@ttyAMA0.service
+Description=Ronda de obstaculos WRO - Team Los Cedros
+After=multi-user.target
+Conflicts=shutdown.target
 
 [Service]
-Type=simple
+Type=oneshot
 User=pi
-WorkingDirectory=/home/pi
-ExecStart=/usr/bin/python3 /home/pi/controlador_inicio.py
-Restart=on-failure
-RestartSec=2
+WorkingDirectory=/home/pi/ronda_curvas
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/bin/sleep 10
+ExecStart=/bin/bash /home/pi/correr_completa.sh
+RemainAfterExit=yes
+TimeoutStartSec=0
+StandardOutput=append:/home/pi/ronda_curvas/logs/servicio.log
+StandardError=append:/home/pi/ronda_curvas/logs/servicio.log
 
 [Install]
 WantedBy=multi-user.target
-
 ```
+
+El servicio no arranca el motor: ejecuta [`correr_completa.sh`](src/pi5/correr_completa.sh), que **espera el pulsador de `GPIO 21`** antes de mover nada. Mientras espera, el LED de la Pico parpadea; esa es la señal visible de que el sistema está cargado y listo. Al pulsar, el LED se apaga y arranca la secuencia: salida del estacionamiento, ronda, y parada en el cuadrante de salida. Esto cumple las dos condiciones a la vez — el sistema es autónomo desde que se conecta la batería, y la salida la da una acción física sobre el robot, como exige el reglamento.
+
+Cuatro decisiones de esta unidad no son cosméticas:
+
+* **`After=multi-user.target` y `ExecStartPre=/bin/sleep 10`.** El enlace con la Pico se abre en el primer segundo del script; sin margen para que el USB enumere `/dev/ttyACM0`, el servicio arranca antes que el hardware y muere.
+* **Sin `Restart=`.** La unidad anterior tenía `Restart=always`, que relanzaba la ronda entera en cuanto terminaba: el robot volvía a salir del estacionamiento solo, una y otra vez. Una carrera se lanza una sola vez.
+* **`TimeoutStartSec=0`.** El servicio se pasa la mayor parte del tiempo esperando el pulsador, y el límite de 90 s que `systemd` aplica por defecto a los `oneshot` lo mataría antes de que nadie lo pulsara.
+* **Registro a archivo además del diario.** `logs/servicio.log` sobrevive al reinicio y no depende de `journalctl`, que en una tarjeta SD con escritura volátil puede quedarse corto.
+
+> **Para lanzar a mano por SSH hay que parar el servicio antes** (`sudo systemctl stop wro.service`). Si no, los dos procesos se disputan el GPIO del pulsador y el lanzamiento manual aborta con `GPIO ocupado`.
 
 ### 5.2 Estructura Modular del Script de Carrera (Fragmentos Clave)
 
@@ -575,20 +761,24 @@ stateDiagram-v2
 >
 > Los timeouts de `APROXIMACION` y `SOBREPASO` no son constantes sueltas: `navegacion.py` los calcula a partir de `tracker.MM_POR_SEG_A_PWM100` (400mm/s, medido en pista — sección 8.3) y la velocidad de PWM de cada fase, con un margen de 1.3× sobre el tiempo teórico. Son **red de seguridad**, no la vía normal — la transición esperada es geométrica (por posición del tracker), y si el timeout es más corto que la física, se convierte en la ruta principal sin que nadie lo note (exactamente lo que pasaba antes de medir la velocidad real).
 
-#### C. Sentido de Carrera — El Sensor de Color Ya No Está
+#### C. Sentido de Carrera — Tres Evidencias, y una que puede Corregir a las Otras
 
-El reglamento fija que la dirección de circulación (horario o antihorario) se sortea antes de cada ronda, así que el robot no puede asumirla. La solución original era un **TCS3472** bajo el chasis que leía la línea de color del punto de arranque y la Pico 2 clasificaba como `AZUL` (antihorario) o `NARANJA` (horario), transmitiéndola en la trama de telemetría (`IMU:<grados>,COLOR:<nombre>`).
+El reglamento fija que la dirección de circulación (horario o antihorario) se sortea antes de cada ronda, así que el robot no puede asumirla. Equivocarse no cuesta puntos: cuesta la ronda entera, porque el lado por el que hay que pasar cada pilar depende del sentido.
 
-**Ese sensor está retirado.** Desde la migración a la Pi 5 la Pico responde `COLOR:SIN_SENSOR`. El firmware que lo lee sigue en `src/pico/main.py` y volvería a funcionar solo si el sensor se reconecta, pero hoy no hay que contar con él.
+El sistema vivo (`sentido_vuelta.py`) lo resuelve con tres fuentes de distinta calidad, y las trata como tales:
 
-El sentido se resuelve ahora en `ronda_nueva/piloto.py` (`_resolver_sentido`) con dos evidencias, y basta con una:
+1. **Las líneas de piso vistas por la cámara** (`fijar_por_camara`). Es la primera en llegar: en cuanto la cámara ve una línea de esquina, el color de la que tiene *más cerca* fija el sentido — naranja primero significa horario, azul primero antihorario. Se compromete una sola vez y no se revisa, porque a esa distancia el dato es inequívoco.
 
-1. **La línea de piso vista por la cámara.** Es la misma señal oficial que usaba el TCS3472, pero leída con la Pi Camera y proyectada al suelo por la homografía: un blob azul o naranja por delante del robot. `diag_lineas.py` mide dónde cae cada una a la resolución real de la ronda.
-2. **La asimetría de las paredes.** El bloque interior siempre está más cerca que el muro exterior, así que comparar la mínima izquierda contra la derecha da el sentido sin ver ninguna línea. Es la red de seguridad cuando la lona está sucia, hay un reflejo o un pilar tapa la línea.
+2. **El TCS3472, al frente del vehículo** (`observar_linea`). No mira el color de una línea suelta sino **el orden en que se cruza la pareja** de líneas de una misma esquina. Esa es la única evidencia absoluta del sistema: no depende del yaw del robot ni de interpretar la geometría de la pista. Por eso es la única que puede **corregir un sentido ya comprometido**, y tiene tres salvaguardas medidas en pista:
+   * **Marcha atrás no cuenta.** Retroceder sobre una línea la cruza en orden inverso, o sea que afirma el sentido contrario del real.
+   * **La pareja tiene que ser de la misma esquina.** Sin una ventana temporal se emparejaba la naranja de una esquina con la azul de la siguiente, y el sentido oscilaba: cinco cambios en una sola corrida.
+   * **Desdecir a otra línea exige dos parejas seguidas.** Corregir a la geometría es inmediato, porque la línea es mejor evidencia; contradecir a otra lectura de línea no, porque entonces una de las dos está mal y hace falta desempate.
 
-Si en `direction_timeout_s` (10 s) ninguna de las dos resuelve, se arranca en horario por defecto: es la mitad de las veces, y quedarse parado son cero puntos seguros.
+   Requiere calibrar el orden una sola vez con `calibrar_lineas.py`, empujando el robot una vuelta a mano en un sentido conocido. **Sin esa calibración no se inventa nada: la fuente se ignora por completo.**
 
-`control.turn_direction` permite además fijarlo a `LEFT` o `RIGHT` para las pruebas de banco. La ronda oficial va en `AUTO`.
+3. **La asimetría de las paredes** (`SentidoPorGeometria`). El bloque interior siempre está más cerca que el muro exterior, así que comparar la distancia mínima izquierda contra la derecha da el sentido sin ver ninguna línea. Es la red de seguridad cuando la lona está sucia, hay un reflejo o un pilar tapa la línea.
+
+La jerarquía no es arbitraria: una fuente absoluta corrige a una interpretativa, nunca al revés. Y ninguna de las tres inventa un valor cuando no tiene evidencia — se prefiere no tener dato a tener uno fabricado, porque un sentido equivocado con confianza alta es peor que no tener sentido.
 
 ### 5.4 Parámetros de Control y Proceso de Ajuste
 
@@ -608,7 +798,7 @@ Los valores numéricos vigentes en `ronda_abierta.py`, obtenidos empíricamente 
 
 #### Métricas de Validación de Rendimiento
 
-Cada corrida de `ronda_abierta.py`/`ronda_cerrada.py` instancia [`comun/registro_metricas.py`](src/pi3B/comun/registro_metricas.py) (en `ronda_nueva` ese papel lo cumple `telemetria.py`), que escribe un CSV en `logs/` con una fila por barrido de LiDAR procesado (`fase`, `estado`, `heading`, `error_lateral`, `angulo`, `velocidad`) — error lateral promedio/máximo/mediano en mm, porcentaje de ciclos con el servo saturado en su límite físico y número de eventos de emergencia (transiciones a `RETROCESO`).
+Cada corrida de `ronda_abierta.py`/`ronda_cerrada.py` instancia [`registro_metricas.py`](src/pi5/ronda_curvas/registro_metricas.py) (en `ronda_nueva` ese papel lo cumple `telemetria.py`), que escribe un CSV en `logs/` con una fila por barrido de LiDAR procesado (`fase`, `estado`, `heading`, `error_lateral`, `angulo`, `velocidad`) — error lateral promedio/máximo/mediano en mm, porcentaje de ciclos con el servo saturado en su límite físico y número de eventos de emergencia (transiciones a `RETROCESO`).
 
 Formato de salida (ejemplo ilustrativo con datos sintéticos, no una corrida real):
 
@@ -768,7 +958,7 @@ La ecuación cinemática que rige las restricciones geométricas de nuestro chas
 * **Ancho de la vía ($w$):** $115\,\text{mm}$
 * **Batalla / Distancia entre ejes ($l$):** $136\,\text{mm}$
 * **Ancho de los neumáticos:** $36\,\text{mm}$
-* **Dimensiones totales del robot:** $125\,\text{mm}$ de ancho $\times$ $222\,\text{mm}$ de largo (aprox.) — dentro del límite reglamentario de $300\times200\,\text{mm}$ de WRO Future Engineers 2026 con margen amplio en ambos ejes.
+* **Dimensiones totales del robot:** $138\,\text{mm}$ de ancho $\times$ $242\,\text{mm}$ de largo **medidas con regla** (antes se documentaban 125 x 222 aproximados) — dentro del límite reglamentario de $300\times200\,\text{mm}$ de WRO Future Engineers 2026 con margen amplio en ambos ejes.
 
 $$\cot(\delta_o) - \cot(\delta_i) = \frac{w}{l} = \frac{115\,\text{mm}}{136\,\text{mm}} = 0.845$$
 
@@ -778,10 +968,10 @@ Donde:
 * El factor constante de **$0.845$** es integrado directamente en la matriz de transferencia de control de la Raspberry Pi Pico 2 para ajustar dinámicamente el pulso de PWM enviado al Geekservo de dirección, garantizando giros limpios con cero subviraje o pérdida de tracción por fricción estática destructiva en las curvas de la WRO.
 
 ### 7.2 Renderizado del Chasis de Producción (V2, compartido con la V3)
-A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis. El archivo fuente reproducible (`.io` de BrickLink Studio) y el listado completo de las 83 piezas Technic están en [`3d-Models/Chasis-LEGO-V2/`](3d-Models/Chasis-LEGO-V2/README.md):
+A continuación se presenta el modelo CAD estructural del vehículo libre de actuadores y masa suspendida electrónica, aislando los componentes cinemáticos esenciales para la validación de la rigidez torsional del chasis. El archivo fuente reproducible (`.io` de BrickLink Studio) y el listado completo de las 83 piezas Technic están en [`models/Chasis-LEGO-V2/`](models/Chasis-LEGO-V2/README.md):
 
 <p align="center">
-  <img src="3d-Models/Chasis-LEGO-V2/Render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
+  <img src="models/Chasis-LEGO-V2/Render_v2.png" alt="Chasis LEGO V2 - Modelo CAD BrickLink" width="550px"/>
 </p>
 
 ### 7.3 Límites Angulares Calibrados y Protección Mecánica
@@ -848,6 +1038,75 @@ $$\text{Margen de Torque} = \frac{T_{\text{motor}}}{T_{\text{min}}} = \frac{2.4\
 
 ---
 
+### 7.5 Envolvente de Giro Medida con Marcadores
+
+Los radios de giro no se calcularon: se **dibujaron**. Se montaron cuatro marcadores en las cuatro esquinas del vehiculo, sobre vigas Technic que sobresalen del chasis, y se le hizo girar con el volante a tope sobre papel fijado a la pista. Cada esquina trazo su propia circunferencia, y esas cuatro circunferencias son la envolvente real del vehiculo girando.
+
+| El aparejo de marcadores | El trazado sobre la pista |
+| :---: | :---: |
+| <img src="v-photos/Ackermann/Radio_Giro_Metodo_Superior.jpg" alt="Cuatro marcadores montados en las esquinas del vehiculo" width="280px"/> | <img src="v-photos/Ackermann/Radio_Giro_Metodo_Pista.jpg" alt="El vehiculo trazando las circunferencias sobre el papel" width="280px"/> |
+
+Midiendo cada circunferencia sobre el papel salen estos valores. La anotacion original esta en diametro; aqui se dan las dos cifras:
+
+| Giro a la DERECHA | Diametro | Radio | Giro a la IZQUIERDA | Diametro | Radio |
+| :--- | :---: | :---: | :--- | :---: | :---: |
+| Esquina exterior | 700 mm | **350 mm** | Esquina exterior | 740 mm | **370 mm** |
+| | 615 mm | 307,5 mm | | 580 mm | 290 mm |
+| | 477 mm | 238,5 mm | | 510 mm | 255 mm |
+| Esquina interior | 360 mm | **180 mm** | Esquina interior | 390 mm | **195 mm** |
+
+| El trazado a la derecha | El trazado a la izquierda |
+| :---: | :---: |
+| <img src="v-photos/Ackermann/Radio_Giro_Derecha.jpg" alt="Circunferencias trazadas girando a la derecha" width="280px"/> | <img src="v-photos/Ackermann/Radio_Giro_Izquierda.jpg" alt="Circunferencias trazadas girando a la izquierda" width="280px"/> |
+
+**La medida se valida sola.** La banda que barre el vehiculo -- la diferencia entre la circunferencia exterior y la interior -- sale de **170 mm girando a la derecha y 175 mm a la izquierda**. El chasis mide 138 mm de ancho, asi que esa banda es el cuerpo mas el voladizo de las esquinas al girar. Que las dos bandas coincidan entre si y con la anchura fisica es lo que descarta que el trazado estuviera descentrado o que el volante no llegara al tope.
+
+**Y deja una pregunta abierta, que conviene resolver antes de competir.** El control modela los dos sentidos como practicamente simetricos: 242,5 mm a la izquierda contra 243,8 a la derecha. El trazado dice otra cosa: **el giro a la izquierda es unos 20 mm mas amplio que el de la derecha**, y lo dice en las cuatro circunferencias a la vez, asi que no es ruido de medida. Importa porque la maniobra de estacionamiento calcula sus arcos a partir de esos radios, y ahi 20 mm son la diferencia entre entrar limpio y rozar el muro magenta.
+
+---
+
+### 7.6 Materiales y Manufactura: por qué el chasis dejó de imprimirse
+
+La decisión de materiales de este vehículo es poco común y conviene explicarla, porque va en dirección contraria a la de la mayoría: **el equipo empezó con un chasis monocasco impreso en 3D y lo abandonó**. No por dificultad de fabricación, sino por una medida.
+
+#### Lo que forzó el cambio
+
+El filamento rígido es un buen conductor de vibración. El monocasco de la V1 transmitía las vibraciones de alta frecuencia del motor directamente al soporte de la cámara, y eso **descalibraba la visión durante la corrida**: la geometría que el software daba por fija dejaba de serlo. Un chasis de vigas de fricción LEGO Technic absorbe ese ruido por flexión elástica en cada unión, que es exactamente lo que una pieza impresa monolítica no puede hacer.
+
+El cambio trajo además dos cosas medibles:
+
+| | V1 — monocasco impreso | V2 en adelante — vigas Technic |
+| :--- | :---: | :---: |
+| Masa del vehículo | $\approx 800\,\text{g}$ | $\mathbf{613\,\text{g}}$ ($-23.37\,\%$) |
+| Reconfigurar la geometría | reimprimir | desmontar y volver a montar |
+| Piezas del chasis | monocasco + soportes | **83 piezas** con Design ID trazable |
+
+La masa subió después a $720\,\text{g}$ en el montaje que compite, pero por instrumentación —Raspberry Pi 5 con carcasa, mástil y ultrasonido—, no por estructura. Sigue por debajo de la V1.
+
+#### Lo que sí se imprime, y con qué
+
+No todo desapareció: las piezas de la interfaz rueda-dirección de la V1 siguen siendo referencia de diseño válida y están en [`models/V1/`](models/V1/README.md) con sus STL. El criterio de material no fue uniforme, y esa es la parte que importa:
+
+| Pieza | Material | Relleno | Por qué |
+| :--- | :---: | :---: | :--- |
+| Chasis y portapilas | PLA | $15-20\,\%$ | Piezas de volumen, sin carga concentrada. Prima la rigidez por geometría, no por material. |
+| `Eje_llanta` y `Base_llanta` | **PETG** | $\ge 50\,\%$, **concéntrico** | Transmiten el par del motor a la rueda. Aquí el modo de fallo es **torsión**, y el PLA falla de forma frágil ante par cíclico. El relleno concéntrico alinea el material con la dirección del esfuerzo. |
+| Soportes de eje y base del servo | PLA | $25\,\%$ | Exigen precisión dimensional en los diámetros internos, no resistencia. |
+
+Esa tabla es la razón de fondo por la que el proyecto pudo abandonar la impresión del chasis sin perder nada: **lo único que de verdad necesitaba un material técnico eran las dos piezas que transmiten par**, y esas se conservaron.
+
+#### Trazabilidad de la reproducción
+
+El chasis actual no se publica como una foto ni como un STL, sino como su **archivo CAD fuente**: [`models/Chasis-LEGO-V2/Chasis-V2.io`](models/Chasis-LEGO-V2/), abrible con BrickLink Studio, que es software gratuito. De ahí sale la vista explosionada y el listado de piezas con miniaturas.
+
+Las 83 piezas están catalogadas por **Design ID**, no por nombre comercial. Es una decisión deliberada de trazabilidad: el nombre comercial de una pieza Technic varía entre catálogos y traducciones, mientras que el Design ID es único y localizable en el catálogo de BrickLink. Cuando el equipo no tuvo certeza del nombre de una pieza, **dejó el Design ID sin nombre en vez de adivinarlo** — el listado lo dice explícitamente.
+
+#### Neumáticos
+
+Las llantas rígidas de plástico de la V1 patinaban al acelerar a PWM alto, disipando en calor la potencia que debía ir al suelo. Los neumáticos de caucho LEGO de $36\,\text{mm}$ suben el coeficiente de fricción a $\mu_e \approx 0.85$, y ese número no es decorativo: es el que entra en el cálculo de fuerza de tracción de la sección 7.4 y el que sostiene el margen de $2.18\times$ sobre la masa actual.
+
+---
+
 ## 8. Análisis de Riesgos y Registro de Iteraciones
 
 Consolidando los puntos de fallo detectados a lo largo de las secciones anteriores, este es el registro de riesgos identificados por el equipo, su causa raíz y la mitigación implementada. Cada fila corresponde a un problema real observado en pista o en banco de pruebas, no a un riesgo hipotético:
@@ -861,7 +1120,7 @@ Consolidando los puntos de fallo detectados a lo largo de las secciones anterior
 | 5 | Falsos positivos de color por iluminación variable entre boxes y pista oficial | Los umbrales HSV se calibran en interiores (boxes) con luz artificial distinta a la luz de la pista de competencia | Herramienta `calibrar_hsv.py` dedicada para recalibrar en vivo antes de cada ronda, más limpieza morfológica (`MORPH_OPEN`/`MORPH_CLOSE`) para eliminar ruido lumínico | Sección 4.2 — Método de Calibración |
 | 6 | Pérdida de comunicación UART entre Pi 3B y Pico 2 durante la carrera | Desconexión física del cable USB o saturación del buffer serial | *Fail-safe* por software: si no llega una trama nueva en >500 ms, el sistema fuerza detención inmediata | Diagrama de arquitectura de software (sección 5) |
 | 7 | Desalineación del centro de dirección tras un cambio de calibración | Se probó un centro de servo de 180° que no correspondía a la geometría física real del `base_servo` | Reversión a 90° tras validación en pista, documentado en el historial de commits en vez de sobrescribirlo silenciosamente | Sección 2.1, 6.2, 7.3 |
-| 8 | Falta de métricas cuantitativas de desempeño (tiempos de vuelta, error lateral histórico) | El ajuste de `KP_LATERAL`/`KD_ESTABILIDAD` se validaba solo de forma observacional en pista | Se instrumentó `comun/registro_metricas.py` (log CSV por corrida, resumible en métricas agregadas: error lateral, saturación del servo, eventos de emergencia). *Pendiente de validar con corridas reales en pista, ver §5.4* | Sección 5.4 |
+| 8 | Falta de métricas cuantitativas de desempeño (tiempos de vuelta, error lateral histórico) | El ajuste de `KP_LATERAL`/`KD_ESTABILIDAD` se validaba solo de forma observacional en pista | Se instrumentó `comun/registro_metricas.py` (log CSV por corrida, resumible en métricas agregadas: error lateral, saturación del servo, eventos de emergencia). *Pendiente de validar con corridas reales en pista, ver la sección 5.4* | Sección 5.4 |
 
 ### 8.1 Interacción Entre Subsistemas (Pensamiento Sistémico)
 
@@ -1054,6 +1313,8 @@ El robot llega a **13 mm** del bloque antes de que la ruta se mueva.
 Registra **9-10 casillas donde hay 5 bloques**, en todas las configuraciones probadas. Como `Piloto._memorizar` solo admite detecciones **con color**, el duplicado no viene del detector de objetos del LiDAR sino de la proyección a `(avance, offset)` — otra vez el localizador.
 
 ### 9.2 Pendientes de Medida (banco, no pista)
+
+* **Dos juegos de medidas del chasis, y no coinciden.** `geometria_robot.py` modela el vehículo como $222 \times 125\,\text{mm}$ y `parqueo.py` usa los $242 \times 138\,\text{mm}$ medidos con regla sobre el montaje actual. La diferencia —$20\,\text{mm}$ de largo y $13$ de ancho— **no es cosmética**: el reglamento define la plaza de estacionamiento como $1.5\times$ el largo del vehículo, así que con $222$ el código espera una plaza de $333\,\text{mm}$ y con $242$ serían $363$, o sea $5\,\text{mm}$ más de holgura por extremo de los que asume hoy. Las medidas del LiDAR a cada costado ($68$ y $68\,\text{mm}$, simétrico) sí están tomadas del montaje real. **No se unifica antes de competir a propósito:** cambiar `LARGO_ROBOT` altera la geometría del parqueo, que está validada en pista con el valor actual, y no hay tiempo de volver a validarla.
 
 * **Radio de giro en REVERSA.** Es la única entrada geométrica del parqueo sin medir. La inferencia desde la IMU da ~306 mm contra los 228 de marcha adelante, un 34 % peor, pero es inferencia. Se cierra en dos minutos con cinta: marcar, girar en reversa a tope hasta 90°, marcar, medir la cuerda; `R = cuerda / raíz(2)`.
 * **Los 40 mm de la separación de la bahía.** El detector mide 389-391 mm y la regla dice 350 entre centros. No cuadra con ninguna lectura posible (caras 330, centros 350, bordes externos 370). `lidar.bay_expected_separation_mm` se deja en 390 **a propósito**: bajarlo sin entender la discrepancia rompe el único detector de hueco que funciona.

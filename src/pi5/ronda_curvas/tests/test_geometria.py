@@ -22,10 +22,35 @@ import sentido_vuelta                  # noqa: E402
 import tracker as tracker_mod          # noqa: E402
 
 
+def _perfil_de_pasillo(frontal, izquierda, derecha, trasera):
+    """Perfil de 360 bins de un pasillo rectangular visto desde el LiDAR.
+
+    Convencion del perfil real: indice = grados, 0 = frente, 90 = derecha.
+    En el rumbo `a`, un punto a distancia r esta en
+    (x, y) = (r sin a, r cos a), asi que cada pared da r = d / cos(angulo
+    entre el rumbo y su normal), y la que se ve es la mas cercana.
+    """
+    perfil = []
+    for grados in range(360):
+        a = math.radians(grados)
+        sa, ca = math.sin(a), math.cos(a)
+        cand = []
+        if ca > 1e-6:
+            cand.append(frontal / ca)
+        if ca < -1e-6:
+            cand.append(trasera / -ca)
+        if sa > 1e-6:
+            cand.append(derecha / sa)
+        if sa < -1e-6:
+            cand.append(izquierda / -sa)
+        perfil.append(min([c for c in cand if c > 0.0] + [8000.0]))
+    return perfil
+
+
 class MedicionFalsa:
     def __init__(self, frontal=2000.0, izquierda=500.0, derecha=500.0,
                  trasera=1000.0, frontal_muro=None, angulo_muro=0.0,
-                 clusters=None):
+                 clusters=None, muro_valido=True, perfil=None):
         self.frontal = frontal
         self.frontal_muro = frontal if frontal_muro is None else frontal_muro
         self.izquierda = izquierda
@@ -34,7 +59,33 @@ class MedicionFalsa:
         self.trasera_derecha = 800.0
         self.trasera_izquierda = 800.0
         self.clusters_obstaculo = clusters or []
+        # El tracker se alimenta de esta lista, no de clusters_obstaculo
+        # (ver navegacion._candidatos_pilar). En el doble son la misma
+        # cosa: los clusters sinteticos ya se generan con forma de poste.
+        self.clusters_estrechos = clusters or []
         self.angulo_muro = angulo_muro
+        # Espejo de los campos nuevos de lidar_geometria.Medicion. El
+        # doble tiene que parecerse al objeto real: si se queda corto, lo
+        # que falla es el test, no el codigo.
+        #   muro_valido -> False significa "angulo_muro es 0 por falta de
+        #                  dato", no "estoy alineado" (ver lidar_geometria)
+        #   perfil      -> lo usa _lado_por_diagonales para decidir hacia
+        #                  donde sigue el pasillo. Por defecto, todo libre.
+        self.muro_valido = muro_valido
+        #   perfil      -> AHORA SE SINTETIZA como el pasillo rectangular
+        #                  que describen frontal/izquierda/derecha/trasera.
+        #                  Antes era [8000]*360, "todo libre", y eso hacia
+        #                  al doble incoherente CONSIGO MISMO: decia
+        #                  "pared frontal a 211" en un campo y "no hay
+        #                  nada en ninguna direccion" en el otro. Mientras
+        #                  solo lo leia _lado_por_diagonales daba igual;
+        #                  desde que _holgura_barrido pregunta al perfil
+        #                  por el rumbo de cada esquina, un doble que
+        #                  miente ahi valida cualquier cosa.
+        self.perfil = (perfil if perfil is not None
+                       else _perfil_de_pasillo(frontal if frontal_muro is None
+                                               else frontal_muro,
+                                               izquierda, derecha, trasera))
 
 
 class SectorFalso:
@@ -128,8 +179,18 @@ class Envolvente(unittest.TestCase):
         # (2R, 0) esta justo sobre la circunferencia que describe el eje
         # trasero: el costado del robot lo barre.
         self.assertLess(gev.holgura_arco(2.0 * R, 0.0, cmd), 0.0)
-        # y el centro del circulo es el punto MAS libre de todos
-        self.assertGreater(gev.holgura_arco(R, 0.0, cmd), 200.0)
+        # y el centro del circulo es el punto MAS libre de todos. Se
+        # comprueba la RELACION, no un numero: en el centro no hay parte
+        # del robot que pueda acercarse mas que el borde interior del
+        # anillo barrido, asi que la holgura vale R - semiancho - radio
+        # del poste. Antes esto pedia "> 200 mm", un valor atado al
+        # RADIO_MIN_DER de 360 que resulto estar un 48% alto; con los
+        # radios medidos con cinta (243.8) el maximo geometrico es 145.9
+        # y el test rompia sin que nada estuviera mal.
+        esperado = R - gev.SEMIANCHO - gev.RADIO_POSTE
+        self.assertAlmostEqual(gev.holgura_arco(R, 0.0, cmd), esperado, delta=1.0)
+        for u in range(40, int(R), 20):     # y ningun otro punto lo supera
+            self.assertLessEqual(gev.holgura_arco(float(u), 0.0, cmd), esperado + 1e-6)
 
     def test_separacion_ideal_es_el_radio_minimo_del_lado(self):
         # La separacion lateral que MAXIMIZA la holgura al tope de servo
@@ -251,11 +312,89 @@ class Arbitraje(unittest.TestCase):
         self.assertIn(self.nav.seguridad, ("RECORTA", "INVIERTE"))
 
     def test_callejon_sin_salida_se_detecta(self):
-        med = MedicionFalsa(izquierda=95.0, derecha=95.0, frontal=180.0,
-                            frontal_muro=180.0)
+        # Un callejon DE VERDAD: no cabe ni un ciclo de control por
+        # delante. Con RELAJAR_FRENTE el horizonte se encoge con el
+        # hueco, asi que para no tener salida hay que estar realmente
+        # sin sitio -- no simplemente por debajo de un umbral fijo.
+        med = MedicionFalsa(izquierda=95.0, derecha=95.0, frontal=60.0,
+                            frontal_muro=60.0)
         cmd, hay = self.nav._arbitrar(0.0, med, 40)
         self.assertFalse(hay)
         self.assertEqual(self.nav.seguridad, "SIN_SALIDA")
+
+    def test_acercarse_a_la_pared_lo_ultimo_que_sobrevive_es_el_tope(self):
+        # EL CONTRATO, y sustituye al viejo suelo estructural.
+        #
+        # Antes, por debajo de HORIZONTE_FRENTE_MIN + 74 = 254mm de pared
+        # frontal el conjunto quedaba VACIO gire como gire. Luego, con el
+        # horizonte encogiendose, dejaba de vaciarse -- pero lo que
+        # sobrevivia era el comando RECTO, porque `alcance_frontal` crece
+        # con el angulo y se comparaba contra el sector frontal. El robot
+        # se metia de frente contra la pared con el volante en 0.0
+        # exacto: las cuatro entradas en RETROCESO de la corrida 192239.
+        #
+        # Lo que hay que exigir es lo contrario: al cerrarse el hueco, el
+        # ULTIMO comando que queda vivo es el que mas dobla, porque de
+        # una pared de frente se sale girando. Ver _holgura_barrido.
+        if not navegacion.RELAJAR_FRENTE:
+            self.skipTest("solo aplica con RELAJAR_FRENTE encendido; "
+                          "apagado, el suelo estructural sigue ahi a proposito")
+        anterior = None
+        for fm in (400.0, 300.0, 254.0):
+            med = MedicionFalsa(izquierda=600.0, derecha=600.0,
+                                frontal=fm, frontal_muro=fm)
+            seguros = self.nav._comandos_seguros(med, 25)[0]
+            self.assertTrue(seguros, "a %.0fmm todavia tiene que haber salida" % fm)
+            if anterior is not None:
+                self.assertLessEqual(len(seguros), anterior,
+                                     "el conjunto solo puede encogerse al acercarse")
+            anterior = len(seguros)
+            # LO IMPORTANTE: mientras quede algo, el tope de volante esta
+            # dentro. Que sobreviva el recto y no el tope es el bug.
+            self.assertIn(max(navegacion.CANDIDATOS), seguros,
+                          "a %.0fmm de pared se ha caido el tope de volante "
+                          "y ha sobrevivido %s" % (fm, seguros))
+
+    def test_no_se_declara_paso_con_la_estimacion_muerta(self):
+        # GUARDIA DE REGRESION de la corrida 204651, pilar #3 ROJO.
+        #
+        # La clausula 0 del invariante ("ya esta detras y de su lado") es
+        # la unica que no descuenta la incertidumbre. Cuando el tracker
+        # perdio el poste, la estimacion DERIVO -- sigma de 30 a 184 --
+        # hasta cambiar de signo, y se declaro "rebasado a 166mm por su
+        # lado" un pilar que habia cruzado el eje a -236mm, o sea por el
+        # lado PROHIBIDO. En competicion eso es el fin del recorrido, y
+        # encima lo ocultaba: el log decia que habia pasado.
+        trk = self.nav.tracker
+        trk.activo, trk.id, trk.color, trk.s_lado = True, 99, "ROJO", -1
+        # Poste "detras y a la izquierda", que es lo que pide la regla.
+        trk.x, trk.y = -300.0, -400.0
+        trk.sigma = 30.0
+        self.nav._paso_validado = False
+        self.assertTrue(self.nav._invariante_de_paso(1.0),
+                        "con la estimacion sana esto SI es un paso")
+        # La misma geometria con la estimacion muerta no demuestra nada.
+        trk.sigma = 184.0
+        self.nav._paso_validado = False
+        self.assertFalse(self.nav._invariante_de_paso(1.0),
+                         "se declaro un paso con sigma 184mm")
+
+    def test_el_recto_nunca_es_la_unica_salida_contra_una_pared(self):
+        # GUARDIA DE REGRESION del fallo de la corrida 192239. Se
+        # reproduce su lectura: pared frontal a 122mm, hueco a la
+        # izquierda, derecha pegada. El conjunto puede quedar corto, pero
+        # NO puede reducirse a "sigue recto": eso es la unica trayectoria
+        # que garantiza el choque.
+        med = MedicionFalsa(izquierda=248.0, derecha=108.0,
+                            frontal=122.0, frontal_muro=122.0)
+        seguros = self.nav._comandos_seguros(
+            med, 40, margen=navegacion.MARGEN_PARED_DURO,
+            margen_frente=navegacion.MARGEN_FRENTE_DURO)[0]
+        self.assertTrue(seguros, "ni apurando queda salida con 248mm libres al lado")
+        self.assertNotEqual([0.0], seguros,
+                            "el unico comando admisible es ir recto contra la pared")
+        self.assertTrue(any(abs(c) >= 10.0 for c in seguros),
+                        "solo sobreviven comandos casi rectos: %s" % seguros)
 
     def test_los_dos_consumidores_de_angulo_muro_se_creen_lo_mismo(self):
         # Corrida 133838: la asistencia de esquina usaba `angulo_muro`
@@ -308,11 +447,19 @@ class Arbitraje(unittest.TestCase):
         self.assertAlmostEqual(
             umbral_recto, navegacion.HORIZONTE_FRENTE_MIN + 74.0, delta=1.0)
 
-        # Por debajo del umbral: vacio aunque los lados esten despejados.
-        med = MedicionFalsa(izquierda=600.0, derecha=600.0,
-                            frontal=umbral_recto - 40.0,
-                            frontal_muro=umbral_recto - 40.0)
-        self.assertFalse(self.nav._comandos_seguros(med, 25)[0])
+        # RETIRADA la afirmacion "por debajo del umbral: vacio". Esa era
+        # la descripcion del bug, no del contrato: el umbral existia por
+        # construccion (el horizonte frontal era fijo) y dejaba al robot
+        # sin ninguna salida de avance con el pasillo entero libre. Lo
+        # que se comprueba ahora es que ese suelo YA NO existe -- ver
+        # test_acercarse_a_la_pared_deja_el_comando_que_mas_dobla.
+        # La relacion de arriba se conserva porque sigue siendo el
+        # umbral que gobierna cuando RELAJAR_FRENTE esta apagado.
+        if not navegacion.RELAJAR_FRENTE:
+            med = MedicionFalsa(izquierda=600.0, derecha=600.0,
+                                frontal=umbral_recto - 40.0,
+                                frontal_muro=umbral_recto - 40.0)
+            self.assertFalse(self.nav._comandos_seguros(med, 25)[0])
 
         # Por encima: con el pasillo libre tiene que haber salida. Si
         # esto falla, el frente esta cerrando donde no le toca.
@@ -321,21 +468,30 @@ class Arbitraje(unittest.TestCase):
                             frontal_muro=umbral_recto + 40.0)
         self.assertTrue(self.nav._comandos_seguros(med, 25)[0])
 
-    def test_el_frente_y_no_los_lados_es_quien_vacia_el_conjunto(self):
+    def test_el_frente_y_no_los_lados_es_quien_recorta_el_conjunto(self):
         # La otra mitad del hallazgo: en 9 de las 10 rachas de 133838 los
         # laterales admitian la rejilla ENTERA (19 comandos) y el frente
         # los tumbaba todos. Se reproduce una de esas lecturas -- la del
         # ciclo 443, F=211 I=232 D=286 -- para dejar fijado que el
-        # culpable es el frente. El dia que el rumbo nominal deje de
-        # empotrarse, esta lectura no deberia darse; mientras se de, la
-        # prueba dice a quien mirar.
+        # culpable es el frente, y que la escalera de concesiones lo
+        # sostiene en vez de contestar marcha atras.
         med = MedicionFalsa(izquierda=232.0, derecha=286.0,
                             frontal=211.0, frontal_muro=211.0)
         solo_lados = MedicionFalsa(izquierda=232.0, derecha=286.0,
                                    frontal=2000.0, frontal_muro=2000.0)
         self.assertEqual(len(self.nav._comandos_seguros(solo_lados, 25)[0]),
                          len(navegacion.CANDIDATOS))
-        self.assertFalse(self.nav._comandos_seguros(med, 25)[0])
+        # Con el margen COMODO el frente lo recorta hasta vaciarlo...
+        self.assertLess(len(self.nav._comandos_seguros(med, 25)[0]),
+                        len(navegacion.CANDIDATOS))
+        # ...pero apretando queda salida, y esa es la diferencia entre
+        # seguir y retroceder. Antes el peldaño apurado solo aflojaba el
+        # lateral, asi que una pared de frente vaciaba los dos a la vez.
+        apurado = self.nav._comandos_seguros(
+            med, 25, margen=navegacion.MARGEN_PARED_DURO,
+            margen_frente=navegacion.MARGEN_FRENTE_DURO)[0]
+        self.assertTrue(apurado,
+                        "el peldaño apurado tambien se vacia por el frente")
 
     def test_el_pilar_recorta_dentro_de_lo_seguro(self):
         # Con el pilar delante-derecha y pasillo libre, el arbitraje no

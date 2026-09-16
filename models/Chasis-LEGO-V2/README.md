@@ -36,4 +36,4 @@ Extraído directamente de la geometría del archivo `.io` (color LDraw `15` = Bl
 
 ## Por qué migramos de piezas impresas en 3D a LEGO Technic puro
 
-Ver la justificación completa de ingeniería (mitigación de resonancia en la cámara, reducción de masa del 23.37%, reconfiguración rápida en boxes) en la sección **3.1 y 3.4** del [README principal](../../README.md). El diseño anterior (V1, impreso en 3D) está archivado en [`3d-Models/V1/`](../V1/README.md).
+Ver la justificación completa de ingeniería (mitigación de resonancia en la cámara, reducción de masa del 23.37%, reconfiguración rápida en boxes) en la sección **3.1 y 3.4** del [README principal](../../README.md). El diseño anterior (V1, impreso en 3D) está archivado en [`models/V1/`](../V1/README.md).

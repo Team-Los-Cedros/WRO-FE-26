@@ -44,32 +44,46 @@ RADIO_POSTE = geo.LADO_POSTE * math.sqrt(2.0) / 2.0   # 35.4 mm
 # ==========================================
 # DIRECCION: RADIO MINIMO POR LADO
 # ==========================================
-# [DERIVADO, NO MEDIDO DIRECTAMENTE] de las velocidades angulares que ya
-# estan en el repositorio (notas de VELOCIDAD_MINIMA y de ANGULO_MAX_DER
-# en navegacion.py): al tope, 24 grados/s a la izquierda y 16.8 a la
-# derecha con VELOCIDAD=25, que por la curva de traccion medida son
-# 100 mm/s. R = v / w da 239mm y 341mm.
+# [MEDIDO CON CINTA el 10-09-2026] Radio del CENTRO DEL EJE TRASERO,
+# que es el marco en el que trabaja todo este modulo.
 #
-# La misma corrida demostro que el radio NO depende de la velocidad
-# ("16.8 * 18/25 = 12.1", o sea que el giro escala exactamente con la
-# velocidad). Esa es la consecuencia mas importante de todo el archivo:
-# FRENAR NO MEJORA LA GEOMETRIA. Frenar compra ciclos de control y
-# distancia de parada, no capacidad de giro. Una maniobra que no quepa
-# en estos radios tampoco cabe mas despacio.
+# Metodo: girar a tope hasta 90 grados de guiñada y medir con cinta el
+# radio de la circunferencia que traza cada rueda. El radio del eje es el
+# promedio de la trasera interior y la trasera exterior.
 #
-# Se redondean HACIA ARRIBA a proposito (260 y 360). Sobreestimar el
-# radio minimo es el lado seguro del error: si el robot gira mas de lo
-# que se le pide, la envolvente calculada aqui sigue siendo valida; si
-# gira menos, el arco planeado no se ejecuta y la maniobra falla.
+#                       trasera int   trasera ext   -> EJE TRASERO
+#   giro DERECHO             180.0         307.5         243.8
+#   giro IZQUIERDO           195.0         290.0         242.5
 #
-# COMO MEDIRLOS DE VERDAD (pendiente, 10 minutos de pista): mandar la
-# consigna con kd=0 -- enlace_pico.enviar(v, ang, kd=0.0), porque la
-# amortiguacion por giroscopio del firmware desvia el servo ~3 grados en
-# giro sostenido y falsea el angulo real -- al tope de cada lado,
-# registrar yaw y velocidad, y hacer R = v/w. Los valores de arriba se
-# tomaron CON la amortiguacion activa, asi que son aproximados.
-RADIO_MIN_IZQ = 260.0
-RADIO_MIN_DER = 360.0
+# LO QUE ESTO CORRIGE, Y ES GRANDE. Los valores anteriores eran 260 y
+# 360, derivados de dividir una velocidad de rumbo de la IMU por una
+# velocidad lineal estimada, y tomados ADEMAS con la amortiguacion por
+# giroscopio del firmware activa. El de la derecha estaba un 48% alto:
+# a tope de volante el planificador dibujaba un arco de 360 mm y el
+# robot trazaba 244. El equipo lo describio en pista como "gira de mas",
+# y era literalmente eso.
+#
+# Y LA ASIMETRIA ERA FICTICIA. El robot gira practicamente igual a los
+# dos lados (243.8 contra 242.5, medio punto porcentual). La diferencia
+# 260/360 que habia aqui metia un sesgo estructural hacia la izquierda en
+# toda situacion apretada: como `alcance_frontal` crece con el radio,
+# girar a la derecha parecia alargar mas el morro, y con una pared
+# cerca los unicos comandos admisibles salian siempre a la izquierda.
+#
+# COHERENCIA DE LAS MEDIDAS: la via DELANTERA que implican (112 y 115 mm)
+# cuadra con VIA=115. La via TRASERA no (127.5 y 95), asi que las dos
+# medidas traseras individuales traen unos +-16 mm de dispersion -- razon
+# de mas para usar su PROMEDIO, que es lo que hace falta y que si
+# concuerda entre lados. La batalla implicada por los radios delanteros
+# sale larga (165 y 197 contra 136-140 reales): los delanteros parecen
+# tomados a un punto mas adelantado que el centro de la huella. No se
+# usan aqui.
+#
+# El margen de seguridad ya NO debe venir de inflar estos numeros -- esa
+# era la practica anterior y es la que rompio la geometria. Viene de
+# FACTOR_RADIO_PESIMISTA, que existe justo para eso.
+RADIO_MIN_IZQ = 242.5
+RADIO_MIN_DER = 243.8
 
 # Topes reales del servo, medidos en la Pico (CENTRO=90, comando
 # recortado a [70, 115]). Fuente unica: navegacion.py los importa de
@@ -457,3 +471,53 @@ def lateral_predicho(cmd, avance_mm, angulo_muro_grados):
     theta = avance_mm / radio
     curva = radio * (1.0 - math.cos(theta))
     return deriva + (-curva if cmd > 0 else curva)
+
+
+def esquinas_barridas(cmd, arco, lidar_x, fracciones=(0.5, 1.0)):
+    """Donde acaban las esquinas DELANTERAS al recorrer `arco` con `cmd`.
+
+    Devuelve [(x, y), ...] en el marco del LiDAR -- x+ = derecha,
+    y+ = frente -- que es el marco en el que viene el perfil, para poder
+    preguntar "que hay EN EL RUMBO por el que va a pasar mi esquina".
+
+    POR QUE EXISTE. `alcance_frontal()` da UN numero, el adelanto maximo
+    del cuerpo, y quien lo usaba lo comparaba contra `frontal_muro`, que
+    es el minimo del sector de +-10 grados. Son dos direcciones
+    distintas. Al girar, la esquina delantera EXTERIOR se abre hacia el
+    costado a la vez que avanza, asi que su adelanto CRECE con el angulo:
+    medido con la pared a 122 mm, el filtro aceptaba cmd 0 y +2 y
+    rechazaba todo lo que pasara de 10 grados a los dos lados. O sea que
+    cuanto mas cerca estaba la pared, mas obligaba a ir RECTO contra
+    ella. En la corrida de las 19:22 las cuatro entradas en RETROCESO
+    llegaron asi: seis ciclos con el volante en 0.0 exacto y el frente
+    bajando 157->122, mientras el rumbo deseado pedia girar 12 grados.
+
+    De una pared de frente se sale girando. La esquina que se abre lo
+    hace hacia un costado donde, en un pasillo de 1000 mm, casi siempre
+    hay sitio -- y si no lo hay, quien tiene que decirlo es la distancia
+    A ESE RUMBO, no la del sector frontal.
+
+    Geometria: el eje trasero describe el arco de radio R; el cuerpo gira
+    con el. Con s = +1 girando a la izquierda, tras un angulo th el eje
+    esta en (-s R (1 - cos th), R sin th) y el marco del robot ha rotado
+    s*th. Un punto (bx, by) del cuerpo -- bx+ = derecha, by+ = frente --
+    acaba en eje + Rot(s*th) (bx, by). El comando recto es el caso limite
+    y se trata aparte para no dividir por infinito.
+    """
+    radio = radio_de_comando(cmd)
+    s = 1.0 if cmd > 0 else -1.0
+    puntos = []
+    for frac in fracciones:
+        d = arco * frac
+        if radio == float("inf"):
+            x_eje, y_eje, giro = 0.0, d, 0.0
+        else:
+            th = d / radio
+            x_eje = -s * radio * (1.0 - math.cos(th))
+            y_eje = radio * math.sin(th)
+            giro = s * th
+        cg, sg = math.cos(giro), math.sin(giro)
+        for bx in (-SEMIANCHO, SEMIANCHO):
+            puntos.append((x_eje + bx * cg - X_MORRO * sg,
+                           y_eje + bx * sg + X_MORRO * cg - lidar_x))
+    return puntos

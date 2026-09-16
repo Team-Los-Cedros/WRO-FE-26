@@ -32,7 +32,7 @@ el origen del marco del robot (`modelos.py`: x a la derecha, y adelante).
 
 **Sobre los bordes.** Los 45/61 viejos no eran una medida del chasis: marcaban
 el ángulo donde el LiDAR se veía **la propia rueda**. Ese eco ya no existe (ver
-§3), así que ahora las dos claves son la extensión física real. Que 63+66=129
+sección 3), así que ahora las dos claves son la extensión física real. Que 63+66=129
 cuadre con los 130 de ancho es la comprobación de que están bien tomadas.
 
 **El ancho a tope de volante es una medida nueva y ningún modelo la usaba.**
@@ -223,13 +223,13 @@ En esa misma pose, el ultrasonido lee **44 mm** y el LiDAR reporta una "pared
 trasera" a **1777 mm con calidad 0,95 y residuo 3,0**. La FSM hace lo correcto
 (`_trasera_mm` devolvió 44,0, el valor del ultrasonido), pero cualquier código
 que se fíe de `paredes.trasera` recibe un número limpio, convincente y
-equivocado por metro y medio. Ver §3.
+equivocado por metro y medio. Ver la sección 3.
 
 ---
 
 ## 7. Pendientes que salen de esta sesión
 
-0. **`wall_min_length_mm` en los estados de parqueo** (§6). Es lo primero.
+0. **`wall_min_length_mm` en los estados de parqueo** (sección 6). Es lo primero.
 1. **Radio en reversa, con cinta.** Es la única entrada geométrica del parqueo
    que sigue sin medir, y la inferencia dice que es un 34 % peor de lo supuesto.
 2. **Los 40 mm de la separación de la bahía.** El detector mide 389-391 y la
@@ -240,8 +240,8 @@ equivocado por metro y medio. Ver §3.
    semiancho es 70, y 270 − 70 = 200, exactamente la profundidad de la bahía:
    el borde roza la punta de los delimitadores al pasar. Subirlo pide corridas
    de pista.
-4. **`self_echo_*` probablemente sobra** (§3).
-5. **`_trasera_mm()` mezcla una medida con una extrapolación** (§3).
+4. **`self_echo_*` probablemente sobra** (sección 3).
+5. **`_trasera_mm()` mezcla una medida con una extrapolación** (sección 3).
 6. **El firmware de la Pico en el robot es más nuevo que el del repo y no está
    commiteado**: `/home/pi/pico_nuevo/main.py` son 17066 bytes del 03-09 contra
    16057 del 01-09 en `src/pico/`. Mil bytes que solo existen en la Pi.

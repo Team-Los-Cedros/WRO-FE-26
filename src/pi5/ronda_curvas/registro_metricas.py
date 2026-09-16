@@ -38,6 +38,24 @@ CAMPOS = ["t", "fase", "estado", "heading", "error_lateral", "angulo", "velocida
           # registrarlo no se puede auditar si de verdad esta anticipando la
           # esquina en la proxima corrida, o si el KP quedo mal calibrado.
           "angulo_muro",
+          # muro_ok distingue "angulo_muro = 0 porque estoy alineado" de
+          # "= 0 porque ningun sector lateral es una pared ajustable".
+          # us_mm es la trasera REAL (ultrasonido de la Pico); la del
+          # LiDAR no existe con este montaje (ver lidar_mascara).
+          "muro_ok", "us_mm",
+          # A/B temporal: la triangulacion anterior sobre el mismo barrido.
+          "ang_muro_viejo",
+          # Autopsia de la asociacion del tracker (ver tracker.asociar).
+          "trk_cands", "trk_puerta", "trk_no_asoc",
+          # Quien decide el lado de la esquina: MEDIDO / LATCH / YAW / DEFECTO
+          "fuente_lado", "lado_esquina", "color_piso",
+          # paso_ok: el invariante ya declaro rebasado el pilar activo.
+          # Contar entradas en SALIDA_PILAR se quedaba corto desde que el
+          # invariante se evalua tambien en RETROCESO: un paso puede
+          # declararse estando en marcha atras y no llegar nunca a ese
+          # estado. Con 8 bloques el log mostraba 4 pasos y la metrica
+          # contaba 1.
+          "paso_ok",
           # --- Diagnostico de la evasion (solo en ronda_camara) ---
           # Sin estas cuatro columnas no se puede saber POR QUE la
           # evasion giro hacia donde giro, que es el fallo que se esta
