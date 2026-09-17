@@ -203,14 +203,37 @@ scp src/pi5/correr_completa.sh pi@<ip-de-la-pi>:/home/pi/
 
 ## 6. Arranque autónomo con systemd
 
-El servicio arranca la secuencia completa al encender la Pi: espera el botón, sale del estacionamiento y corre la ronda.
+El servicio arranca la ronda al encender la Pi: espera el botón de `GPIO 21` y corre la prueba que esté elegida.
+
+**Primero, los lanzadores tienen que estar en `/home/pi/`** — el servicio los busca ahí por ruta absoluta:
+
+```bash
+cp src/pi5/correr_ronda.sh src/pi5/correr_abierta.sh src/pi5/correr_completa.sh src/pi5/ronda.sh /home/pi/
+```
+
+```bash
+chmod +x /home/pi/correr_ronda.sh /home/pi/correr_abierta.sh /home/pi/correr_completa.sh /home/pi/ronda.sh
+```
+
+**Después, la unidad:**
 
 ```bash
 sudo cp src/pi5/wro.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable wro.service
+```
+
+**Y por último se elige la ronda**, que es lo que decide qué lanza el botón:
+
+```bash
+./ronda.sh obstaculos    # o: ./ronda.sh abierta
+```
+
+```bash
 sudo systemctl start wro.service
 ```
+
+> **El servicio no fija la ronda.** Llama a `correr_ronda.sh`, que lee la palabra guardada en `/home/pi/ronda_activa`. Por eso cambiar de prueba entre rondas es un solo comando (`./ronda.sh abierta`) y no exige editar `systemd` ni recargar el demonio con el cronómetro corriendo. `ronda.sh` se niega a cambiarla si el servicio está activo: hay que pararlo antes con `sudo systemctl stop wro.service`.
 
 Comandos de diagnóstico:
 

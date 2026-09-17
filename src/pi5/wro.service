@@ -1,5 +1,5 @@
 [Unit]
-Description=Ronda de obstaculos WRO - Team Los Cedros
+Description=Ronda WRO (abierta u obstaculos) - Team Los Cedros
 # multi-user, no basic: hace falta que el USB haya enumerado la Pico
 # (/dev/ttyACM0) y la camara antes de abrir el enlace.
 After=multi-user.target
@@ -12,7 +12,11 @@ WorkingDirectory=/home/pi/ronda_curvas
 Environment=PYTHONUNBUFFERED=1
 # Margen para que terminen de aparecer los dispositivos USB.
 ExecStartPre=/bin/sleep 10
-ExecStart=/bin/bash /home/pi/correr_completa.sh
+# El servicio NO fija la ronda: llama al despachador, que lee la palabra
+# guardada en /home/pi/ronda_activa y lanza correr_abierta.sh o
+# correr_completa.sh segun toque. Se cambia de ronda con ./ronda.sh, sin
+# editar esta unidad ni necesitar la laptop en competencia.
+ExecStart=/bin/bash /home/pi/correr_ronda.sh
 RemainAfterExit=yes
 
 # SIN Restart. La unidad anterior tenia Restart=always, que relanzaba la

@@ -666,7 +666,7 @@ La unidad se instala en `/etc/systemd/system/wro.service` y el archivo real, lis
 
 ```ini
 [Unit]
-Description=Ronda de obstaculos WRO - Team Los Cedros
+Description=Ronda WRO (abierta u obstaculos) - Team Los Cedros
 After=multi-user.target
 Conflicts=shutdown.target
 
@@ -676,7 +676,7 @@ User=pi
 WorkingDirectory=/home/pi/ronda_curvas
 Environment=PYTHONUNBUFFERED=1
 ExecStartPre=/bin/sleep 10
-ExecStart=/bin/bash /home/pi/correr_completa.sh
+ExecStart=/bin/bash /home/pi/correr_ronda.sh
 RemainAfterExit=yes
 TimeoutStartSec=0
 StandardOutput=append:/home/pi/ronda_curvas/logs/servicio.log
@@ -686,7 +686,31 @@ StandardError=append:/home/pi/ronda_curvas/logs/servicio.log
 WantedBy=multi-user.target
 ```
 
-El servicio no arranca el motor: ejecuta [`correr_completa.sh`](src/pi5/correr_completa.sh), que **espera el pulsador de `GPIO 21`** antes de mover nada. Mientras espera, el LED de la Pico parpadea; esa es la señal visible de que el sistema está cargado y listo. Al pulsar, el LED se apaga y arranca la secuencia: salida del estacionamiento, ronda, y parada en el cuadrante de salida. Esto cumple las dos condiciones a la vez — el sistema es autónomo desde que se conecta la batería, y la salida la da una acción física sobre el robot, como exige el reglamento.
+El servicio no arranca el motor: ejecuta [`correr_ronda.sh`](src/pi5/correr_ronda.sh), que **espera el pulsador de `GPIO 21`** antes de mover nada. Mientras espera, el LED de la Pico parpadea; esa es la señal visible de que el sistema está cargado y listo. Al pulsar, el LED se apaga y arranca la ronda. Esto cumple las dos condiciones a la vez — el sistema es autónomo desde que se conecta la batería, y la salida la da una acción física sobre el robot, como exige el reglamento.
+
+#### El mismo botón sirve para las dos rondas
+
+El pulsador es uno solo (sección 4.2), pero las dos pruebas arrancan distinto: la Ronda Abierta empieza en un tramo cualquiera de la pista, y la de Obstáculos empieza **dentro del estacionamiento** y tiene que salir de él antes de correr. El servicio no puede adivinar cuál toca.
+
+La solución es un **despachador** y un archivo con una palabra dentro:
+
+```
+wro.service  →  correr_ronda.sh  →  lee /home/pi/ronda_activa
+                                     ├─ "abierta"     → correr_abierta.sh
+                                     └─ "obstaculos"  → correr_completa.sh
+```
+
+La ronda se elige con [`ronda.sh`](src/pi5/ronda.sh), **sin editar la unidad ni tocar código**:
+
+```bash
+./ronda.sh              # dice cuál está puesta
+./ronda.sh abierta      # 3 vueltas, sin pilares ni estacionamiento
+./ronda.sh obstaculos   # estacionamiento + 3 vueltas con pilares
+```
+
+> **Por qué importa que sea un archivo y no una constante:** en competencia no hay laptop delante del robot entre ronda y ronda. Cambiar de prueba tiene que ser un comando de una línea por SSH desde el teléfono, y no una edición de `systemd` que exige recargar el demonio y arriesgarse a un error de sintaxis con el cronómetro corriendo. Por la misma razón `ronda.sh` **se niega a cambiar la ronda si el servicio está activo**: evita que el archivo cambie a mitad de una carrera ya lanzada.
+
+Las diferencias reales entre las dos son solo dos, y ninguna es código de control nuevo: la abierta **no corre `parqueo.py`**, y lleva `WRO_SIN_PILARES=1` para que el color de la cámara no llegue a la máquina de estados. La cámara sigue encendida porque hace falta para **las líneas del suelo, que son las que cuentan las vueltas**. Sin esa variable, cualquier detección de color en una pista sin pilares es un falso positivo que compromete la FSM: abre, se desvía y puede acabar rozando un muro por esquivar algo que no existe.
 
 Cuatro decisiones de esta unidad no son cosméticas:
 
@@ -1615,7 +1639,7 @@ Registra **9-10 casillas donde hay 5 bloques**, en todas las configuraciones pro
 * **Radio de giro en REVERSA.** Es la única entrada geométrica del parqueo sin medir. La inferencia desde la IMU da ~306 mm contra los 228 de marcha adelante, un 34 % peor, pero es inferencia. Se cierra en dos minutos con cinta: marcar, girar en reversa a tope hasta 90°, marcar, medir la cuerda; `R = cuerda / raíz(2)`.
 * **Los 40 mm de la separación de la bahía.** El detector mide 389-391 mm y la regla dice 350 entre centros. No cuadra con ninguna lectura posible (caras 330, centros 350, bordes externos 370). `lidar.bay_expected_separation_mm` se deja en 390 **a propósito**: bajarlo sin entender la discrepancia rompe el único detector de hueco que funciona.
 * **`approach_lateral_mm = 270` deja cero holgura.** Con el volante a tope el semiancho es 70, y 270 − 70 = 200, exactamente la profundidad de la bahía: el borde roza la punta de los delimitadores al pasar.
-* **Arranque automático en la Pi 5.** `wro_start.service` y `wro_robot.service` están copiadas pero deshabilitadas. Rehabilitarlas exige decidir qué ronda se lanza por defecto, porque el selector de dos botones ya no existe (sección 5.1).
+* ~~**Arranque automático en la Pi 5.**~~ **Resuelto el 17-09-2026.** El bloqueante era que `wro.service` tenía `correr_completa.sh` fijo, así que el arranque automático solo podía lanzar la ronda de obstáculos. Ahora la unidad llama a `correr_ronda.sh`, que lee `/home/pi/ronda_activa` y lanza la ronda elegida con `./ronda.sh` (sección 5.1). Queda **habilitarlo en la Pi**: copiar la unidad actualizada, `daemon-reload` y `enable`.
 * **Comentarios del firmware de la Pico.** `src/pico/main.py` sigue diciendo "Pi 3B" en tres comentarios. **No se tocaron a propósito**: el `main.py` que corre en el robot va unos 1000 bytes por delante del que hay en el repo y sin commitear, así que editar el del repo aumenta la divergencia. Primero hay que traerse el del robot.
 * **`self_echo_*` probablemente sobra.** Enmascara un eco de rueda que el *mastilfix* del 05-09 eliminó. Recuperar esa cobertura angular es gratis, pero hay que verificarlo antes de quitarlo.
 
