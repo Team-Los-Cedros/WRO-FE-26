@@ -3,12 +3,20 @@
 Bienvenidos al repositorio oficial del **Team Los Cedros**, integrado por estudiantes del Colegio Los Cedros en Valera, Estado Trujillo, Venezuela. Aquí compartimos la documentación técnica, diseños de hardware, esquemas eléctricos y el software modular de nuestro vehículo autónomo para la World Robot Olympiad (WRO) 2026.
 
 <p align="center">
-  <img src="v-photos/V4/Leftview.jpg" alt="Vehiculo autonomo del Team Los Cedros, perfil izquierdo" width="620px"/>
+  <img src="v-photos/V5/Leftview.jpg" alt="Vehiculo autonomo del Team Los Cedros, perfil izquierdo" width="620px"/>
 </p>
 
 ---
 
 ## El robot en una página
+
+#### Primero, en palabras simples
+
+Es un **coche del tamaño de una hoja de papel que se conduce solo**. Hay que dejarlo en una pista cuadrada con paredes, apretarle un botón y alejarse: a partir de ahí nadie lo toca. Tiene que dar tres vueltas sin rozar las paredes y, en la prueba difícil, esquivar unos bloques de colores —**el rojo se pasa por la derecha y el verde por la izquierda**—, y al final volver a aparcar donde empezó.
+
+Para lograrlo necesita tres cosas, que son las mismas que necesita una persona conduciendo: **ver** dónde está, **decidir** hacia dónde ir y **mover** el volante y el acelerador. Este documento explica cómo hace cada una de las tres, y —más importante— **cómo comprobamos que de verdad las hace**, porque casi todo lo que aquí se afirma tiene detrás una medición, no una suposición.
+
+#### Y ahora, en términos técnicos
 
 Un coche autónomo de **242 x 138 mm y 720 g** sobre chasis LEGO Technic, con dirección Ackermann. Lo gobiernan **dos cerebros**: una Raspberry Pi 5 que decide (visión, LiDAR y máquina de estados) y una Pico 2 que ejecuta con puntualidad garantizada (PWM, giroscopio y un watchdog que frena solo si la Pi calla). Ve el mundo con un **RPLiDAR C1** a 360°, una **Pi Camera Module 3** y cuatro sensores embarcados.
 
@@ -32,25 +40,84 @@ Un coche autónomo de **242 x 138 mm y 720 g** sobre chasis LEGO Technic, con di
 
 ---
 
-### Índice
+### Índice por criterio de evaluación
 
-1. [Introducción y Equipo](#1-introducción-y-equipo)
-2. [Anatomía del Repositorio](#2-anatomía-del-repositorio)
-3. [Diseño Evolutivo y Ciclos de Iteración](#3-diseño-evolutivo-y-ciclos-de-iteración)
-4. [Arquitectura Eléctrica y Distribución de Señales](#4-arquitectura-eléctrica-y-distribución-de-señales)
-5. [Capa de Percepción y Alto Nivel (Raspberry Pi 5)](#5-capa-de-percepción-y-alto-nivel-raspberry-pi-5)
-6. [Capa de Control de Bajo Nivel (Raspberry Pi Pico 2)](#6-capa-de-control-de-bajo-nivel-raspberry-pi-pico-2)
-7. [Geometría de Dirección y Movilidad Mecánica](#7-geometría-de-dirección-y-movilidad-mecánica)
-8. [Análisis de Riesgos y Registro de Iteraciones](#8-análisis-de-riesgos-y-registro-de-iteraciones)
-9. [Estado Actual y Trabajo Pendiente](#9-estado-actual-y-trabajo-pendiente)
+Este índice está ordenado según los **cinco criterios de la rúbrica de documentación de WRO Future Engineers 2026**, para que cada uno pueda evaluarse sin reconstruirlo leyendo el documento entero. El índice estructural, sección por sección, está justo debajo.
+
+#### 1 · Movilidad y diseño mecánico
+*Chasis, dirección, transmisión, razonamiento par/velocidad y estabilidad mecánica.*
+
+* [7.1 Cinemática Ackermann y calibración real](#71-cinemática-del-sistema-de-dirección-ackermann-y-calibración-real) — la geometría del tren delantero, medida sobre el prototipo.
+* [7.3 Límites angulares calibrados](#73-límites-angulares-calibrados-y-protección-mecánica) — por qué el rango de giro **no** es simétrico, con evidencia fotográfica.
+* [7.4 Cálculo de torque y fuerza de tracción](#74-análisis-de-ingeniería-cálculo-matemático-de-torque-y-fuerza-de-tracción) — el margen de $2.18\times$ sobre la masa real de $720\,\text{g}$.
+* [7.5 Cadena de transmisión: del motor al suelo](#75-cadena-de-transmisión-del-motor-al-suelo) — relación $1:1$ sin engranajes, curva PWM→velocidad medida y **por qué el límite del arranque lo pone el agarre, no el motor**.
+* [7.6 Envolvente de giro medida con marcadores](#76-envolvente-de-giro-medida-con-marcadores) — los radios no se calcularon: se dibujaron.
+* [7.7 Materiales y manufactura](#77-materiales-y-manufactura-por-qué-el-chasis-dejó-de-imprimirse) — por qué el chasis dejó de imprimirse, con la tabla de material por pieza.
+* [3.1 Cuadro comparativo de evolución V1→V5](#31-cuadro-comparativo-avanzado-de-evolución-e-iteración-técnica) · [CAD reproducible](models/)
+
+#### 2 · Arquitectura de energía y sensores
+*Alimentación, consumo, selección y ubicación de sensores, calibración y diagramas.*
+
+* [4.1 Red de distribución de energía](#41-red-de-distribución-de-energía-alimentación) — tres etapas desacopladas, con el diagrama de cableado.
+* [4.2 Catálogo de componentes y justificación](#42-catálogo-de-componentes-y-justificación-de-selección) — qué se eligió, dónde va montado y **el método de calibración de cada sensor**.
+* [4.3 Mapa de conexiones calibrado (pinout)](#43-mapa-de-conexiones-calibrado-pinout) — pin a pin.
+* [4.4 Presupuesto de consumo y autonomía](#44-presupuesto-de-consumo-energético-y-gestión-de-corriente) — **medido con multímetro**, no estimado por hoja de datos.
+* [4.5 Geometría de sensores: alcance, zonas ciegas y autoecos](#45-geometría-de-sensores-alcance-zonas-ciegas-y-autoecos) — desde dónde mira cada sensor y **qué no puede ver**.
+* [4.6 Integridad de señal y topología de cableado](#46-integridad-de-señal-y-topología-de-cableado) — tierra en estrella, calibres y aislamiento de los buses I²C.
+* [10. Métodos de calibración](#10-métodos-de-calibración) — **los diez procedimientos**, en orden de ejecución y repetibles por un tercero.
+
+#### 3 · Arquitectura de software y estrategia ante obstáculos
+*Modularidad, máquinas de estado, seguimiento de carril, lógica de obstáculos y algoritmos.*
+
+* [5.1 Orquestación y arranque autónomo](#51-orquestación-del-sistema-y-demonio-de-arranque-autónomo) — con el diagrama de flujo del sistema.
+* [5.2 Estructura modular del script de carrera](#52-estructura-modular-del-script-de-carrera-fragmentos-clave) — la máquina de estados, en diagrama y en código.
+* [5.3 Estrategia de navegación por rondas](#53-estrategia-de-navegación-justificada-por-rondas-geometría-del-campo) — deducida de la geometría del campo, con la FSM de evasión.
+* [5.4 Parámetros de control y proceso de ajuste](#54-parámetros-de-control-y-proceso-de-ajuste) — qué se tocó y contra qué medida.
+* [5.5 Reconocimiento de pilares por red neuronal](#55-reconocimiento-de-pilares-por-red-neuronal-acelerador-hailo) — el acelerador Hailo, el dataset y qué sustituye exactamente.
+* [6. Capa de control de bajo nivel (Pico 2)](#6-capa-de-control-de-bajo-nivel-raspberry-pi-pico-2) — el firmware de tiempo real y la integración inercial.
+* [11. Los algoritmos, explicados uno por uno](#11-los-algoritmos-explicados-uno-por-uno) — control proporcional, *pure pursuit*, odometría, conteo de vueltas, FSM y *watchdog*, cada uno **en lenguaje llano y en detalle técnico**.
+
+#### 4 · Pensamiento sistémico y decisiones de ingeniería
+*Interacción entre subsistemas, restricciones, compensaciones, iteración y riesgos.*
+
+* [3.4 Trade-offs de selección](#34-justificación-de-ingeniería-para-la-selección-de-componentes-y-arquitectura-de-sistemas-trade-offs) — por qué cada componente y **qué se descartó**.
+* [3.5 Línea de tiempo del proyecto](#35-línea-de-tiempo-del-proyecto-qué-se-intentó-qué-midió-y-qué-cambió-por-eso) — qué se intentó, qué se midió y qué cambió por eso.
+* [8.1 Interacción entre subsistemas](#81-interacción-entre-subsistemas-pensamiento-sistémico) — cómo se acoplan las capas.
+* [8.2](#82-caso-de-estudio-depuración-de-la-ronda-cerrada-con-evidencia-de-pista-close2_roundpy) · [8.3](#83-caso-de-estudio-reactivación-de-la-ronda-cerrada-modular-con-evidencia-cuantitativa-2026-08-27) · [8.4](#84-caso-de-estudio-gauntlet-de-6-pilares-asistencia-de-esquina-y-el-límite-de-la-reactividad-pura-2026-08-28) · [8.5](#85-diseño-e-implementación-desempate-de-esquina-simétrica-con-memoria-persistente-2026-08-28-continuación) — **cuatro casos de estudio con datos de pista**.
+* [9. Estado actual y trabajo pendiente](#9-estado-actual-y-trabajo-pendiente) — lo que falta, y **lo que se descartó midiendo** (9.3).
+
+#### 5 · Reproducibilidad y calidad del repositorio
+*Estructura, historial de commits, README, archivos CAD/cableado/código y reproducibilidad.*
+
+* [0. Estado actual del hardware](#0-estado-actual-del-hardware-última-revisión-17-09-2026) — el montaje que compite (V5), en una tabla.
+* [2. Anatomía del repositorio](#2-anatomía-del-repositorio) — qué hay en cada carpeta y por qué.
+* [3.3 Las capturas reglamentarias del vehículo](#33-galería-de-inspección-técnica-obligatoria-las-6-capturas-reglamentarias)
+* Cadena de reproducción: [`BOM.md`](BOM.md) qué comprar → [`ENSAMBLAJE.md`](ENSAMBLAJE.md) cómo montarlo → [`INSTALACION.md`](INSTALACION.md) cómo dejar las dos placas en este estado.
+* [`CHANGELOG.md`](CHANGELOG.md) — versionado con los hashes de commit de cada hito · [`video/video.md`](video/video.md) — las corridas en vídeo.
+* [`verificar_docs.py`](src/pi5/herramientas/verificar_docs.py) — la documentación se comprueba sola: enlaces rotos, anclas muertas y finales de línea.
+* [12. Glosario](#12-glosario) — cada término técnico del documento, explicado en una línea.
+
+---
+
+### Índice estructural
+
+| # | Sección | | # | Sección |
+| :---: | :--- | :---: | :---: | :--- |
+| **0** | [Estado actual del hardware](#0-estado-actual-del-hardware-última-revisión-17-09-2026) | | **5** | [Percepción y alto nivel (Pi 5)](#5-capa-de-percepción-y-alto-nivel-raspberry-pi-5) |
+| **1** | [Introducción y equipo](#1-introducción-y-equipo) | | **6** | [Control de bajo nivel (Pico 2)](#6-capa-de-control-de-bajo-nivel-raspberry-pi-pico-2) |
+| **2** | [Anatomía del repositorio](#2-anatomía-del-repositorio) | | **7** | [Geometría de dirección y movilidad](#7-geometría-de-dirección-y-movilidad-mecánica) |
+| **3** | [Diseño evolutivo e iteración](#3-diseño-evolutivo-y-ciclos-de-iteración) | | **8** | [Riesgos y registro de iteraciones](#8-análisis-de-riesgos-y-registro-de-iteraciones) |
+| **4** | [Arquitectura eléctrica y señales](#4-arquitectura-eléctrica-y-distribución-de-señales) | | **9** | [Estado actual y trabajo pendiente](#9-estado-actual-y-trabajo-pendiente) |
+| **10** | [Métodos de calibración](#10-métodos-de-calibración) | | **11** | [Los algoritmos, uno por uno](#11-los-algoritmos-explicados-uno-por-uno) |
+| **12** | [Glosario](#12-glosario) | | | |
 
 **Documentos que acompañan a este README:** [`BOM.md`](BOM.md) · [`ENSAMBLAJE.md`](ENSAMBLAJE.md) · [`INSTALACION.md`](INSTALACION.md) · [`CHANGELOG.md`](CHANGELOG.md) · [`video/video.md`](video/video.md)
 
 ---
 
-## 0. Estado Actual del Hardware (última revisión: 12-09-2026)
+## 0. Estado Actual del Hardware (última revisión: 17-09-2026)
 
-El robot cambió en cinco puntos respecto a la primera versión documentada en este README. Cada cambio se detalla en su sección; esta tabla existe para que no haya que reconstruirlo leyendo el documento entero.
+El robot cambió en siete puntos respecto a la primera versión documentada en este README. Cada cambio se detalla en su sección; esta tabla existe para que no haya que reconstruirlo leyendo el documento entero.
 
 | Qué cambió | Antes | Ahora | Dónde se detalla |
 | :--- | :--- | :--- | :--- |
@@ -59,31 +126,48 @@ El robot cambió en cinco puntos respecto a la primera versión documentada en e
 | **Medida trasera** | Ninguna | **Ultrasonido HC-SR04** en `GP14`/`GP15`, único sensor que ve hacia atrás | 4.2 y 4.3 |
 | **Sensor de color de piso** | TCS3472 bajo el chasis | **Sigue montado, y se mudó al frente.** Se desconectó durante la migración a la Pi 5, se volvió a conectar, y en el montaje actual va por delante del eje delantero en vez de bajo el chasis. Hoy es una de las tres evidencias del sentido, junto a la cámara y la asimetría de paredes | 4.2 y 5.3-C |
 | **Arranque** | Dos botones (uno por ronda) | **Un solo botón en `GPIO 21`** | 4.2 y 4.3 |
+| **Acelerador de inferencia** | Ninguno; la detección de pilares era HSV en CPU | **Raspberry Pi AI HAT+ de 26 TOPS** (Hailo-8) sobre la Pi 5. Sustituye **solo** el reconocimiento de pilares; las líneas de pista y el LiDAR siguen igual | 4.2 y 5.5 |
+| **Posición de la Pico 2** | Sobre el chasis, al mismo nivel que el resto | **Bajo la Raspberry Pi 5**, en el piso del chasis. Libera la planta superior para el HAT y acorta el cableado a los actuadores | 0 y 4.6 |
 
 ---
 
-### Montaje actual (V4)
+### Montaje actual (V5)
 
-El vehículo se reconstruyó sobre el mismo chasis para la fase final. Dos cambios de colocación, y los dos por el mismo motivo: **adelantar la percepción**.
+La V5 no toca el chasis ni la geometría: **reorganiza la planta de cómputo** para hacerle sitio a un acelerador de inferencia. Son dos cambios, y el segundo existe por el primero.
 
-* **La cámara subió a un mástil trasero**, desde donde mira hacia adelante por encima de todo el vehículo, y el LiDAR bajó al chasis por delante. Antes era al revés: el LiDAR arriba y la cámara abajo. El mástil lleva también el ultrasonido, apuntando hacia atrás.
-* **El sensor de color se adelantó**, por delante del eje delantero en vez de bajo el chasis. Leer la línea antes de pisarla da margen de reacción; leerla debajo solo avisa de que ya se cruzó.
+* **Se añadió un Raspberry Pi AI HAT+ de 26 TOPS (Hailo-8) sobre la Raspberry Pi 5.** Un HAT ocupa el conector de 40 pines y el espacio inmediatamente encima de la placa, así que exige que nada más compita por esa planta.
+* **La Raspberry Pi Pico 2 bajó al piso del chasis, debajo de la Pi 5.** Antes iba al mismo nivel. Además de liberar la planta superior, el cambio acorta el recorrido de las líneas que van a los actuadores, que son las que conviven con el ruido de conmutación del motor (sección 4.6).
+
+La colocación de los sensores es la misma que se fijó en la V4 y sigue vigente por las mismas razones: **adelantar la percepción**.
+
+* **La cámara va en un mástil trasero**, desde donde mira hacia adelante por encima de todo el vehículo, y el LiDAR va bajo, sobre el chasis y por delante. El mástil lleva también el ultrasonido, apuntando hacia atrás.
+* **El sensor de color va adelantado**, por delante del eje delantero en vez de bajo el chasis. Leer la línea antes de pisarla da margen de reacción; leerla debajo solo avisa de que ya se cruzó.
 
 | Frontal | Trasera |
 | :---: | :---: |
-| <img src="v-photos/V4/Frontview.jpg" alt="Vista frontal: el LiDAR es el extremo que va primero" width="300px"/> | <img src="v-photos/V4/Backview.jpg" alt="Vista trasera: el mastil con la camara y el ultrasonido" width="300px"/> |
-
-| Superior | Inferior |
-| :---: | :---: |
-| <img src="v-photos/V4/Topview.jpg" alt="Vista superior del montaje actual" width="300px"/> | <img src="v-photos/V4/Bottomview.jpg" alt="Vista inferior del montaje actual, con el TCS3472 por delante del eje" width="300px"/> |
+| <img src="v-photos/V5/Frontview.jpg" alt="Vista frontal: el LiDAR es el extremo que va primero" width="300px"/> | <img src="v-photos/V5/Backview.jpg" alt="Vista trasera: el mastil con la camara y el ultrasonido" width="300px"/> |
 
 | Perfil izquierdo | Perfil derecho |
 | :---: | :---: |
-| <img src="v-photos/V4/Leftview.jpg" alt="Perfil izquierdo del montaje actual" width="300px"/> | <img src="v-photos/V4/Rightview.jpg" alt="Perfil derecho del montaje actual" width="300px"/> |
+| <img src="v-photos/V5/Leftview.jpg" alt="Perfil izquierdo del montaje actual" width="300px"/> | <img src="v-photos/V5/Rightview.jpg" alt="Perfil derecho del montaje actual" width="300px"/> |
 
-En la vista inferior se ve el **TCS3472 montado sobre vigas Technic por delante del eje delantero**, fuera del contorno del chasis. Esa es la colocación que le da anticipación sobre la línea.
+| Superior | Chasis con la Pico 2 reubicada |
+| :---: | :---: |
+| <img src="v-photos/V5/Topview.jpg" alt="Vista superior del montaje actual" width="300px"/> | <img src="v-photos/V5/Chasis_Pico_reubicada.jpg" alt="Planta del chasis con la Pico 2 en su posicion nueva" width="300px"/> |
 
-> Las medidas de la sección 7.5 —dimensiones del chasis y radios de giro trazados con marcadores— **corresponden a este montaje**.
+#### Evidencia del cambio: la Pico 2 en su posición nueva
+
+La placa perforada con la **Pico 2, el MPU6050 y el TB6612FNG** quedó montada en el piso del chasis. Estas tomas son la evidencia del montaje, y sirven además para verificar dos condiciones que el resto del documento da por sentadas: que la **IMU está alineada con el eje longitudinal** (sección 4.2) y que las tres piezas van **soldadas, no con *jumpers*** (sección 4.6).
+
+| La placa dentro del chasis | Detalle: Pico 2, IMU y driver |
+| :---: | :---: |
+| <img src="v-photos/V5/Montaje_placa_en_chasis.jpg" alt="Placa perforada montada en el piso del chasis, con el cable CSI subiendo al mastil" width="270px"/> | <img src="v-photos/V5/Placa_Pico2_detalle_01.jpg" alt="Detalle de la placa: TB6612FNG, MPU6050 y Pico 2" width="270px"/> |
+
+| Otro ángulo de la placa | La placa con el LiDAR al fondo |
+| :---: | :---: |
+| <img src="v-photos/V5/Placa_Pico2_detalle_02.jpg" alt="Segundo angulo de la placa perforada" width="270px"/> | <img src="v-photos/V5/Placa_Pico2_detalle_03.jpg" alt="La placa perforada con el LiDAR visible al fondo" width="270px"/> |
+
+> Las medidas de la sección 7.6 —dimensiones del chasis y radios de giro trazados con marcadores— **siguen siendo válidas**: la V5 no cambió el chasis, la batalla, la vía ni los límites de dirección. Lo que cambió está por encima del chasis.
 
 ---
 
@@ -191,7 +275,7 @@ El desarrollo de nuestro vehículo autónomo no fue un proceso lineal. Para alca
 
 Para alcanzar la estabilidad operativa actual, el prototipo pasó por una transición crítica basada en datos experimentales de rendimiento dinámico, telemetría inercial y análisis de fallos mecánicos destructivos en pista:
 
-> **El prototipo que compite es la V4.** Las cuatro versiones cambiaron cosas distintas, y por eso se documentan por separado: el salto **V1 → V2** fue *mecánico* (chasis, masa, tracción y topología de potencia) y es el de esta tabla; el salto **V2 → V3** fue *electrónico* (Raspberry Pi 5, mástil del LiDAR, ultrasonido trasero y botón único) y el **V3 → V4** fue de *colocación de sensores*, sin tocar el chasis. Los dos últimos están en la [sección 0](#0-estado-actual-del-hardware-última-revisión-12-09-2026), con las seis vistas del montaje que compite.
+> **El prototipo que compite es la V5.** Las cinco versiones cambiaron cosas distintas, y por eso se documentan por separado: el salto **V1 → V2** fue *mecánico* (chasis, masa, tracción y topología de potencia) y es el de esta tabla; el **V2 → V3** fue *electrónico* (Raspberry Pi 5, mástil del LiDAR, ultrasonido trasero y botón único); el **V3 → V4** fue de *colocación de sensores*, sin tocar el chasis; y el **V4 → V5** es de *cómputo* (acelerador Hailo de 26 TOPS y la Pico 2 reubicada bajo la Pi 5), también sin tocar el chasis. Los tres últimos están en la [sección 0](#0-estado-actual-del-hardware-última-revisión-17-09-2026), con las vistas del montaje que compite.
 
 | Criterio Técnico | Prototipo Inicial (V1) | Rediseño Mecánico (V2) | Justificación de Ingeniería / Análisis de Fatiga |
 | :--- | :--- | :--- | :--- |
@@ -217,16 +301,17 @@ Para evidenciar la transformación del vehículo y el rediseño de los tres ejes
 ---
 ### 3.3 Galería de Inspección Técnica Obligatoria (Las 6 Capturas Reglamentarias)
 
-Las seis capturas ortogonales del vehículo **tal como compite**, depositadas en `v-photos/V4/`. Las del montaje anterior se conservan en `v-photos/V3/` y `v-photos/V1/` como evidencia de la evolución documentada en la sección 3.2.
+Las capturas ortogonales del vehículo **tal como compite (V5)**, depositadas en `v-photos/V5/`. Las de los montajes anteriores se conservan en `v-photos/V4/`, `v-photos/V3/` y `v-photos/V1/` como evidencia de la evolución documentada en la sección 3.2.
 
 | Vista | Captura | Descripción |
 | :---: | :---: | :--- |
-| **Frontal** (`V4/Frontview.jpg`) | <img src="v-photos/V4/Frontview.jpg" alt="Vista Frontal" width="260px"/> | El extremo que va primero. El **RPLiDAR C1 montado bajo, sobre el chasis**, con las dos ruedas directrices a los lados y el sensor de color asomando por debajo. Al fondo se ve el mástil trasero. |
-| **Trasera** (`V4/Backview.jpg`) | <img src="v-photos/V4/Backview.jpg" alt="Vista Trasera" width="260px"/> | El **mástil**, que lleva la cámara en lo alto y el **ultrasonido HC-SR04 mirando hacia atrás**, única medida real en ese sentido. Debajo, el regulador XL4016 con su display de tensión y el tren de tracción. |
-| **Perfil Izquierdo** (`V4/Leftview.jpg`) | <img src="v-photos/V4/Leftview.jpg" alt="Perfil Izquierdo" width="260px"/> | El reparto completo de un vistazo: LiDAR bajo y delante, la Pico 2 con el MPU6050 y el TB6612FNG sobre la placa perforada en el centro, y el mástil atrás. La cámara mira hacia adelante **por encima** de todo, que es lo que impide que el LiDAR le tape el campo. |
-| **Perfil Derecho** (`V4/Rightview.jpg`) | <img src="v-photos/V4/Rightview.jpg" alt="Perfil Derecho" width="260px"/> | El mismo perfil desde el otro lado, con la Raspberry Pi 5 en su carcasa y el microinterruptor de corte de batería. |
-| **Superior** (`V4/Topview.jpg`) | <img src="v-photos/V4/Topview.jpg" alt="Vista Superior" width="260px"/> | Disposición central: el LiDAR adelantado al eje delantero y, detrás, la placa perforada con la Pico 2, la IMU y el driver. El cable plano naranja de la cámara sube al mástil. |
-| **Inferior** (`V4/Bottomview.jpg`) | <img src="v-photos/V4/Bottomview.jpg" alt="Vista Inferior" width="260px"/> | Estructura de vigas de fricción LEGO, el portapilas 21700 en rojo al centro, el servo de dirección, y el **TCS3472 sobre vigas Technic por delante del eje delantero**, fuera del contorno del chasis. |
+| **Frontal** (`V5/Frontview.jpg`) | <img src="v-photos/V5/Frontview.jpg" alt="Vista Frontal" width="260px"/> | El extremo que va primero. El **RPLiDAR C1 montado bajo, sobre el chasis**, con las dos ruedas directrices a los lados y el sensor de color asomando por debajo. Al fondo asoma la cámara en lo alto del mástil. |
+| **Trasera** (`V5/Backview.jpg`) | <img src="v-photos/V5/Backview.jpg" alt="Vista Trasera" width="260px"/> | El **mástil**, que lleva la cámara en lo alto y el **ultrasonido HC-SR04 mirando hacia atrás**, única medida real en ese sentido. Debajo, el regulador XL4016 con su display de tensión y el tren de tracción. |
+| **Perfil Izquierdo** (`V5/Leftview.jpg`) | <img src="v-photos/V5/Leftview.jpg" alt="Perfil Izquierdo" width="260px"/> | El reparto completo de un vistazo: LiDAR bajo y delante, la Raspberry Pi 5 en el centro con la Pico 2 debajo, y el mástil atrás. La cámara mira hacia adelante **por encima** de todo, que es lo que impide que el LiDAR le tape el campo. |
+| **Perfil Derecho** (`V5/Rightview.jpg`) | <img src="v-photos/V5/Rightview.jpg" alt="Perfil Derecho" width="260px"/> | El mismo perfil desde el otro lado, con el microinterruptor de corte de batería y las celdas 21700 sujetas bajo el chasis. |
+| **Superior** (`V5/Topview.jpg`) | <img src="v-photos/V5/Topview.jpg" alt="Vista Superior" width="260px"/> | Disposición central: el LiDAR adelantado al eje delantero y, detrás, la Raspberry Pi 5 en su carcasa con ventilador ocupando la planta superior. El cable plano naranja de la cámara sube al mástil. |
+| **Planta del chasis** (`V5/Chasis_Pico_reubicada.jpg`) | <img src="v-photos/V5/Chasis_Pico_reubicada.jpg" alt="Planta del chasis con la Pico 2 reubicada" width="260px"/> | El nivel que queda **bajo la Pi 5**: la Pico 2 en el piso del chasis, las dos celdas 21700 sujetas a los costados y el regulador de la línea lógica en el extremo. Es el cambio que define la V5. |
+| **Inferior** (`V4/Bottomview.jpg`) | <img src="v-photos/V4/Bottomview.jpg" alt="Vista Inferior" width="260px"/> | **Tomada en la V4 y aún vigente:** el tren inferior no cambió en la V5. Estructura de vigas de fricción LEGO, el portapilas 21700 en rojo al centro, el servo de dirección, y el **TCS3472 sobre vigas Technic por delante del eje delantero**, fuera del contorno del chasis. |
 
 ### 3.4 Justificación de Ingeniería para la Selección de Componentes y Arquitectura de Sistemas (Trade-offs)
 
@@ -332,6 +417,7 @@ Cada sensor y actuador fue elegido, ubicado y calibrado con un criterio específ
 | **Geekservo DC (Tracción)** | <img src="v-photos/Componentes/GeekservoDC.png" width="90"/> | Seleccionado por su torque de bloqueo de $2.4\,\text{kg}\cdot\text{cm}$, validado matemáticamente en la sección 7.4 con un margen de seguridad de **2.18×** sobre los 720 g de la V3 (era 2.55× con los 613 g de la V2). |
 | **Driver TB6612FNG** | <img src="v-photos/Componentes/TB6612FNG.png" width="90"/> | Preferido sobre el clásico L298N por su topología MOSFET (menor caída de tensión y disipación térmica), crítico dado el presupuesto de corriente ajustado del sistema (sección 4.3). |
 | **Raspberry Pi 5** | <img src="v-photos/Componentes/Rspr5.jpg" width="90"/> | Capa de alto nivel, montada en su carcasa Canakit con ventilador (es la que se ve en los perfiles de la sección 3.3). **Sustituye a la Pi 3B el 03-09-2026** (migración verificada: 3325 archivos y los 170 CSV idénticos por md5). El motivo es cómputo medido, no preferencia: el mismo pipeline de visión pasó de **67-72 ms a 4,8 ms** por cuadro a 640x360, y a 1280x720 —resolución que en la 3B no cabía— cuesta **22,2 ms**. La edad del barrido LiDAR bajó de 16,0 ms de media a **0,1 ms**. Eso es lo que permitió subir la cámara a 1280x720 @ 30 fps. |
+| **Raspberry Pi AI HAT+ 26 TOPS** (Hailo-8) | <img src="v-photos/Componentes/AI_HAT_Hailo.jpg" width="90"/> | Acelerador de inferencia montado sobre el conector de 40 pines de la Pi 5. **Sustituye solo el reconocimiento de pilares**, que era el punto débil medido de la visión: la máscara HSV depende de la luz del pabellón y obliga a recalibrar antes de cada jornada (sección 4.5). Las líneas de pista siguen leyéndose por HSV y por el TCS3472, y la geometría sigue saliendo del LiDAR: el acelerador no sustituye ninguna de esas dos vías, que son las que sostienen el conteo de vueltas y el centrado. Es lo que obligó a bajar la Pico 2 al piso del chasis, porque un HAT ocupa la planta inmediatamente superior a la placa. |
 | **Raspberry Pi Pico 2** | <img src="v-photos/Componentes/Pico2.jpg" width="90"/> | Capa de bajo nivel de tiempo real: descarga a la Pi 5 de la generación de PWM y la integración del giroscopio, evitando que el *jitter* del sistema operativo Linux afecte la estabilidad del lazo de control físico. |
 | **Reguladores XL1509 / XL4016** | <img src="v-photos/Componentes/Xl1509.png" width="90"/> <img src="v-photos/Componentes/Xl4016.png" width="90"/> | Ver arquitectura de desacoplamiento por etapas en la sección 4.1 y análisis de margen de seguridad en la sección 4.3. |
 | **Baterías 21700 (2S)** | <img src="v-photos/Componentes/baterias.jpg" width="90"/> | Ver justificación de densidad de corriente en la sección 3.4. |
@@ -851,6 +937,98 @@ Eventos de emergencia (entradas a RETROCESO): 1
 ```
 
 Esto reemplaza la validación puramente observacional: dos corridas con el mismo `KP_LATERAL` se pueden comparar por error lateral promedio y saturación del servo en vez de una impresión subjetiva de "se vio mejor". *Nota de estado:* la herramienta se agregó a este repositorio pero todavía no se ha corrido en pista con el hardware real — los CSV de corridas reales del equipo, una vez capturados, reemplazarán este ejemplo.
+
+---
+
+### 5.5 Reconocimiento de Pilares por Red Neuronal (acelerador Hailo)
+
+La sección 4.5 termina con un límite que no se resuelve con software: **el LiDAR ve el bulto de un pilar hasta unos $1400\,\text{mm}$ y la cámara solo le pone color desde unos $1100\,\text{mm}$**, y en esa franja el robot sabe que hay algo pero no de qué lado pasarlo. Se probaron dos respuestas desde el control y las dos empeoraron el resultado (sección 9.3). La conclusión registrada entonces fue que **el corte es geométrico, no de calibración**, y que la salida tenía que ser óptica o de método, no de umbrales.
+
+El acelerador es esa salida por la vía del método: en vez de decidir el color con un umbral HSV fijo, lo decide una red entrenada con imágenes de la propia pista en las condiciones de luz reales.
+
+#### Qué sustituye, y qué no
+
+Conviene acotarlo, porque un acelerador de IA invita a suponer que el vehículo entero pasó a funcionar por red neuronal, y no es el caso:
+
+| Función | Antes | Ahora |
+| :--- | :--- | :--- |
+| **Color y posición de los pilares** | Máscara HSV sobre el frame | **YOLOv8n sobre el Hailo-8** |
+| Líneas de pista (conteo de vueltas) | HSV + TCS3472 | **Sin cambios** |
+| Paredes, esquinas y bultos | Agrupamiento geométrico del LiDAR | **Sin cambios** |
+| Rumbo y guiñada | MPU6050 integrado en la Pico 2 | **Sin cambios** |
+
+Que las tres últimas filas no cambien es deliberado: son las que sostienen el centrado y el conteo de vueltas, y ya están medidas y validadas en pista. El pilar era el único punto donde la percepción dependía de un umbral sensible a la iluminación del pabellón.
+
+#### El dataset: por qué se capturó así
+
+El dataset se toma con un panel web servido por la propia Raspberry Pi, al que el equipo se conecta desde el teléfono con la pista montada. La decisión de método está escrita en el propio panel, debajo del botón:
+
+> *«Mueve el robot durante la tanda: diez fotos de una escena quieta son un solo dato repetido.»*
+
+Esa frase es el criterio entero. Una tanda de 25 disparos con el robot inmóvil produce 25 archivos y **un** dato; movido, produce 25 puntos de vista distintos del mismo pilar. El contador del panel se lleva **por condición de luz**, no en total, porque lo que se cubre no es volumen sino variedad de iluminación:
+
+| Condición de luz | Imágenes | Tandas | Evidencia de captura |
+| :--- | :---: | :---: | :---: |
+| `aula_apagada` | $225$ | $20$ | <img src="v-photos/Dataset_Pilares/aula_apagada_225.jpg" alt="Panel de captura en aula apagada" width="150px"/> |
+| `persiana_cerrada` | $275$ | $35$ | <img src="v-photos/Dataset_Pilares/persiana_cerrada_275_cerca.jpg" alt="Panel de captura con persiana cerrada" width="150px"/> |
+| `aula_encendida` | $534$ | $7$ | <img src="v-photos/Dataset_Pilares/aula_encendida_534.jpg" alt="Panel de captura en aula encendida" width="150px"/> |
+| **Total capturado** | $\mathbf{1034}$ | $\mathbf{62}$ | |
+
+Las tres condiciones no son decorativas: son los tres regímenes en que el mismo pilar da lecturas HSV distintas. Con el `aula_apagada` el frame es casi negro y el pilar apenas se separa del fondo; con `persiana_cerrada` aparece un reflejo especular en el piso; y en `aula_encendida` el color satura. **Ese rango es exactamente lo que un umbral fijo no puede cubrir a la vez**, y es la razón de que la calibración HSV hubiera que rehacerla en cada jornada.
+
+| Aula apagada — el pilar apenas se separa del fondo | Persiana cerrada — reflejo especular en el piso | Aula encendida — el color satura |
+| :---: | :---: | :---: |
+| <img src="v-photos/Dataset_Pilares/aula_apagada_225.jpg" alt="Condicion aula apagada" width="200px"/> | <img src="v-photos/Dataset_Pilares/persiana_cerrada_025.jpg" alt="Condicion persiana cerrada con reflejo" width="200px"/> | <img src="v-photos/Dataset_Pilares/aula_encendida_534.jpg" alt="Condicion aula encendida" width="200px"/> |
+
+El reparto de tandas también dice algo: `aula_encendida` tiene $534$ imágenes en solo $7$ tandas y `persiana_cerrada` $275$ en $35$. Las tandas cortas y numerosas son de sesiones en las que se reposicionó el robot entre una y otra; las largas, de barridos continuos. **La condición peor iluminada es la que más tandas distintas tiene**, que es donde más falta hace la variedad de punto de vista.
+
+#### Del dataset capturado al dataset entrenable
+
+De las $1034$ capturadas se etiquetaron **$758$** en formato YOLO, repartidas así:
+
+| Partición | Imágenes | Etiquetas |
+| :--- | :---: | :---: |
+| `train` | $624$ | $624$ |
+| `val` | $134$ | $134$ |
+| **Total etiquetado** | $\mathbf{758}$ | $\mathbf{758}$ |
+
+Son **dos clases**: `0 = pilar_rojo` y `1 = pilar_verde`, con $830$ instancias anotadas en total.
+
+> **Hay un desequilibrio de clase que conviene tener presente:** $462$ instancias de `pilar_rojo` contra $368$ de `pilar_verde`, un $25\,\%$ más de rojo. No es intencionado —sale de cómo quedaron montadas las escenas— y es justo el tipo de sesgo que puede hacer que el modelo prefiera la clase mayoritaria cuando la imagen es ambigua. Dado que **pasar un pilar por el lado equivocado termina el recorrido**, es un punto a vigilar en la validación.
+
+#### El modelo y su conversión al Hailo-8
+
+| Parámetro | Valor |
+| :--- | :--- |
+| Arquitectura | **YOLOv8n**, 2 clases |
+| Entrada | RGB $640 \times 640$, redimensionado con proporciones y relleno $(114,114,114)$ centrado |
+| Normalización | $/255$ **incluida dentro del modelo** — se entregan píxeles de 0 a 255 sin dividir |
+| Posprocesado | NMS de YOLOv8 vía HailoRT **en CPU**: umbral de puntuación $0.2$, IoU $0.7$, hasta $100$ detecciones por clase |
+| Decodificadores de caja | Tres, en *strides* $8 / 16 / 32$, con `regression_length` $= 16$ |
+| Arquitectura objetivo | `hailo8` (26 TOPS) — **no** `hailo8l` |
+| Calibración de cuantización | $256$ imágenes reales de entrenamiento, selección reproducible (DFC 3.34.0) |
+| Artefacto desplegable | [`pilares_v0.hef`](src/pi5/red_pilares/pilares_v0.hef), $4.2\,\text{MiB}$ |
+
+Dos decisiones de la conversión merecen explicación, porque las dos se tomaron después de que algo fallara:
+
+* **Se reconstruyen las seis salidas de detección desde el ONNX**, evitando las operaciones finales que provocaban errores de asignación en el HAR anterior. El posprocesado no viaja dentro del grafo: se delega en la estructura NMS de Hailo Model Zoo adaptada a dos clases.
+* **La calibración usa imágenes reales de pista, no las ficticias.** El repositorio de conversión traía un `calib_data` de relleno; cuantizar con él habría ajustado los rangos numéricos a una distribución de píxeles que el robot nunca ve.
+
+Todo lo necesario para reproducir la conversión está en [`src/pi5/red_pilares/`](src/pi5/red_pilares/README.md): el HEF, los pesos entrenados, la receta de cuantización y la configuración de NMS.
+
+#### Estado de validación
+
+Aquí es donde conviene ser preciso, porque hay dos cosas distintas y solo una está medida:
+
+| | Estado |
+| :--- | :--- |
+| **El acelerador funciona en la Pi 5** | ✅ Medido en banco el 14-09-2026: $310\,\text{FPS}$ y $12.8\,\text{ms}$ de latencia de *pipeline*. |
+| **El modelo de pilares compila y produce un HEF válido** | ✅ Convertido el 15-09-2026 para `hailo8`, con calibración sobre imágenes reales. |
+| **El modelo detecta pilares con precisión suficiente en pista** | ⬜ **Pendiente.** |
+
+La tercera fila es la que decide si esto sirve, y todavía no tiene número. El propio documento de conversión lo dice sin rodeos: *la conversión no demuestra la precisión de detección*. Falta ejecutar el HEF en la Raspberry con HailoRT y evaluarlo contra las $134$ imágenes de validación y contra la cámara en vivo.
+
+> **La medida que cierra esta sección** es la comparación en pista contra la máscara HSV en las mismas corridas: tasa de acierto de color por pilar y **alcance efectivo en milímetros**. Ese segundo número es el que diría si la red mueve el límite de $1100\,\text{mm}$ de la sección 4.5 o solo lo hace más estable frente a cambios de luz. Hasta tenerlo, esta sección documenta una capacidad **instalada y convertida**, no una mejora demostrada; y por eso la ronda sigue corriendo hoy con la vía HSV, que sí está validada en pista.
 
 ---
 
@@ -1453,6 +1631,159 @@ Registra **9-10 casillas donde hay 5 bloques**, en todas las configuraciones pro
 
 `calibration.parking_ready` sigue en `false`: la maniobra nunca se ha ejercitado con motores. Una corrida normal se niega a arrancar por eso; `--solo-parqueo` y `--sin-parqueo` omiten esa comprobación a propósito.
 El bloqueante de percepción **ya está resuelto** (el muro de la bahía se veía como `None` con el umbral de carrera), pero falta la validación en pista.
+
+---
+
+## 10. Métodos de Calibración
+
+Calibrar es **decirle al robot cuánto vale de verdad lo que mide**. Un sensor recién montado no miente a propósito: mide en sus propias unidades, desde donde está puesto y con el desajuste que trae de fábrica. La calibración convierte esa lectura cruda en un número que significa algo en la pista.
+
+Los procedimientos de esta sección están repartidos por el documento en sus secciones técnicas; aquí se reúnen en un solo sitio, en orden de ejecución, para que cualquiera pueda repetirlos.
+
+> **Regla del equipo:** una calibración que no se puede repetir no es una calibración, es una casualidad. Por eso cada procedimiento de abajo dice **con qué herramienta** se hace y **qué número tiene que salir**.
+
+### 10.1 Calibraciones automáticas (las hace el robot solo, al encender)
+
+Estas dos no requieren intervención: ocurren en el primer segundo de vida del programa, cada vez.
+
+| Qué se calibra | Cómo | Por qué hace falta |
+| :--- | :--- | :--- |
+| **Cero del giroscopio** (`giro_z_offset`) | `src/pico/main.py` promedia **100 lecturas** del eje Z con el robot quieto, a 10 ms una de otra (≈1 s) | Un giroscopio MEMS marca una pequeña rotación **aunque esté inmóvil**. Ese error de fábrica es distinto en cada chip. Si no se resta, el robot cree que está girando todo el tiempo y el conteo de vueltas se va acumulando mal |
+| **Blanco de referencia del piso** (`saturacion_base_pista`) | `calibrar_suelo_inicial()` promedia **25 lecturas** del piso blanco bajo la luz real y le suma un margen de $0.12$ | El "blanco" de la pista no es el mismo blanco en el taller que en el pabellón. Un umbral fijo clasifica mal las líneas al cambiar de sala; uno relativo al piso que tiene debajo, no |
+
+**En palabras simples:** antes de arrancar, el robot se toma un segundo para preguntarse *«¿cómo se siente estar quieto?»* y *«¿de qué color es el suelo hoy?»*. Todo lo que mida después lo compara contra esas dos respuestas.
+
+### 10.2 Calibraciones manuales de percepción
+
+| # | Qué se calibra | Herramienta | Procedimiento y resultado esperado |
+| :---: | :--- | :--- | :--- |
+| 1 | **Umbrales de color HSV** | [`calibrador_web.py`](src/pi5/ronda_curvas/calibrador_web.py) | Sirve cámara y máscara lado a lado en el navegador, con el **área del blob en números**. Se ajusta hasta que el área se mantiene estable con el pilar a distintas distancias. Se guarda en `calibracion.json`; si el archivo falta o está corrupto se usan los valores del código, así que **el archivo solo puede mejorar la calibración, nunca dejar el vehículo sin una** |
+| 2 | **Campo de visión de la cámara** (HFOV) | [`medir_fov.py`](src/pi5/ronda_curvas/medir_fov.py) | Empareja una esquina que el LiDAR sitúa en un ángulo conocido ($-21.5°$) con el píxel donde aparece en el frame. Resultado medido: **53,8°**, no los 85,6° del catálogo de la versión *Wide*. Suponer el catálogo equivocado **inflaba el rumbo calculado de cada pilar 2,3 veces** |
+| 3 | **Sector ciego del LiDAR** | [`diag_lidar_360.py`](src/pi5/ronda_curvas/diag_lidar_360.py) | **25 barridos con el robot quieto**. Se buscan los rumbos donde aparece un eco propio constante. Resultado: arco $136°-198°$ a $32-79\,\text{mm}$; se enmascara $135°-199°$ con un grado de margen a cada lado |
+| 4 | **Sesgo cámara ↔ LiDAR** | [`diag_pilares.py`](src/pi5/herramientas/diag_pilares.py) | Con la pista montada, se compara la posición del mismo pilar según cada sensor. Tolerancia: **80 mm**. Medido: **47 mm**, con 194/194 ciclos de fusión y ±2 mm de estabilidad |
+
+### 10.3 Calibraciones mecánicas
+
+| # | Qué se calibra | Procedimiento | Resultado |
+| :---: | :--- | :--- | :--- |
+| 5 | **Límites del servo de dirección** | [`test_recorrido_servo.py`](src/pi5/ronda_curvas/test_recorrido_servo.py): se lleva el volante al tope real de cada lado **sin forzar la articulación** y se anota el ángulo | $70°$ derecha · $90°$ centro · $115°$ izquierda. **Asimétrico a propósito** (sección 7.3) |
+| 6 | **Radio de giro** | Cuatro marcadores en las esquinas del chasis y papel fijado a la pista; se gira con el volante a tope y **cada esquina dibuja su circunferencia** | Exterior 350 mm (der.) / 370 mm (izq.); interior 180 / 195 mm. **La medida se valida sola**: la banda barrida (170-175 mm) coincide con el ancho físico del chasis (138 mm) más el voladizo |
+| 7 | **Curva PWM → velocidad** | [`medir_velocidad.py`](src/pi5/herramientas/medir_velocidad.py): se recorre un tramo a consigna fija y se mide el avance por odometría LiDAR | $v = 4{,}02 \cdot \text{pwm} - 1{,}0$ [mm/s]. El valor supuesto anterior (900 mm/s a PWM 100) **sobreestimaba 2,3 veces** el real (400) |
+| 8 | **Altura del plano del LiDAR** | Regla o calibre, contra el piso | $69\,\text{mm}$ — la altura a la que el haz corta tanto los pilares como las paredes (ambos de 100 mm por reglamento) |
+
+### 10.4 Calibración eléctrica
+
+| # | Qué se calibra | Procedimiento |
+| :---: | :--- | :--- |
+| 9 | **Salida de los reguladores** | **Antes de conectar ninguna carga**, se ajustan con el multímetro: XL4016 a $5{,}1\,\text{V}$ y XL1509 a $6{,}0\,\text{V}$. Un XL4016 que salga de fábrica a 12 V **destruye la Raspberry en el primer arranque** |
+| 10 | **Consumo de referencia** | Multímetro en serie con la batería, tres estados. Debe dar ≈$0{,}21\,\text{A}$ con la Pi apagada, ≈$0{,}61\,\text{A}$ en reposo y ≈$1{,}39\,\text{A}$ en marcha. Sirve como **prueba de humo**: una desviación grande delata un corto o un consumo parásito |
+
+> **Orden de ejecución recomendado:** 9 → 10 → 5 → 8 → 3 → 2 → 1 → 4 → 6 → 7. Primero lo eléctrico (o se quema algo), luego lo mecánico (o se calibra la percepción contra una geometría que va a cambiar), y por último la percepción y la dinámica.
+
+---
+
+## 11. Los Algoritmos, Explicados Uno por Uno
+
+Esta sección responde a *«¿cómo decide el robot lo que hace?»*. Cada algoritmo va con una explicación en lenguaje corriente primero y el detalle técnico después, para que se pueda leer entero sin saber programar y aun así entender por qué el coche hace lo que hace.
+
+### 11.1 Mantenerse en el centro del carril
+
+> **En palabras simples:** el robot mira a su izquierda y a su derecha, y compara. Si tiene más espacio a la izquierda que a la derecha, gira un poco a la izquierda. Cuanto mayor es la diferencia, más gira. Es exactamente lo que hace una persona al caminar por un pasillo a oscuras rozando las paredes.
+
+Técnicamente es un **control proporcional**: el ángulo de dirección se calcula multiplicando el error (la diferencia entre la distancia izquierda y la derecha, medidas con el LiDAR) por una constante de ganancia. No hay término integral ni derivativo.
+
+**Por qué proporcional y no un PID completo:** un PID necesita ajustar tres constantes en vez de una, y su ventaja aparece cuando hay que eliminar error en régimen permanente o amortiguar oscilaciones. Aquí el error en recta es pequeño y la pista se acaba en tres vueltas. La ganancia única se ajustó en pista y se comporta de forma predecible, que es lo que hace falta para poder depurar el resto del sistema.
+
+### 11.2 No perder el rumbo cuando desaparece una pared
+
+> **En palabras simples:** en las esquinas, una de las dos paredes deja de estar ahí. Si el robot siguiera comparando izquierda con derecha, creería que tiene muchísimo espacio de un lado y daría un volantazo. Para evitarlo, cuando pierde una pared **congela el último ángulo bueno** y sigue recto guiándose por el giroscopio hasta reencontrarla.
+
+Es el **modo inercial** de la sección 5.3. El giroscopio (MPU6050) integra la velocidad angular para saber cuánto ha girado el vehículo, y esa cuenta no depende de ver nada. Su debilidad es que **deriva con el tiempo**: pequeños errores se acumulan. Por eso se usa como puente de segundos, no como fuente principal.
+
+### 11.3 Distinguir una pared de un pilar (y de la propia rueda)
+
+> **En palabras simples:** el LiDAR devuelve una nube de puntos, como una lluvia de marcas alrededor del coche. El robot las agrupa: las marcas que están pegadas unas a otras forman un mismo objeto. Si el grupo es largo y recto, es una pared. Si es pequeño y compacto, es un pilar.
+
+Eso es **agrupamiento (*clustering*) geométrico**. La distinción pilar/pared **no se hace por altura** —ambos miden 100 mm por reglamento y el haz los corta igual—, sino por la forma del grupo.
+
+Hay un tercer caso, y costó dos corridas descubrirlo: **el propio vehículo**. Con el volante a tope, la rueda delantera entra en el barrido. Se distingue por una propiedad geométrica limpia:
+
+* Un **muro plano** a distancia perpendicular $D$ se lee $D/\sin(\text{rumbo})$ — o sea, **la lectura cambia** según el ángulo desde el que se mire.
+* Una **pieza propia** está a radio fijo del LiDAR — **la lectura es plana** en todos los rumbos, y además cambia entre corridas porque cambia el ángulo del volante.
+
+La corrección no enmascara un arco fijo (la rueda se mueve), sino que descarta por **distancia mínima creíble**: en los sectores donde asoma la rueda, nada ajeno al vehículo puede estar a menos de $72\,\text{mm}$ sin estar ya tocando el chasis.
+
+### 11.4 Rodear un pilar: *pure pursuit*
+
+> **En palabras simples:** en vez de decir «gira 30 grados durante 2 segundos», el robot elige **un punto al lado del pilar por donde quiere pasar** y en cada instante calcula el volante necesario para dirigirse a ese punto. Como el punto está fijo en el mundo y el coche se mueve, el volante se va corrigiendo solo. Es la diferencia entre apuntar a dónde quieres llegar y contar los segundos con los ojos cerrados.
+
+Esto sustituyó a una evasión por **ángulos fijos por estado**, que era frágil: cualquier variación de velocidad o de posición inicial desalineaba toda la maniobra. Ahora el giro de la fase `APROXIMACION` se calcula geométricamente hacia un punto de paso lateral al poste, con la posición real que da el rastreador del LiDAR.
+
+### 11.5 Saber cuándo el pilar quedó atrás: odometría de consigna
+
+> **En palabras simples:** el robot no tiene cuentavueltas en las ruedas. Para saber cuánto ha avanzado, usa una tabla que dice *«a esta consigna de motor me muevo a tantos milímetros por segundo»*, y multiplica por el tiempo transcurrido.
+
+Esa tabla es la curva $v = 4{,}02 \cdot \text{pwm} - 1{,}0$ del apartado 10.3, y es la razón de que **no haya engranajes externos** en la transmisión (sección 7.5): cada engranaje añade holgura, y la holgura mete un error de fase en esta integración que nada podría observar ni corregir.
+
+**El fallo que esto arregló** está documentado con datos en la sección 8.3: el modelo suponía 900 mm/s cuando el valor real era 400. Con ese error, la predicción se desviaba unos 20 mm por ciclo y en poco más de un segundo el pilar salía de la ventana de asociación; el robot "perdía" el poste que tenía delante.
+
+### 11.6 Contar las vueltas sin equivocarse
+
+> **En palabras simples:** cada esquina de la pista tiene dos líneas pintadas en el suelo, una naranja y una azul. El robot las cuenta al pasarles por encima. El problema es que cruzar dos líneas seguidas no siempre significa dos esquinas.
+
+Hay **tres fuentes** y se usan juntas, cada una tapando el hueco de la otra:
+
+| Fuente | Qué aporta | Su debilidad |
+| :--- | :--- | :--- |
+| **TCS3472** (color de piso) | El **orden** en que se cruza la pareja de líneas de una esquina es la **única evidencia absoluta** del sentido de carrera: está pintado en la pista y no admite interpretación | Solo ve lo que tiene justo debajo |
+| **Guiñada acumulada** (IMU) | Cuánto ha girado el vehículo en total: 990° inicia la aproximación, 1080° son las tres vueltas | Deriva con el tiempo |
+| **Geometría del LiDAR** | La asimetría de las paredes sugiere el sentido | Se puede autoconfirmar en falso |
+
+**El fallo que esto arregló:** el conteo por líneas contaba de más. Se verificó contra la guiñada acumulada —871° de giro real (2,4 vueltas) se estaban contando como tres— y se añadió **un mínimo de giro obligatorio entre cruces**, porque dos líneas del mismo color están siempre separadas por una esquina.
+
+### 11.7 La máquina de estados: una sola decisión por ciclo
+
+> **En palabras simples:** en cada instante el robot está en **uno y solo uno** de un puñado de modos: *crucero*, *aproximándome a un pilar*, *sobrepasándolo*, *volviendo al carril*, *emergencia*. Cada modo tiene sus propias reglas y sus propias condiciones para pasar al siguiente. Nunca está en dos a la vez.
+
+Ese diseño es lo que hace el comportamiento **auditable**: en cualquier línea del registro de telemetría se puede leer en qué estado estaba el robot y por qué transitó. Sin él, un fallo en pista sería imposible de reconstruir.
+
+Las transiciones esperadas son **geométricas** (por posición real medida), y los *timeouts* existen como **red de seguridad**, no como vía normal. La distinción importa: cuando los *timeouts* estaban calibrados para una velocidad que el robot no tenía, se convirtieron en la ruta principal sin que nadie lo notara — 4 de 5 transiciones de una corrida saltaron por tiempo y no por geometría (sección 8.3).
+
+### 11.8 El watchdog: fallar hacia el lado seguro
+
+> **En palabras simples:** la Pico 2 —la placa que mueve el motor— espera recibir órdenes de la Raspberry constantemente. Si pasan **500 ms sin recibir ninguna**, frena el coche por su cuenta. No pregunta por qué: asume que si el cerebro se calló, algo va mal.
+
+Es el principio de **fallo seguro** aplicado a la frontera entre las dos placas. La Raspberry corre Linux, que no garantiza puntualidad; la Pico no corre sistema operativo y sí la garantiza. Que el freno viva del lado puntual y no del lado inteligente es deliberado.
+
+El mismo principio aparece en otros dos sitios: si la IMU pierde el bus I²C, `main.py` captura la excepción y fuerza `velocidad_z = 0.0` en vez de trabar el bucle de control; y si el LiDAR pierde una pared, la Pi congela el último ángulo válido en lugar de mandar un comando calculado con datos corruptos.
+
+---
+
+## 12. Glosario
+
+Términos que aparecen en este documento, en orden alfabético. Si algo de lo anterior no se entendió, probablemente esté aquí.
+
+| Término | Qué significa |
+| :--- | :--- |
+| **Ackermann** | Geometría de dirección en la que la rueda interior gira **más** que la exterior al tomar una curva, porque describe un círculo más cerrado. Evita que las ruedas arrastren de lado |
+| ***Backlash*** (holgura) | El pequeño juego muerto en un mecanismo: el volante gira un poquito antes de que la rueda empiece a moverse. Cuanta más holgura, menos fiable es calcular una posición a partir de una orden |
+| ***Brownout*** | Un apagón parcial: la tensión cae lo justo para que la Raspberry se reinicie, pero no tanto como para que se note a simple vista. Típicamente lo causa el motor al arrancar |
+| ***Clustering*** (agrupamiento) | Juntar puntos sueltos que están cerca unos de otros para tratarlos como un solo objeto |
+| **Cuantización** | Convertir los números decimales de una red neuronal a enteros de menos bits, para que corra más rápido. Se pierde algo de precisión, y por eso se calibra con imágenes reales |
+| **Guiñada** (*yaw*) | El giro del vehículo sobre su eje vertical: hacia dónde apunta el morro. Es lo que mide el giroscopio para contar vueltas |
+| **HEF** | El formato de archivo del modelo ya compilado para el acelerador Hailo. Es lo único que el robot necesita en carrera |
+| **Histéresis** | Poner dos umbrales distintos, uno para entrar en un estado y otro para salir, de modo que el sistema no oscile cuando la medida queda justo en el borde |
+| **HSV** | Una forma de describir el color por **tono, saturación y brillo** en vez de por cantidad de rojo, verde y azul. Es más fácil decir "verde" en HSV, pero sigue dependiendo de la luz |
+| **IoU** | Cuánto se solapan dos recuadros de detección. Se usa para descartar detecciones repetidas del mismo objeto |
+| **LiDAR** | Un sensor que gira sobre sí mismo disparando un láser y midiendo cuánto tarda el reflejo. Devuelve la distancia a lo que hay alrededor, en 360° |
+| ***Letterbox*** | Redimensionar una imagen manteniendo sus proporciones y rellenar el sobrante con un color plano, en vez de deformarla |
+| **Máquina de estados** (FSM) | Un diseño donde el programa está siempre en uno solo de varios modos definidos, con reglas explícitas para pasar de uno a otro |
+| **NMS** | El filtro que, de varias detecciones solapadas del mismo objeto, se queda solo con la mejor |
+| **Odometría** | Estimar cuánto se ha avanzado a partir de lo que se le ordenó al motor y el tiempo transcurrido, cuando no hay un sensor que mida el giro de las ruedas |
+| **PWM** | La forma de regular la potencia de un motor encendiéndolo y apagándolo muy rápido. Cuanto más tiempo encendido, más fuerza |
+| ***Pure pursuit*** | Estrategia de conducción que consiste en fijar un punto de destino y corregir el volante continuamente para apuntar hacia él |
+| **TOPS** | *Billones de operaciones por segundo*: la medida de lo rápido que es un acelerador de inteligencia artificial |
+| ***Watchdog*** | Un temporizador de seguridad: si no recibe señal de vida en cierto plazo, detiene el sistema por su cuenta |
 
 ---
 

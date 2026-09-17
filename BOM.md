@@ -21,6 +21,7 @@ Esta lista es el índice de compra. El procedimiento de instalación del softwar
 | 7 | Pulsador de arranque | Pulsador momentáneo NA | 1 | Da la salida en la ronda oficial (`GPIO 21` de la Pi 5, con *pull-up* interno). |
 | 8 | Sensor de color de piso | **TCS3472** (I²C) | 1 | Montado **al frente del vehículo**, por delante del eje delantero y mirando el piso, no bajo el chasis: leer la línea antes de pisarla da margen de reacción. Clasifica la línea de esquina como `AZUL` o `NARANJA`; el **orden** en que se cruza la pareja de una misma esquina es la única evidencia absoluta del sentido de carrera. |
 | 10 | Almacenamiento | microSD 32 GB clase 10 o superior | 1 | Sistema operativo y registros de telemetría de cada corrida. |
+| 26 | Acelerador de inferencia | **Raspberry Pi AI HAT+ 26 TOPS** (módulo Hailo-8) | 1 | Reconocimiento de pilares por red neuronal, sobre el conector de 40 pines de la Pi 5. Medido en banco el 14-09-2026: **310 FPS** y **12,8 ms** de latencia de *pipeline*. Sustituye únicamente la clasificación de pilares; las líneas de pista y la geometría del LiDAR no lo usan ([sección 5.5 del README](README.md#55-reconocimiento-de-pilares-por-red-neuronal-acelerador-hailo)). |
 
 > **Sobre la cámara: es la Module 3 estándar, no la Wide.** Conviene decirlo porque el catálogo de la Wide anuncia 102° y eso induce a comprar la equivocada. La medida propia está en [`optica.py`](src/pi5/ronda_curvas/optica.py): emparejando una esquina que el LiDAR sitúa en −21,5° con su borde en el frame sale un **HFOV efectivo de 53,8°**, que concuerda con los 51,9° previstos para la Module 3 estándar recortada a 4:3 y no con los 85,6° de la Wide.
 
@@ -50,7 +51,7 @@ Esta lista es el índice de compra. El procedimiento de instalación del softwar
 | 17 | Chasis | **LEGO Technic, 83 piezas** — listado completo con Design ID de BrickLink en [`models/Chasis-LEGO-V2/`](models/Chasis-LEGO-V2/README.md) | 1 | Estructura del vehículo. El archivo CAD `.io` es reproducible pieza por pieza con BrickLink Studio, que es gratuito. |
 | 18 | Ruedas y neumáticos | LEGO, Design ID `bl_56145c01` | 4 | Dos motrices traseras y dos directrices delanteras. |
 | 19 | Mástil del LiDAR | Estructura Technic incluida en las 83 piezas | 1 | Eleva el plano de barrido a **69 mm del piso**, altura a la que el haz corta tanto los pilares como las paredes (100 mm ambos según reglamento). |
-| 20 | Placa perforada | Placa de prototipado para soldadura | 1 | Soporte permanente de Pico 2, TB6612FNG y MPU6050. Se soldó en vez de usar *jumpers* porque la vibración provocaba falsos contactos. |
+| 20 | Placa perforada | Placa de prototipado para soldadura | 1 | Soporte permanente de Pico 2, TB6612FNG y MPU6050. Se soldó en vez de usar *jumpers* porque la vibración provocaba falsos contactos. **Va en el piso del chasis, debajo de la Raspberry Pi 5**, para dejarle a esta la planta superior donde se monta el AI HAT+. |
 
 > El chasis V1 era un monocasco impreso en 3D de ≈800 g. Se sustituyó por el actual de vigas Technic: **23,37 % menos masa**, menos resonancia en el soporte de la cámara y reconfiguración rápida en boxes sin reimprimir. Los STL del V1 se conservan en [`models/V1/`](models/V1/README.md) como registro del proceso de iteración.
 
@@ -84,7 +85,7 @@ No forman parte del vehículo, pero sin ellas no se puede reproducir ni verifica
 
 | Bloque | Piezas distintas | Unidades |
 | :--- | :---: | :---: |
-| Cómputo y sensado | 9 | 9 |
+| Cómputo y sensado | 10 | 10 |
 | Actuación y potencia | 3 | 3 |
 | Alimentación | 4 | 5 |
 | Estructura mecánica | 4 | 83 piezas Technic + placa |
