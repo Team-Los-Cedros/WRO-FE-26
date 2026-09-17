@@ -688,31 +688,20 @@ WantedBy=multi-user.target
 
 El servicio no arranca el motor: ejecuta [`correr_ronda.sh`](src/pi5/correr_ronda.sh), que **espera el pulsador de `GPIO 21`** antes de mover nada. Mientras espera, el LED de la Pico parpadea; esa es la señal visible de que el sistema está cargado y listo. Al pulsar, el LED se apaga y arranca la ronda. Esto cumple las dos condiciones a la vez — el sistema es autónomo desde que se conecta la batería, y la salida la da una acción física sobre el robot, como exige el reglamento.
 
-#### El mismo botón sirve para las dos rondas
+#### El servicio hace exactamente lo que se haría a mano
 
-El pulsador es uno solo (sección 4.2), pero las dos pruebas arrancan distinto: la Ronda Abierta empieza en un tramo cualquiera de la pista, y la de Obstáculos empieza **dentro del estacionamiento** y tiene que salir de él antes de correr. El servicio no puede adivinar cuál toca.
+Durante la competencia del 17-09 el despachador se retiró. La unidad ya no lee ningún archivo de selección: ejecuta **literalmente el comando que el equipo escribiría en la terminal**, y nada más.
 
-La solución es un **despachador** y un archivo con una palabra dentro:
-
-```
-wro.service  →  correr_ronda.sh  →  lee /home/pi/ronda_activa
-                                     ├─ "abierta"     → ~/prueba_abierta.py
-                                     └─ "obstaculos"  → ~/ronda_unificada_20260916/ronda_unificada.py
+```ini
+WorkingDirectory=/home/pi/ronda_unificada_20260916
+ExecStart=/bin/bash -lc 'cd /home/pi/ronda_unificada_20260916 && exec python3 -u ronda_unificada.py'
 ```
 
-Los dos programas **esperan el pulsador de `GP21` por su cuenta** antes de mover nada, así que el despachador no toca el GPIO: solo elige cuál lanzar.
+> **Por qué se simplificó en pleno evento.** El despachador (`correr_ronda.sh` + `ronda_activa` + `ronda.sh`) resolvía un problema real —elegir ronda sin laptop delante— pero añadía tres piezas que podían fallar entre la orden y el motor. En competencia, cada capa intermedia es una hipótesis más que descartar cuando algo no arranca. La ronda de obstáculos es la que se corre, así que la unidad la lanza directa. La Ronda Abierta se lanza a mano con `python3 -u prueba_abierta.py`, que es lo que se hacía igualmente.
 
-La ronda se elige con [`ronda.sh`](src/pi5/ronda.sh), **sin editar la unidad ni tocar código**:
+El `-l` da al proceso el mismo entorno de login que tendría por SSH, y el `exec` hace que `python3` sea el proceso principal de la unidad, para que `systemctl stop` lo pare directo sin dejar un `bash` huérfano en medio.
 
-```bash
-./ronda.sh              # dice cuál está puesta
-./ronda.sh abierta      # 3 vueltas, sin pilares ni estacionamiento
-./ronda.sh obstaculos   # estacionamiento + 3 vueltas con pilares
-```
-
-> **Por qué importa que sea un archivo y no una constante:** en competencia no hay laptop delante del robot entre ronda y ronda. Cambiar de prueba tiene que ser un comando de una línea por SSH desde el teléfono, y no una edición de `systemd` que exige recargar el demonio y arriesgarse a un error de sintaxis con el cronómetro corriendo. Por la misma razón `ronda.sh` **se niega a cambiar la ronda si el servicio está activo**: evita que el archivo cambie a mitad de una carrera ya lanzada.
-
-Las diferencias reales entre las dos son solo dos, y ninguna es código de control nuevo: la abierta **no corre `parqueo.py`**, y lleva `WRO_SIN_PILARES=1` para que el color de la cámara no llegue a la máquina de estados. La cámara sigue encendida porque hace falta para **las líneas del suelo, que son las que cuentan las vueltas**. Sin esa variable, cualquier detección de color en una pista sin pilares es un falso positivo que compromete la FSM: abre, se desvía y puede acabar rozando un muro por esquivar algo que no existe.
+> **El LED no es la señal de listo en esta ronda.** `ronda_unificada.py` no enciende el LED de la Pico — eso lo hacía `esperar_boton.py`, del paquete anterior. La señal buena es la línea `[LISTO] RONDA UNIFICADA...` en `~/logs/servicio.log`. Un LED apagado aquí no indica fallo.
 
 Cuatro decisiones de esta unidad no son cosméticas:
 

@@ -1,5 +1,5 @@
 [Unit]
-Description=Ronda WRO (abierta u obstaculos) - Team Los Cedros
+Description=Ronda de obstaculos WRO - Team Los Cedros
 # multi-user, no basic: hace falta que el USB haya enumerado la Pico
 # (/dev/ttyACM0) y la camara antes de abrir el enlace.
 After=multi-user.target
@@ -8,36 +8,39 @@ Conflicts=shutdown.target
 [Service]
 Type=oneshot
 User=pi
+Group=pi
 Environment=PYTHONUNBUFFERED=1
-# Sin WorkingDirectory: cada ronda vive en un directorio distinto y es
-# correr_ronda.sh quien hace el cd que le toca.
 # Margen para que terminen de aparecer los dispositivos USB.
 ExecStartPre=/bin/sleep 10
-# El servicio NO fija la ronda: llama al despachador, que lee la palabra
-# guardada en /home/pi/ronda_activa y lanza la abierta o la de
-# obstaculos. Se cambia de ronda con ./ronda.sh, sin editar esta unidad.
-ExecStart=/bin/bash /home/pi/correr_ronda.sh
+
+# Hace EXACTAMENTE lo mismo que escribir a mano en la terminal:
+#
+#   cd ~/ronda_unificada_20260916 && python3 -u ronda_unificada.py
+#
+# Sin despachador, sin ronda_activa y sin scripts intermedios. Se usa un
+# shell de login (-l) para que el entorno sea el mismo que tiene el
+# usuario pi cuando lo lanza por SSH, y exec para que python3 sea el
+# proceso principal de la unidad y systemd lo pueda parar directo.
+WorkingDirectory=/home/pi/ronda_unificada_20260916
+ExecStart=/bin/bash -lc 'cd /home/pi/ronda_unificada_20260916 && exec python3 -u ronda_unificada.py'
+
 RemainAfterExit=yes
 
-# Parar el servicio a mano (systemctl stop) le manda SIGTERM al script
-# mientras espera el boton. Sin esto, systemd registra cada parada como
-# "Failed with result signal", y ese ruido en el log confunde justo
-# cuando hay que diagnosticar algo deprisa entre rondas.
-SuccessExitStatus=SIGTERM
-
-# SIN Restart. La unidad anterior tenia Restart=always, que relanzaba la
-# ronda ENTERA en cuanto terminaba: el robot volvia a salir del
-# estacionamiento solo, una y otra vez. Una carrera se lanza una vez.
+# SIN Restart. Una carrera se lanza una vez. Con Restart=always el robot
+# volvia a salir del estacionamiento solo, una y otra vez.
 
 # Sin limite de arranque: el servicio se pasa la mayor parte del tiempo
 # esperando el boton, y el limite de 90 s que systemd le pone por defecto
 # a los oneshot lo mataria antes de que nadie lo pulse.
 TimeoutStartSec=0
 
+# Parar a mano (systemctl stop) manda SIGTERM mientras espera el boton.
+# Sin esto, cada parada quedaba registrada como "Failed with result
+# signal" y ensuciaba el log justo donde hay que mirar deprisa.
+SuccessExitStatus=SIGTERM
+
 StandardOutput=append:/home/pi/logs/servicio.log
 StandardError=append:/home/pi/logs/servicio.log
 
-# SIN [Install] la unidad queda 'static' y systemctl enable la rechaza.
-# Eso era exactamente lo que impedia habilitar el arranque automatico.
 [Install]
 WantedBy=multi-user.target
