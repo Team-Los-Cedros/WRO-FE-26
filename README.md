@@ -676,7 +676,7 @@ User=pi
 WorkingDirectory=/home/pi/ronda_curvas
 Environment=PYTHONUNBUFFERED=1
 ExecStartPre=/bin/sleep 10
-ExecStart=/bin/bash /home/pi/correr_ronda.sh
+ExecStart=/bin/bash -lc 'cd /home/pi/ronda_unificada_20260916 && exec python3 -u ronda_unificada.py'
 RemainAfterExit=yes
 TimeoutStartSec=0
 StandardOutput=append:/home/pi/ronda_curvas/logs/servicio.log
@@ -686,7 +686,7 @@ StandardError=append:/home/pi/ronda_curvas/logs/servicio.log
 WantedBy=multi-user.target
 ```
 
-El servicio no arranca el motor: ejecuta [`correr_ronda.sh`](src/pi5/correr_ronda.sh), que **espera el pulsador de `GPIO 21`** antes de mover nada. Mientras espera, el LED de la Pico parpadea; esa es la señal visible de que el sistema está cargado y listo. Al pulsar, el LED se apaga y arranca la ronda. Esto cumple las dos condiciones a la vez — el sistema es autónomo desde que se conecta la batería, y la salida la da una acción física sobre el robot, como exige el reglamento.
+El servicio no arranca el motor: lanza `ronda_unificada.py`, que **espera el pulsador de `GP21`** antes de mover nada. La señal de que está cargado y listo es la línea `[LISTO] RONDA UNIFICADA...` en el log; al pulsar, arranca. Esto cumple las dos condiciones a la vez — el sistema es autónomo desde que se conecta la batería, y la salida la da una acción física sobre el robot, como exige el reglamento.
 
 #### El servicio hace exactamente lo que se haría a mano
 
@@ -697,7 +697,7 @@ WorkingDirectory=/home/pi/ronda_unificada_20260916
 ExecStart=/bin/bash -lc 'cd /home/pi/ronda_unificada_20260916 && exec python3 -u ronda_unificada.py'
 ```
 
-> **Por qué se simplificó en pleno evento.** El despachador (`correr_ronda.sh` + `ronda_activa` + `ronda.sh`) resolvía un problema real —elegir ronda sin laptop delante— pero añadía tres piezas que podían fallar entre la orden y el motor. En competencia, cada capa intermedia es una hipótesis más que descartar cuando algo no arranca. La ronda de obstáculos es la que se corre, así que la unidad la lanza directa. La Ronda Abierta se lanza a mano con `python3 -u prueba_abierta.py`, que es lo que se hacía igualmente.
+> **Por qué se simplificó en pleno evento.** El despachador (los scripts `correr_ronda`, `ronda_activa` y `ronda`) resolvía un problema real —elegir ronda sin laptop delante— pero añadía tres piezas que podían fallar entre la orden y el motor. En competencia, cada capa intermedia es una hipótesis más que descartar cuando algo no arranca. La ronda de obstáculos es la que se corre, así que la unidad la lanza directa. La Ronda Abierta se lanza a mano con `python3 -u prueba_abierta.py`, que es lo que se hacía igualmente.
 
 El `-l` da al proceso el mismo entorno de login que tendría por SSH, y el `exec` hace que `python3` sea el proceso principal de la unidad, para que `systemctl stop` lo pare directo sin dejar un `bash` huérfano en medio.
 
@@ -1630,7 +1630,7 @@ Registra **9-10 casillas donde hay 5 bloques**, en todas las configuraciones pro
 * **Radio de giro en REVERSA.** Es la única entrada geométrica del parqueo sin medir. La inferencia desde la IMU da ~306 mm contra los 228 de marcha adelante, un 34 % peor, pero es inferencia. Se cierra en dos minutos con cinta: marcar, girar en reversa a tope hasta 90°, marcar, medir la cuerda; `R = cuerda / raíz(2)`.
 * **Los 40 mm de la separación de la bahía.** El detector mide 389-391 mm y la regla dice 350 entre centros. No cuadra con ninguna lectura posible (caras 330, centros 350, bordes externos 370). `lidar.bay_expected_separation_mm` se deja en 390 **a propósito**: bajarlo sin entender la discrepancia rompe el único detector de hueco que funciona.
 * **`approach_lateral_mm = 270` deja cero holgura.** Con el volante a tope el semiancho es 70, y 270 − 70 = 200, exactamente la profundidad de la bahía: el borde roza la punta de los delimitadores al pasar.
-* ~~**Arranque automático en la Pi 5.**~~ **Resuelto el 17-09-2026.** El bloqueante era que `wro.service` tenía `correr_completa.sh` fijo, así que el arranque automático solo podía lanzar la ronda de obstáculos. Ahora la unidad llama a `correr_ronda.sh`, que lee `/home/pi/ronda_activa` y lanza la ronda elegida con `./ronda.sh` (sección 5.1). Queda **habilitarlo en la Pi**: copiar la unidad actualizada, `daemon-reload` y `enable`.
+* ~~**Arranque automático en la Pi 5.**~~ **Resuelto el 17-09-2026.** El bloqueante era que `wro.service` tenía `correr_completa.sh` fijo, así que el arranque automático solo podía lanzar la ronda de obstáculos. Ahora la unidad ejecuta directamente `cd ~/ronda_unificada_20260916 && python3 -u ronda_unificada.py` (sección 5.1). **Habilitado y verificado en la Pi el 17-09-2026**, en competencia.
 * **Comentarios del firmware de la Pico.** `src/pico/main.py` sigue diciendo "Pi 3B" en tres comentarios. **No se tocaron a propósito**: el `main.py` que corre en el robot va unos 1000 bytes por delante del que hay en el repo y sin commitear, así que editar el del repo aumenta la divergencia. Primero hay que traerse el del robot.
 * **`self_echo_*` probablemente sobra.** Enmascara un eco de rueda que el *mastilfix* del 05-09 eliminó. Recuperar esa cobertura angular es gratis, pero hay que verificarlo antes de quitarlo.
 

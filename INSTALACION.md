@@ -208,7 +208,7 @@ El servicio arranca la ronda al encender la Pi: espera el botón de `GPIO 21` y 
 **Primero, los lanzadores tienen que estar en `/home/pi/`** — el servicio los busca ahí por ruta absoluta:
 
 ```bash
-cp src/pi5/correr_ronda.sh src/pi5/correr_abierta.sh src/pi5/correr_completa.sh src/pi5/ronda.sh /home/pi/
+cp src/pi5/correr_abierta.sh src/pi5/correr_completa.sh /home/pi/
 ```
 
 ```bash
