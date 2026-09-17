@@ -8,14 +8,14 @@ Conflicts=shutdown.target
 [Service]
 Type=oneshot
 User=pi
-WorkingDirectory=/home/pi/ronda_curvas
 Environment=PYTHONUNBUFFERED=1
+# Sin WorkingDirectory: cada ronda vive en un directorio distinto y es
+# correr_ronda.sh quien hace el cd que le toca.
 # Margen para que terminen de aparecer los dispositivos USB.
 ExecStartPre=/bin/sleep 10
 # El servicio NO fija la ronda: llama al despachador, que lee la palabra
-# guardada en /home/pi/ronda_activa y lanza correr_abierta.sh o
-# correr_completa.sh segun toque. Se cambia de ronda con ./ronda.sh, sin
-# editar esta unidad ni necesitar la laptop en competencia.
+# guardada en /home/pi/ronda_activa y lanza la abierta o la de
+# obstaculos. Se cambia de ronda con ./ronda.sh, sin editar esta unidad.
 ExecStart=/bin/bash /home/pi/correr_ronda.sh
 RemainAfterExit=yes
 
@@ -28,8 +28,10 @@ RemainAfterExit=yes
 # a los oneshot lo mataria antes de que nadie lo pulse.
 TimeoutStartSec=0
 
-StandardOutput=append:/home/pi/ronda_curvas/logs/servicio.log
-StandardError=append:/home/pi/ronda_curvas/logs/servicio.log
+StandardOutput=append:/home/pi/logs/servicio.log
+StandardError=append:/home/pi/logs/servicio.log
 
+# SIN [Install] la unidad queda 'static' y systemctl enable la rechaza.
+# Eso era exactamente lo que impedia habilitar el arranque automatico.
 [Install]
 WantedBy=multi-user.target

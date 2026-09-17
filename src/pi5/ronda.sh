@@ -16,10 +16,10 @@ actual() { cat "$ARCHIVO" 2>/dev/null || echo obstaculos; }
 if [ $# -eq 0 ]; then
     echo "Ronda puesta: $(actual)"
     echo
-    echo "  abierta      -> correr_abierta.sh   (3 vueltas, sin pilares,"
-    echo "                                       sin estacionamiento)"
-    echo "  obstaculos   -> correr_completa.sh  (sale del estacionamiento,"
-    echo "                                       3 vueltas con pilares)"
+    echo "  abierta      -> prueba_abierta.py    (3 vueltas, sin pilares,"
+    echo "                                        sin estacionamiento)"
+    echo "  obstaculos   -> ronda_unificada.py   (sale del estacionamiento,"
+    echo "                                        3 vueltas con pilares)"
     echo
     echo "Cambiar:  ./ronda.sh abierta"
     exit 0
@@ -39,4 +39,8 @@ fi
 echo "$1" > "$ARCHIVO"
 echo "[+] ronda puesta: $1"
 echo "    Arranca con:  sudo systemctl start wro.service"
-echo "    O a mano:     bash ~/correr_$([ "$1" = abierta ] && echo abierta || echo completa).sh"
+if [ "$1" = abierta ]; then
+    echo "    O a mano:     cd ~ && python3 -u prueba_abierta.py"
+else
+    echo "    O a mano:     cd ~/ronda_unificada_20260916 && python3 -u ronda_unificada.py"
+fi

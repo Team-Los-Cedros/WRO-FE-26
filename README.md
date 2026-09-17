@@ -696,9 +696,11 @@ La solución es un **despachador** y un archivo con una palabra dentro:
 
 ```
 wro.service  →  correr_ronda.sh  →  lee /home/pi/ronda_activa
-                                     ├─ "abierta"     → correr_abierta.sh
-                                     └─ "obstaculos"  → correr_completa.sh
+                                     ├─ "abierta"     → ~/prueba_abierta.py
+                                     └─ "obstaculos"  → ~/ronda_unificada_20260916/ronda_unificada.py
 ```
+
+Los dos programas **esperan el pulsador de `GP21` por su cuenta** antes de mover nada, así que el despachador no toca el GPIO: solo elige cuál lanzar.
 
 La ronda se elige con [`ronda.sh`](src/pi5/ronda.sh), **sin editar la unidad ni tocar código**:
 
