@@ -60,8 +60,8 @@ import math
 # sensor 2304x1296: ver la cabecera de camara_driver.py. El recorte pasa
 # de 3072 a 4608 px de ancho de sensor, asi que TODO lo de aqui abajo
 # cambia de valor -- lo que NO cambia es el metodo con que se obtuvo.
-ANCHO_FRAME = 640.0
-ALTO_FRAME  = 360.0
+ANCHO_FRAME = 1280.0
+ALTO_FRAME  = 720.0
 
 # Focal del sensor, MEDIDA. De aqui sale el HFOV de cualquier recorte
 # por geometria, sin volver a la pista.

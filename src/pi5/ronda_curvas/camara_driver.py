@@ -45,8 +45,8 @@ from picamera2 import Picamera2
 # 16:9, para que el recorte no se coma los lados. Cambiar esto obliga a
 # revisar optica.py (focal y centro) y vision.py (area minima y filtro
 # de altura): todos sus umbrales estan en pixeles de ESTE tamaño.
-ANCHO_FRAME = 640
-ALTO_FRAME  = 360
+ANCHO_FRAME = 1280
+ALTO_FRAME  = 720
 
 # Modo nativo del imx708 que cubre el sensor entero.
 MODO_SENSOR = (2304, 1296)

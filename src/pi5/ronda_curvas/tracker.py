@@ -239,7 +239,7 @@ class TrackerObstaculo:
     # ==========================================
     # ASOCIACION
     # ==========================================
-    def asociar(self, candidatos):
+    def asociar(self, candidatos, ahora=None):
         """Corrige la prediccion con una medicion del LiDAR.
 
         `candidatos` son tuplas (x, y, ancho_mm) en marco LiDAR, ya
@@ -299,7 +299,7 @@ class TrackerObstaculo:
             self.confianza = 1.0
             self.asociaciones += 1
             self.ciclos_predichos = 0
-            self._t_medicion = time.time()
+            self._t_medicion = time.time() if ahora is None else ahora
         self._refrescar_progreso()
         self._refrescar_aproximacion()
         return True

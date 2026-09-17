@@ -80,10 +80,10 @@ from lidar_geometria import ancho_cluster, centroide_xy_cluster, es_objeto_estre
 # ==========================================
 # VELOCIDADES (% PWM)
 # ==========================================
-VELOCIDAD_CRUCERO  = 55
-VELOCIDAD_EVASION  = 40
+VELOCIDAD_CRUCERO  = 70
+VELOCIDAD_EVASION  = 50
 VELOCIDAD_PARQUEO  = 20
-VELOCIDAD_REVERSA  = -35
+VELOCIDAD_REVERSA  = -45
 # PROBADO Y REVERTIDO el 2026-08-29 (corrida 153206). Se bajo a 18 (72
 # mm/s) para dar mas tiempo de reaccion en las curvas. NO SIRVIO, y la
 # corrida lo demuestra de forma limpia: la velocidad angular al tope
@@ -94,7 +94,7 @@ VELOCIDAD_REVERSA  = -35
 # Ese resultado es la base de geometria_evasion.py: FRENAR NO CAMBIA LA
 # GEOMETRIA. Lo unico que compra frenar son ciclos de control por
 # milimetro recorrido y distancia de parada.
-VELOCIDAD_MINIMA   = 25      # piso del frenado progresivo
+VELOCIDAD_MINIMA   = 30      # piso del frenado progresivo
 
 # ==========================================
 # SEGUIMIENTO DE PARED Y FRENADO
@@ -585,11 +585,13 @@ class Navegador:
         self.n_seguros      = 0
         self.n_compatibles  = 0
         self.solo_envolvente = False
+        self.siguiente_pilar = None  # Memoria del pilar subsiguiente para proyectar salida
 
     # ==========================================
     # ENTRADA
     # ==========================================
-    def procesar(self, med, color_cam, heading, ahora=None, cx_cam=None):
+    def procesar(self, med, color_cam, heading, ahora=None, cx_cam=None,
+                 detecciones_cam=None):
         # Una llamada por barrido completo. Devuelve (velocidad, angulo)
         # o None cuando la carrera termino.
         if ahora is None:
@@ -609,19 +611,34 @@ class Navegador:
             return (0, 0.0)
 
         if self.fase == "CARRERA":
-            return self._ciclo_carrera(med, color_cam, heading, ahora, dt, cx_cam)
+            return self._ciclo_carrera(med, color_cam, heading, ahora, dt, cx_cam,
+                                       detecciones_cam=detecciones_cam)
 
         if self.fase == "PARQUEO":
-            return self._ciclo_parqueo(med, ahora)
+            return self._ciclo_parqueo(med, ahora, heading, ultrasonido_mm)
 
         return None    # FIN
 
     # ==========================================
     # FASE CARRERA
     # ==========================================
-    def _ciclo_carrera(self, med, color_cam, heading, ahora, dt, cx_cam=None):
+    def _ciclo_carrera(self, med, color_cam, heading, ahora, dt, cx_cam=None,
+                       detecciones_cam=None):
         self._cx_cam = cx_cam
         en_maniobra = self.estado in ESTADOS_MANIOBRA
+
+        # Almacenar segundo color para proyectarse al siguiente bloque
+        if detecciones_cam and len(detecciones_cam) >= 2:
+            c2, cx2 = detecciones_cam[1]
+            if c2 is not None:
+                self.siguiente_pilar = {
+                    "color": c2,
+                    "cx": cx2,
+                    "lado": lado_obligatorio(c2),
+                    "t": ahora,
+                }
+        elif self.siguiente_pilar and (ahora - self.siguiente_pilar["t"]) > 4.0:
+            self.siguiente_pilar = None
 
         # 0. Percepcion del objetivo: prediccion, asociacion y, si no hay
         #    objetivo vivo ni maniobra en curso, captura.
@@ -635,7 +652,7 @@ class Navegador:
                 # perdida. Soltar en el bloque de percepcion es
                 # exactamente como se perdia la intencion antes.
                 pass
-        elif not en_maniobra and ahora >= self._t_refractario:
+        elif self.estado == "CRUCERO" and ahora >= self._t_refractario:
             self._intentar_capturar(med, color_cam, heading, cx_cam, ahora)
 
         # 0b. Sentido de la vuelta. Se congela durante la maniobra: el yaw
@@ -657,7 +674,7 @@ class Navegador:
         if (med.frontal < EMERGENCIA_FRONTAL
                 or med.izquierda < EMERGENCIA_LATERAL
                 or med.derecha < EMERGENCIA_LATERAL):
-            if self.estado not in ("RETROCESO", "GIRO_FORZADO"):
+            if self.estado != "RETROCESO":
                 if (self._t_ultima_emergencia is not None and
                         (ahora - self._t_ultima_emergencia) <= VENTANA_ATASCO):
                     self._racha_retroceso += 1
@@ -678,7 +695,7 @@ class Navegador:
             self.fase = "PARQUEO"
             self._t_parqueo = ahora
             print("[!] %.0f grados acumulados. Modo Parqueo." % heading)
-            return (VELOCIDAD_PARQUEO, self._nominal_arbitrado(med, VELOCIDAD_PARQUEO))
+            return self._nominal_arbitrado(med, VELOCIDAD_PARQUEO)
 
         # 3. Despacho
         manejador = {
@@ -748,7 +765,11 @@ class Navegador:
         # frontal. El apareo va por RUMBO: asi el color se pega al pilar
         # que la camara esta viendo, no al que casualmente esta mas cerca.
         if color_cam is None:
-            return
+            if self.siguiente_pilar is not None and (ahora - self.siguiente_pilar["t"]) < 3.5:
+                color_cam = self.siguiente_pilar["color"]
+                cx_cam = self.siguiente_pilar["cx"]
+            else:
+                return
         s_lado = lado_obligatorio(color_cam)
         rumbo_cam = optica.rumbo_de_cx(cx_cam) if cx_cam is not None else None
 
@@ -758,7 +779,7 @@ class Navegador:
                 continue
             cx, cy = centroide_xy_cluster(clust)
             r = math.degrees(math.atan2(cx, cy))
-            if cy > 80.0 and abs(r) <= SECTOR_BUSQUEDA_POSTE:
+            if cy > self._distancia_captura_minima() and abs(r) <= SECTOR_BUSQUEDA_POSTE:
                 candidatos.append((cx, cy, math.hypot(cx, cy), r,
                                    optica.rumbo_camara_de_cluster(cx, cy)))
 
@@ -790,6 +811,15 @@ class Navegador:
             self.tracker.iniciar(color_cam, s_lado, x, y, heading, ahora,
                                  sigma=SIGMA_SIEMBRA_VISION, sembrado=True)
             print("[OBJETIVO] sembrado solo con vision (sin cluster apareado)")
+
+    def _distancia_captura_minima(self):
+        # Espacio por DELANTE del LiDAR para confirmar y cambiar volante.
+        return max(100.0, _vel_mm_s(self._ultima_vel) *
+                   (CICLOS_CONFIRMACION * 0.12 + T_ADELANTO_SERVO))
+
+    def _candidato_tardio(self):
+        # No reiniciar un rebase cuando el poste ya alcanzo el LiDAR.
+        return self.tracker.y <= max(40.0, _vel_mm_s(self._ultima_vel) * T_ADELANTO_SERVO)
 
     # ==========================================
     # ARBITRAJE: TRAYECTORIA vs REGLA vs SEGURIDAD
@@ -1090,8 +1120,8 @@ class Navegador:
                                   pilar=self._obstaculo_pasivo(),
                                   holgura=HOLGURA_BASE)
         if not hay:
-            return self._sin_salida(med, self._t_ultimo_ciclo or 0.0)[1]
-        return cmd
+            return self._sin_salida(med, self._t_ultimo_ciclo or 0.0)
+        return (velocidad, cmd)
 
     def _con_frenado(self, velocidad_base, frontal):
         if frontal >= DIST_FRENADO_INICIO:
@@ -1186,21 +1216,21 @@ class Navegador:
             x_r, y_r = trk.xy_eje()
             if trk.perdido(ahora):
                 trk.soltar("candidato sin confirmar (sigma %.0fmm)" % trk.sigma)
-            elif y_r < 0.0:
+            elif y_r < 0.0 or self._candidato_tardio():
                 # Se quedo atras sin llegar a comprometerse: no estorba.
                 trk.soltar("el candidato quedo detras")
             elif 50.0 < trk.distancia() < DIST_CONFIRMACION:
                 self._ciclos_confirmacion = 0
                 self._entrar("CONFIRMACION", ahora)
         velocidad = self._con_frenado(VELOCIDAD_CRUCERO, med.frontal)
-        return (velocidad, self._nominal_arbitrado(med, velocidad))
+        return self._nominal_arbitrado(med, velocidad)
 
     def _est_confirmacion(self, med, color_cam, heading, ahora):
         # Un pilar candidato ya localizado, pero sin comprometerse. Aqui
         # no se congela nada todavia: si resulta ser ruido o una esquina
         # de muro, se vuelve a CRUCERO sin haber tocado la trayectoria.
         trk = self.tracker
-        if trk.perdido(ahora) or not trk.activo:
+        if trk.perdido(ahora) or not trk.activo or self._candidato_tardio():
             trk.soltar("candidato descartado")
             self._entrar("CRUCERO", ahora)
             return self._est_crucero(med, color_cam, heading, ahora)
@@ -1224,7 +1254,7 @@ class Navegador:
             self._entrar("CRUCERO", ahora)
 
         velocidad = self._con_frenado(VELOCIDAD_EVASION, med.frontal)
-        return (velocidad, self._nominal_arbitrado(med, velocidad))
+        return self._nominal_arbitrado(med, velocidad)
 
     def _est_compromiso(self, med, color_cam, heading, ahora):
         # Un solo ciclo. Congela todo lo que la maniobra no puede volver a
@@ -1232,6 +1262,10 @@ class Navegador:
         # rumbo de entrada, si esto es una esquina y cual es la tangente
         # de salida.
         trk = self.tracker
+        if not trk.activo or trk.perdido(ahora) or self._candidato_tardio():
+            trk.soltar("compromiso tardio o sin medicion fiable")
+            self._entrar("CRUCERO", ahora)
+            return self._est_crucero(med, color_cam, heading, ahora)
         self._heading_commit = heading
         self._t_commit = ahora
         self._en_esquina = med.frontal_muro < DIST_ESQUINA
@@ -1525,14 +1559,24 @@ class Navegador:
         t_en = ahora - self._t_estado
         velocidad = self._con_frenado(VELOCIDAD_EVASION, med.frontal)
 
+        sesgo_siguiente = 0.0
+        if self.siguiente_pilar is not None and (ahora - self.siguiente_pilar["t"]) < 3.5:
+            # Proyectar hacia el siguiente pilar: VERDE (lado > 0) sesga a izq (+4), ROJO (-4) a der
+            sesgo_siguiente = 4.0 if self.siguiente_pilar["lado"] > 0 else -4.0
+
         if abs(error_lat) < ERROR_LATERAL_OK or t_en > TIMEOUT_RECUPERACION:
             razon = "centrado" if abs(error_lat) < ERROR_LATERAL_OK else "tiempo maximo"
             self._entrar("CRUCERO", ahora)
             print("[FSM] RECUPERACION -> CRUCERO | %s (error lateral %+.0fmm)"
                   % (razon, error_lat))
-            return (VELOCIDAD_CRUCERO,
-                    self._nominal_arbitrado(med, VELOCIDAD_CRUCERO))
-        return (velocidad, self._nominal_arbitrado(med, velocidad))
+            vel_nom, cmd_nom = self._nominal_arbitrado(med, VELOCIDAD_CRUCERO)
+            if sesgo_siguiente != 0.0:
+                cmd_nom = _clamp_servo(cmd_nom + sesgo_siguiente)
+            return (vel_nom, cmd_nom)
+        vel_nom, cmd_nom = self._nominal_arbitrado(med, velocidad)
+        if sesgo_siguiente != 0.0:
+            cmd_nom = _clamp_servo(cmd_nom + sesgo_siguiente)
+        return (vel_nom, cmd_nom)
 
     def _est_aborto(self, med, color_cam, heading, ahora):
         # Salida definida cuando la maniobra no se puede terminar. Se
@@ -1543,7 +1587,7 @@ class Navegador:
         if ahora >= self._t_refractario:
             self._entrar("CRUCERO", ahora)
             print("[FSM] ABORTO -> CRUCERO")
-        return (velocidad, self._nominal_arbitrado(med, velocidad))
+        return self._nominal_arbitrado(med, velocidad)
 
     def _abortar(self, med, ahora, motivo):
         """Cierre definido de una maniobra que no se puede completar.
@@ -1566,7 +1610,7 @@ class Navegador:
         print("[FSM] ABORTO (%s) | %d seguidos, refractario %.1fs"
               % (motivo, self._abortos, espera))
         velocidad = self._con_frenado(VELOCIDAD_EVASION, med.frontal)
-        return (velocidad, self._nominal_arbitrado(med, velocidad))
+        return self._nominal_arbitrado(med, velocidad)
 
     def _obstaculo_pasivo(self, ahora=None):
         # El pilar de una maniobra abortada, solo para holgura. Ya no se
@@ -1624,8 +1668,16 @@ class Navegador:
                      med.izquierda  > SALIDA_RETROCESO_LATERAL and
                      med.derecha    > SALIDA_RETROCESO_LATERAL)
 
-        if (med.trasera < EMERGENCIA_TRASERA
-                or (t_en > TIEMPO_MIN_RETROCESO and despejado)
+        atras_invalido = not math.isfinite(med.trasera) or med.trasera >= 7999.0
+        if atras_invalido or med.trasera < EMERGENCIA_TRASERA:
+            if despejado:
+                self._entrar("CRUCERO", ahora)
+            elif t_en > TIMEOUT_RETROCESO:
+                self.fase = "FALLO"
+                self.motivo_fin = "sin espacio o evidencia para retroceder"
+            return (0, 0.0)
+
+        if ((t_en > TIEMPO_MIN_RETROCESO and despejado)
                 or t_en > TIMEOUT_RETROCESO):
             if med.trasera < EMERGENCIA_TRASERA:
                 razon = "obstaculo trasero"
@@ -1696,27 +1748,26 @@ class Navegador:
                 return self._abortar(med, ahora, "giro forzado durante la maniobra")
             self._entrar("CRUCERO", ahora)
             print("[FSM] GIRO_FORZADO -> CRUCERO (%s, %.1fs)" % (razon, t_en))
-            return (VELOCIDAD_CRUCERO, self._nominal_arbitrado(med, VELOCIDAD_CRUCERO))
+            return self._nominal_arbitrado(med, VELOCIDAD_CRUCERO)
 
         angulo = self._signo_giro_forzado * ANGULO_GIRO_FORZADO
         velocidad = self._con_frenado(VELOCIDAD_GIRO_FORZADO, med.frontal)
-        return (max(VELOCIDAD_MINIMA, velocidad), angulo)
+        cmd, hay = self._arbitrar(angulo, med, velocidad, holgura=HOLGURA_BASE)
+        if not hay:
+            return self._sin_salida(med, ahora)
+        return (max(VELOCIDAD_MINIMA, velocidad), cmd)
 
     # ==========================================
     # FASE PARQUEO
     # ==========================================
-    def _ciclo_parqueo(self, med, ahora):
-        match_firma = (abs(med.derecha - self._firma_der) < TOLERANCIA_FIRMA and
-                       abs(med.izquierda - self._firma_izq) < TOLERANCIA_FIRMA)
-        timeout = (ahora - self._t_parqueo) > TIMEOUT_PARQUEO
-
-        if match_firma or timeout:
-            self.fase = "FIN"
-            print("[PARQUEO] " + ("Firma detectada! Estacionando..." if match_firma
-                                  else "Timeout. Deteniendo en zona segura."))
-            return None
-
-        return (VELOCIDAD_PARQUEO, self._nominal_arbitrado(med, VELOCIDAD_PARQUEO))
+    def _ciclo_parqueo(self, med, ahora, heading=0.0, ultrasonido_mm=None):
+        consigna = self.retorno.parquear(heading, ultrasonido_mm, ahora)
+        self.estado = consigna.estado
+        if consigna.terminado:
+            self.fase = "FIN" if consigna.verificado else "FALLO"
+            self.motivo_fin = consigna.razon
+        self._ultima_vel, self._ultimo_angulo = consigna.velocidad, consigna.angulo
+        return (consigna.velocidad, consigna.angulo)
 
     # ==========================================
     # AUXILIARES

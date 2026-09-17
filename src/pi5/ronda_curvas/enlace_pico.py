@@ -95,11 +95,18 @@ class EnlacePico:
         except serial.SerialException:
             pass
 
+    def enviar_led(self, modo="BLINK"):
+        try:
+            self._ser.write(f"LED:{modo}\n".encode())
+        except serial.SerialException:
+            pass
+
     def detener(self):
         # Mandamos el freno varias veces por si se pierde alguna linea
         for _ in range(5):
             self.enviar(0, 0.0)
             time.sleep(0.01)
+        self.enviar_led("OFF")
 
     def cerrar(self):
         self._corriendo = False
@@ -108,3 +115,4 @@ class EnlacePico:
             self._ser.close()
         except Exception:
             pass
+

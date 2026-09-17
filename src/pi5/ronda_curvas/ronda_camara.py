@@ -103,8 +103,10 @@ def al_barrido(scan):
     # cx_cam es la posicion horizontal del poste en el frame; la usa el
     # apareo por rumbo de navegacion para decidir CUAL de los clusters
     # del LiDAR es el que tiene ese color (ver APAREO COLOR <-> CLUSTER).
-    color_cam, cx_cam = vision.get_deteccion()
-    consigna = navegador.procesar(medicion, color_cam, heading, cx_cam=cx_cam)
+    detecciones = vision.get_detecciones()
+    color_cam, cx_cam = detecciones[0] if detecciones else (None, None)
+    consigna = navegador.procesar(medicion, color_cam, heading, cx_cam=cx_cam,
+                                  detecciones_cam=detecciones)
     if consigna is None:          # carrera terminada (parqueo o timeout)
         apagar_sistema()
         return
@@ -189,9 +191,11 @@ if __name__ == '__main__':
     else:
         print("\n[LISTO] SISTEMA LISTO (RONDA CON OBSTACULOS). "
               "Coloca el robot y presiona el Boton (GP21)...")
+        enlace.enviar_led("BLINK")
         while GPIO.input(PIN_BOTON) == GPIO.HIGH:
             enlace.enviar(0, 0.0)
             time.sleep(0.05)
+        enlace.enviar_led("OFF")
         print("\n[START] Boton detectado! Iniciando carrera con obstaculos...")
     enlace.fijar_cero()           # el yaw de este instante es el 0 de carrera
     registro = RegistroMetricas("ronda_camara")
@@ -213,4 +217,4 @@ if __name__ == '__main__':
             if sin_barridos > 5.0:
                 print("[-] LiDAR sin datos por 5s. Abortando carrera.")
                 apagar_sistema()
-        time.sleep(0.1)
+        time.sleep(0.0001)

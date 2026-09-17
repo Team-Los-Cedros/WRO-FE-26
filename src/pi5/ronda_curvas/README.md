@@ -1,5 +1,10 @@
 # Ronda de curvas — copia de la Pi 5
 
+> **Trabajo local en curso (2026-09-07).** Esta carpeta ya contiene cambios
+> posteriores a la copia de la Pi. El parqueo está incompleto y no se ha
+> desplegado. Leer [estado y pruebas](ESTADO_Y_RELEVO_20260907.md) y el
+> [prompt de relevo](PROMPT_RELEVO.md) antes de continuar o ejecutar en pista.
+
 Esta carpeta es una copia fiel del código fuente que vive en
 `/home/pi/ronda_curvas` en la Raspberry Pi 5. Se conserva sin reescribir su
 lógica para poder recuperar y revisar exactamente la versión que usa el robot.

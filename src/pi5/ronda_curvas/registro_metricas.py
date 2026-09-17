@@ -69,7 +69,10 @@ CAMPOS = ["t", "fase", "estado", "heading", "error_lateral", "angulo", "velocida
           "obj_id", "obj_lado", "obj_sigma", "obj_progreso",
           "separacion_lat", "holgura_pilar", "radio_maniobra",
           # Sentido de la vuelta: 0 mientras no hay evidencia.
-          "sentido"]
+          "sentido", "ultrasonido_mm", "motivo_fin", "esquinas", "vueltas",
+          "retorno_error", "parqueo_estado", "parqueo_razon", "parqueo_vaivenes",
+          "parqueo_paralelo_fuente", "parqueo_ciegos_atras", "hueco_confianza",
+          "hueco_separacion", "hueco_lateral"]
 
 
 class RegistroMetricas:

@@ -1,0 +1,52 @@
+{
+  "chassis": {
+    "length_mm": 222.0,
+    "width_mm": 140.0,
+    "rear_overhang_mm": 60.0,
+    "lidar_to_right_edge_mm": 66.0,
+    "lidar_to_left_edge_mm": 74.0,
+    "ultrasound_rear_to_tail_mm": 34.0,
+    "turn_radius_left_mm": 260.0,
+    "turn_radius_right_mm": 360.0
+  },
+  "lidar": {
+    "blind_sectors_deg": [[140, 213]],
+    "self_echo_max_mm": 0.0,
+    "wall_min_length_mm": 220.0,
+    "wall_min_length_parking_mm": 60.0,
+    "wall_min_length_parking_ratio": 0.75,
+    "bay_expected_separation_mm": 350.0,
+    "bay_separation_tolerance_mm": 55.0,
+    "bay_confirm_scans": 3,
+    "bay_separator_min_length_mm": 125.0,
+    "bay_separator_max_length_mm": 240.0,
+    "bay_lateral_min_mm": 100.0
+  },
+  "parking": {
+    "bay_length_mm": 330.0,
+    "bay_depth_mm": 200.0,
+    "speed_pwm": 20,
+    "speed_reverse_pwm": 20,
+    "approach_lateral_mm": 300.0,
+    "align_target_mm": -330.0,
+    "entry_heading_delta_deg": 42.0,
+    "parallel_tolerance_deg": 5.0,
+    "min_rear_clearance_mm": 40.0,
+    "min_front_clearance_mm": 50.0,
+    "inside_lateral_mm": 100.0,
+    "lateral_tolerance_mm": 15.0,
+    "shuffle_heading_deg": 12.0,
+    "entry_arc_radius_mm": 360.0,
+    "max_shuffles": 8,
+    "verify_scans": 5,
+    "rear_evidence_scans": 1,
+    "bay_max_age_s": 0.3,
+    "search_timeout_s": 20.0,
+    "leg_timeout_s": 10.0,
+    "verify_timeout_s": 3.0,
+    "total_timeout_s": 70.0,
+    "ultrasound_rear_enabled": true,
+    "ultrasound_rear_min_mm": 20.0,
+    "ultrasound_rear_max_mm": 4000.0
+  }
+}

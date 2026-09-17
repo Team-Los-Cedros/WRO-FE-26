@@ -39,6 +39,20 @@ pwmb.freq(2000)
 
 stby.value(1)
 
+# --- LED DE ESTADO INTEGRADO ---
+try:
+    led = Pin("LED", Pin.OUT)
+except Exception:
+    try:
+        led = Pin(25, Pin.OUT)
+    except Exception:
+        led = None
+
+if led is not None:
+    led.value(0)
+modo_led = "OFF"
+ultimo_toggle_led = time.ticks_ms()
+
 # --- ULTRASONIDO TRASERO (HC-SR04 / US-100) ---
 # Trigger en GP14, Echo en GP15. Van libres: GP12 es el servo, GP16-GP19 los
 # dos buses I2C, GP22 el PWM del motor y GP26-GP28 el TB6612FNG.
@@ -282,13 +296,26 @@ class TCS3472:
         except:
             return "ERROR"
 
+# El IMU y el sensor de color se inicializan cada uno en su propio try: un
+# TCS3472 desconectado o sin respuesta en el bus NO puede dejar sin
+# mover_servo/controlar_motor al resto del firmware (eso fue justo lo que
+# paso el 03-09: el bloque compartido reventaba en TCS3472(i2c_tcs) y el
+# except lo tragaba en silencio, asi que el servo y el motor no se movian
+# nunca y el bucle principal moria despues con NameError en sensor_color).
+sensor_imu = None
 try:
     sensor_imu = MPU6050(i2c_imu)
+except Exception:
+    sensor_imu = None
+
+sensor_color = None
+try:
     sensor_color = TCS3472(i2c_tcs)
-    mover_servo(CENTRO) # Arranca alineado al centro calibrado
-    controlar_motor(0)
-except Exception as e:
-    pass
+except Exception:
+    sensor_color = None
+
+mover_servo(CENTRO) # Arranca alineado al centro calibrado
+controlar_motor(0)
 
 # El ultrasonido se monta aparte: si no esta cableado o falta el modulo, el
 # resto del firmware arranca igual y la trama sale con US:-1.
@@ -314,11 +341,13 @@ for _ in range(100):
     time.sleep(0.01)
 giro_z_offset /= 100.0
 
-# Calibracion de saturacion base del suelo (piso blanco bajo la luz real)
-try:
-    sensor_color.calibrar_suelo_inicial()
-except:
-    pass
+# Calibracion de saturacion base del suelo (piso blanco bajo la luz real).
+# Sensor opcional, igual que el ultrasonido: si no se monto, se salta.
+if sensor_color is not None:
+    try:
+        sensor_color.calibrar_suelo_inicial()
+    except:
+        pass
 
 angulo_acumulado = 0.0
 angulo_objetivo = 0.0
@@ -364,8 +393,16 @@ while True:
         if abs(velocidad_z) > 0.15:
             angulo_acumulado += velocidad_z * dt
 
-        # 2. Lectura del sensor de color (TCS3472 con filtro HSV)
-        color_detectado = sensor_color.obtener_color()
+        # 2. Lectura del sensor de color (TCS3472 con filtro HSV). Opcional:
+        # si no se monto o quedo sin respuesta, se anuncia por telemetria
+        # (SIN_SENSOR) en vez de tumbar el bucle que sostiene servo y motor.
+        if sensor_color is not None:
+            try:
+                color_detectado = sensor_color.obtener_color()
+            except:
+                color_detectado = "ERROR"
+        else:
+            color_detectado = "SIN_SENSOR"
 
         # 2b. Ultrasonido trasero. No bloquea: dispara como mucho una vez cada
         # US_PERIODO_MS y recoge lo que la interrupcion haya dejado listo.
@@ -379,11 +416,26 @@ while True:
         if poller.poll(0):
             linea = sys.stdin.readline().strip()
             if linea:
-                consigna = parsear_consigna(linea)
-                if consigna is not None:
-                    velocidad_comandada, angulo_objetivo, kd_activo = consigna
+                if linea.startswith("LED:"):
+                    cmd_led = linea[4:].strip().upper()
+                    if cmd_led in ("BLINK", "PARPADEAR", "1", "ON"):
+                        modo_led = "BLINK"
+                    else:
+                        modo_led = "OFF"
+                        if led is not None:
+                            led.value(0)
                     ultimo_comando_valido = tiempo_actual
                     watchdog_activo = False
+                else:
+                    consigna = parsear_consigna(linea)
+                    if consigna is not None:
+                        velocidad_comandada, angulo_objetivo, kd_activo = consigna
+                        ultimo_comando_valido = tiempo_actual
+                        watchdog_activo = False
+                        if velocidad_comandada != 0:
+                            modo_led = "OFF"
+                            if led is not None:
+                                led.value(0)
 
         if watchdog_vencido(
             tiempo_actual,
@@ -395,6 +447,9 @@ while True:
             angulo_objetivo = 0.0
             kd_activo = 1.0
             watchdog_activo = True
+            modo_led = "OFF"
+            if led is not None:
+                led.value(0)
 
         # 4. Angulo objetivo (de la Pi) sobre el centro, con amortiguacion por gyro
         angulo_servo = CENTRO + angulo_objetivo - (velocidad_z * KD_ESTABILIDAD * kd_activo)
@@ -419,12 +474,25 @@ while True:
             )
             ultimo_envio_telemetria = tiempo_actual
 
+        # 7. Control del LED de estado
+        if led is not None:
+            if modo_led == "BLINK":
+                if time.ticks_diff(tiempo_actual, ultimo_toggle_led) > 200:
+                    led.value(not led.value())
+                    ultimo_toggle_led = tiempo_actual
+            elif modo_led == "ON":
+                led.value(1)
+            else:
+                led.value(0)
+
         time.sleep(0.005)
 
     except KeyboardInterrupt:
         controlar_motor(0)
         stby.value(0)
         mover_servo(CENTRO)
+        if led is not None:
+            led.value(0)
         # Desarmar el eco: si no, la interrupcion sigue viva despues de que
         # el bucle termine y dispara sobre un objeto que ya nadie consulta.
         if sensor_ultrasonido is not None:
