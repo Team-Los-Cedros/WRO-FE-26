@@ -23,8 +23,8 @@ Un coche autónomo de **242 x 138 mm y 720 g** sobre chasis LEGO Technic, con di
 
 | Si busca... | Está en |
 | :--- | :--- |
-| **Movilidad y diseño mecánico** | [Sección 7 — Geometría de dirección](#7-geometría-de-dirección-y-movilidad-mecánica) — cinemática Ackermann, límites de giro calibrados en pista y el cálculo de torque con su margen. [Sección 7.6](#76-materiales-y-manufactura-por-qué-el-chasis-dejó-de-imprimirse) — por qué el chasis dejó de imprimirse, con la tabla de materiales por pieza. [Secciones 3.2 y 3.3](#32-registro-fotográfico-de-la-evolución-e-iteración-geométrica-matriz-v1--v2--v3) — evolución V1→V3 y las seis vistas reglamentarias. CAD reproducible pieza a pieza en [`models/`](models/). |
-| **Arquitectura de potencia y sensores** | [Sección 4 completa](#4-arquitectura-eléctrica-y-distribución-de-señales) — empieza por el [diagrama de bloques de señales](schemes/Diagrama_Bloques_Senales.svg). Alimentación desacoplada en tres etapas, pinout calibrado pin a pin y **consumo real medido con multímetro**, no estimado por hoja de datos. [Sección 4.5](#45-geometría-de-sensores-alcance-zonas-ciegas-y-autoecos) — desde dónde mira cada sensor, hasta dónde llega y **qué no puede ver**, incluidos los ecos del propio vehículo. |
+| **Movilidad y diseño mecánico** | [Sección 7 — Geometría de dirección](#7-geometría-de-dirección-y-movilidad-mecánica) — cinemática Ackermann, límites de giro calibrados en pista y el cálculo de torque con su margen. [Sección 7.5](#75-cadena-de-transmisión-del-motor-al-suelo) — la cadena de transmisión sin engranajes y por qué el límite del arranque lo pone el agarre del neumático, no el motor. [Sección 7.7](#77-materiales-y-manufactura-por-qué-el-chasis-dejó-de-imprimirse) — por qué el chasis dejó de imprimirse, con la tabla de materiales por pieza. [Secciones 3.2 y 3.3](#32-registro-fotográfico-de-la-evolución-e-iteración-geométrica-matriz-v1--v2--v3) — evolución V1→V3 y las seis vistas reglamentarias. CAD reproducible pieza a pieza en [`models/`](models/). |
+| **Arquitectura de potencia y sensores** | [Sección 4 completa](#4-arquitectura-eléctrica-y-distribución-de-señales) — empieza por el [diagrama de bloques de señales](schemes/Diagrama_Bloques_Senales.svg). Alimentación desacoplada en tres etapas, pinout calibrado pin a pin y **consumo real medido con multímetro**, no estimado por hoja de datos. [Sección 4.5](#45-geometría-de-sensores-alcance-zonas-ciegas-y-autoecos) — desde dónde mira cada sensor, hasta dónde llega y **qué no puede ver**, incluidos los ecos del propio vehículo. [Sección 4.6](#46-integridad-de-señal-y-topología-de-cableado) — topología del cableado, tierra en estrella y por qué los dos buses I²C van separados. |
 | **Arquitectura de software y estrategia de obstáculos** | [Sección 5 — Percepción y alto nivel](#5-capa-de-percepción-y-alto-nivel-raspberry-pi-5) — máquina de estados de carrera, evasión y estacionamiento. [Sección 5.3](#53-estrategia-de-navegación-justificada-por-rondas-geometría-del-campo) — la estrategia por rondas, deducida de la geometría del campo. [Sección 6](#6-capa-de-control-de-bajo-nivel-raspberry-pi-pico-2) — el firmware de tiempo real. |
 | **Pensamiento sistémico y decisiones de ingeniería** | [Sección 3.4 — Trade-offs](#34-justificación-de-ingeniería-para-la-selección-de-componentes-y-arquitectura-de-sistemas-trade-offs) — por qué cada componente y qué se descartó. [Sección 8](#8-análisis-de-riesgos-y-registro-de-iteraciones) — interacción entre subsistemas y **cuatro casos de estudio con datos de pista**. [Sección 3.5](#35-línea-de-tiempo-del-proyecto-qué-se-intentó-qué-midió-y-qué-cambió-por-eso) — la línea de tiempo de las trece versiones y el punto de inflexión del proyecto. [Sección 9](#9-estado-actual-y-trabajo-pendiente) — lo que falta, y lo que se descartó midiendo. |
 | **Reproducibilidad** | Tres documentos encadenados: [`BOM.md`](BOM.md) qué comprar → [`ENSAMBLAJE.md`](ENSAMBLAJE.md) cómo montarlo, con la comprobación que cierra cada etapa → [`INSTALACION.md`](INSTALACION.md) cómo dejar las dos placas en este mismo estado. Y [`CHANGELOG.md`](CHANGELOG.md), con los hashes de commit de cada hito. La documentación se comprueba sola: [`verificar_docs.py`](src/pi5/herramientas/verificar_docs.py) busca enlaces rotos, anclas muertas y los caracteres de control invisibles que rompen una formula sin que se vea. |
@@ -493,6 +493,48 @@ Los umbrales HSV dependen de la luz del pabellón, que no es la del taller. Ante
 Ahora `vision.py` lee `calibracion.json` si existe, y `calibrador_web.py` lo sirve en el navegador: cámara y máscara lado a lado, con el **área del blob en números**, que es el valor que de verdad decide si el robot ve el pilar o no. Si el archivo falta o está corrupto se usan los valores del código, así que el archivo solo puede mejorar la calibración, nunca dejar el vehículo sin una.
 
 Se calibran cuatro colores, y los dos últimos importan tanto como los primeros: **naranja y azul son las líneas del piso, y de ellas sale el conteo de vueltas** (sección 5.3).
+
+### 4.6 Integridad de Señal y Topología de Cableado
+
+La sección 4.1 describe **cómo se reparte la energía** y la 4.3 **qué pin va a dónde**. Falta la capa intermedia: por qué el cableado está tendido como está. Ninguna de estas decisiones se tomó por orden ni por estética, y varias son consecuencia directa de una avería.
+
+El vehículo tiene una fuente de ruido dominante y perfectamente identificada: el motor de tracción, conmutado por PWM a $2\,\text{kHz}$ desde el TB6612FNG, con un pico de arranque medido de $1.499\,\text{A}$ frente a los $1.39\,\text{A}$ sostenidos (sección 4.4). Todo lo que sigue existe para impedir que ese transitorio llegue a las líneas que deciden.
+
+#### Las cuatro barreras, de la más fuerte a la más débil
+
+| # | Barrera | Decisión de montaje | Modo de fallo que bloquea |
+| :---: | :--- | :--- | :--- |
+| 1 | **Separación de rieles** | Tres etapas independientes desde la misma batería: directo al motor, XL1509 para el servo, XL4016 para la lógica (sección 4.1) | El pico del motor hunde el riel de $5.1\,\text{V}$ y la Raspberry se reinicia a mitad de carrera |
+| 2 | **Tierra en estrella** | Todas las masas confluyen en un punto único; ninguna se encadena de módulo a módulo | El retorno del motor comparte camino con el retorno lógico y desplaza el umbral de los flancos digitales |
+| 3 | **Calibres diferenciados** | $18\,\text{AWG}$ en potencia, $22\,\text{AWG}$ en señal ([`BOM.md`](BOM.md), ítem 24) | Caída óhmica en la rama de tracción durante el pico de arranque |
+| 4 | **Uniones soldadas** | Pico 2, TB6612FNG y MPU6050 soldados a placa perforada, sin *jumpers* (sección 4.1) | Falso contacto intermitente por vibración |
+
+La cuarta merece detalle, porque se ganó con una avería y no con un cálculo. **Un *jumper* flojo no falla limpio: falla de forma intermitente y correlacionada con la vibración**, es decir, aparece en marcha y desaparece en el banco. Es el modo de fallo más caro de diagnosticar que existe en este vehículo, porque invita a buscar el error en el software. Soldar convirtió un fallo intermitente en una unión que o está o no está.
+
+La segunda tiene una regla de montaje que parece menor y no lo es: **las masas no se encadenan**. Si el retorno del MPU6050 pasa por el punto de masa del driver antes de llegar al común, la corriente del motor —que en el pico es tres órdenes de magnitud mayor que la del bus I²C— genera una caída sobre ese tramo compartido que la IMU ve como un desplazamiento de su propia referencia de $0\,\text{V}$. El bus no se corrompe del todo: se degrada, que es peor.
+
+#### Dos buses I²C separados, y a velocidades distintas
+
+El pinout de la sección 4.3 asigna la IMU a `I2C0` ($400\,\text{kHz}$, `GP16`/`GP17`) y el sensor de color a `I2C1` ($100\,\text{kHz}$, `GP18`/`GP19`). Son **dos controladores físicamente distintos del RP2350**, no un bus compartido con dos direcciones, y esa es una decisión de aislamiento de fallos, no de rendimiento.
+
+El motivo es una propiedad desagradable del I²C: **un esclavo que se cuelga manteniendo `SDA` a nivel bajo bloquea el bus entero**, no solo su propia transacción. Y el TCS3472 es, de los dos, el dispositivo con historial: no sostiene $400\,\text{kHz}$ de forma fiable —falla de manera intermitente a esa velocidad, por eso su bus va a $100$— y estuvo un tiempo respondiendo `COLOR:SIN_SENSOR` tras la migración a la Pi 5.
+
+Si ambos compartieran bus, un cuelgue del sensor de color se llevaría por delante la lectura de la IMU. **Y la IMU es la que sostiene el rumbo y cuenta las vueltas**: perderla no degrada una función accesoria, termina la corrida. Separarlos cuesta dos pines y elimina esa dependencia por completo.
+
+> Compartir bus habría tenido además un coste permanente: el I²C corre a la velocidad de su participante más lento, así que el bus entero habría bajado a $100\,\text{kHz}$ para acomodar al TCS3472, degradando cuatro veces la tasa de la IMU sin ninguna necesidad, teniendo el RP2350 dos controladores disponibles.
+
+#### El enlace entre las dos placas
+
+La frontera entre la Pi 5 y la Pico 2 es el único punto donde una interferencia podría corromper una orden de control sin que nada lo note. Está protegida por construcción y no por blindaje:
+
+* **Es USB, no UART sobre cables sueltos.** Señalización diferencial sobre par trenzado: el ruido que acopla lo hace por igual en ambos conductores y se cancela en el receptor. El cable es además deliberadamente **corto** ([`BOM.md`](BOM.md), ítem 22).
+* **El protocolo es texto de dos líneas.** Una trama corrompida no se interpreta como una orden distinta y plausible: no parsea, y se descarta. La estrechez del protocolo, elegida por auditabilidad (sección 4), resulta ser también la defensa contra la corrupción silenciosa.
+
+#### Lo que no está medido
+
+No hay captura de osciloscopio del riel de $5.1\,\text{V}$ durante el transitorio de arranque del motor. Las cuatro barreras de arriba son decisiones de diseño justificadas y el sistema no ha vuelto a reiniciarse en pista desde que están las tres etapas separadas, pero **la ausencia de reinicios es evidencia de que el margen basta, no una medida de cuánto margen hay**. Cerrar ese hueco requiere un osciloscopio, que es el único instrumento del que el equipo no dispone.
+
+Tampoco hay un código de colores documentado para el cableado. Los calibres sí están normalizados ($18/22\,\text{AWG}$), pero la asignación de color por función es la del taller y no se ha llevado al papel, de modo que hoy no es reproducible por un tercero a partir de este documento.
 
 ---
 
@@ -1038,7 +1080,83 @@ $$\text{Margen de Torque} = \frac{T_{\text{motor}}}{T_{\text{min}}} = \frac{2.4\
 
 ---
 
-### 7.5 Envolvente de Giro Medida con Marcadores
+### 7.5 Cadena de Transmisión: del Motor al Suelo
+
+La sección anterior demuestra que **el motor tiene par de sobra**. Esta responde la pregunta que le sigue, que no es la misma: *cómo llega ese par hasta el suelo, y cuánto de él el suelo es capaz de aceptar*. Son dos límites distintos, y el que manda en pista no es el del motor.
+
+#### A. No hay tren de engranajes, y es una decisión
+
+El inventario de las 83 piezas Technic del chasis ([`models/Chasis-LEGO-V2/`](models/Chasis-LEGO-V2/README.md)) **no contiene un solo engranaje ni diferencial**. Las únicas piezas de la cadena son el eje (`4519`, Technic Axle 3L), los pines-eje que lo solidarizan a la estructura (`43093`, 5 unidades) y los bujes que controlan su juego axial (`32123a` y `2391`, 4 de cada uno).
+
+Es decir: **la relación de transmisión externa del vehículo es $1:1$**. Toda la reducción vive dentro del Geekservo DC, que es un motorreductor con su caja integrada, y su eje de salida mueve las ruedas traseras directamente.
+
+Esa ausencia es deliberada y tiene dos razones:
+
+* **Cada engranaje Technic añade holgura (*backlash*).** El proyecto no estima la posición del pilar con un encoder, sino por **odometría de consigna**: integra la velocidad que predice la curva $v = 4.02 \cdot \text{pwm} - 1.0$ medida en pista (sección 8.3). El *backlash* introduce en esa integración un error de fase que no se puede observar ni corregir, porque no hay nada que mida el eje. Un tren reductor externo habría degradado justo la señal sobre la que se decide cuándo un pilar quedó atrás.
+* **El tren delantero ya aporta holgura suficiente.** La sección 7.3 documenta que los límites de giro son asimétricos ($70°$ / $115°$) precisamente por tolerancias de ensamblaje entre piezas. Añadir holgura en el eje motriz habría sumado a un problema que ya existe.
+
+> **Consecuencia que conviene tener presente:** sin diferencial, las dos ruedas traseras no pueden recorrer distancias distintas. En la envolvente medida en la sección 7.6 la circunferencia exterior tiene $350\,\text{mm}$ de radio y la interior $180\,\text{mm}$: esa diferencia de recorrido se resuelve necesariamente con **arrastre (*scrub*) de una de las dos ruedas** en cada curva cerrada. No es un defecto a corregir —un diferencial Technic traería el *backlash* que se acaba de descartar—, pero sí es la explicación física de por qué el vehículo pierde algo de rumbo en las esquinas cerradas, y por qué la corrección inercial de la IMU es imprescindible y no redundante.
+
+#### B. La cadena, en números medidos
+
+La curva PWM→velocidad no es de catálogo: se midió por odometría LiDAR en pista y está documentada en el hallazgo #9 de la sección 8.3 (commit `12ca0f1`). Con el radio de rueda de $18\,\text{mm}$ —circunferencia de $2\pi r = 113.1\,\text{mm}$— se traduce directamente a revoluciones del eje:
+
+| Consigna PWM | Velocidad medida | Vueltas de rueda | RPM en la rueda |
+| :---: | :---: | :---: | :---: |
+| $40$ | $158\,\text{mm/s}$ | $1.40\,\text{rev/s}$ | $84$ |
+| $70$ | $285\,\text{mm/s}$ | $2.52\,\text{rev/s}$ | $151$ |
+| $90$ | $358\,\text{mm/s}$ | $3.17\,\text{rev/s}$ | $190$ |
+| $100$ *(modelo)* | $400\,\text{mm/s}$ | $3.54\,\text{rev/s}$ | $212$ |
+
+Como la relación externa es $1:1$, **esas son también las RPM del eje de salida del motorreductor**: el vehículo opera entre $84$ y $212\,\text{RPM}$ de eje.
+
+#### C. El punto de operación real es la mitad del rango
+
+Las cuatro corridas cronometradas del 11-09-2026 ([`CHANGELOG.md`](CHANGELOG.md)) dan la velocidad media de recorrido, e invirtiendo el ajuste ($\text{pwm} = (v + 1) / 4.02$) sale la consigna efectiva:
+
+| Corrida | Velocidad media | Consigna equivalente |
+| :---: | :---: | :---: |
+| 12:47 | $210\,\text{mm/s}$ | $52$ |
+| 13:13 | $171\,\text{mm/s}$ | $43$ |
+| 13:23 | $221\,\text{mm/s}$ | $55$ |
+| 13:44 | $202\,\text{mm/s}$ | $50$ |
+
+**El vehículo compite a la mitad de su consigna máxima.** No es margen desaprovechado por timidez: el apartado siguiente muestra que es el límite físico correcto.
+
+#### D. El límite real no es el motor, es el agarre
+
+La sección 7.4 calcula el par **requerido** para mover el vehículo en el peor caso, $T_{\text{min}} = \mu_e \cdot m \cdot g \cdot r = 0.108\,\text{N}\cdot\text{m}$, y concluye un margen de $2.18\times$ frente al par de bloqueo del motor ($2.4\,\text{kg}\cdot\text{cm} = 0.235\,\text{N}\cdot\text{m}$). Ese cálculo es correcto, pero responde a *«¿alcanza el motor?»*.
+
+La pregunta complementaria es *«¿aguanta el suelo?»*, y su respuesta es distinta porque **la tracción es trasera**: solo el peso que carga sobre el eje motriz genera adherencia. Llamando $f$ a la fracción de la masa que soporta el eje trasero, el par máximo que el contacto puede transmitir antes de que la rueda patine es:
+
+$$T_{\text{adherencia}} = \mu_e \cdot f \cdot m \cdot g \cdot r = 0.108 \cdot f \quad [\text{N}\cdot\text{m}]$$
+
+| Fracción de peso en el eje trasero | Par que el suelo acepta | El motor a bloqueo lo excede por |
+| :---: | :---: | :---: |
+| $f = 0.50$ *(reparto neutro)* | $0.054\,\text{N}\cdot\text{m}$ | $\mathbf{4.36\times}$ |
+| $f = 0.60$ | $0.065\,\text{N}\cdot\text{m}$ | $\mathbf{3.63\times}$ |
+| $f = 0.70$ *(fuerte sesgo trasero)* | $0.076\,\text{N}\cdot\text{m}$ | $\mathbf{3.11\times}$ |
+
+**La conclusión no depende de conocer $f$ con precisión:** en cualquier reparto físicamente posible, el motor a plena consigna entrega entre $3$ y $4.4$ veces más par del que el neumático puede transmitir al suelo. El eslabón débil de la cadena de transmisión **no es el motor ni el chasis, es el contacto caucho-pista**.
+
+Eso reordena tres cosas que el resto del documento ya registraba por separado:
+
+1. **Explica el fallo histórico de la V1.** La sección 7.7 documenta que las llantas rígidas de plástico *«patinaban al acelerar a PWM alto, disipando en calor la potencia que debía ir al suelo»*. Con un $\mu_e$ menor, el umbral de la tabla anterior baja en proporción directa, y el margen de $3\times$ del motor se convierte en patinaje garantizado. El cambio a caucho ($\mu_e \approx 0.85$) no fue una mejora incremental: subió el techo de la única barrera que de verdad limita.
+2. **Justifica la consigna de crucero del apartado C.** Operar cerca del $50\,\%$ mantiene el par lejos del umbral de patinaje. El riesgo no está en el crucero sostenido —a velocidad constante el motor solo entrega el par que vence la rodadura, muy por debajo del de bloqueo— sino en el **transitorio de arranque y en los cambios bruscos de consigna**, que es cuando la corriente, y con ella el par, se acerca al valor de bloqueo. El pico de $1.499\,\text{A}$ medido en la sección 4.4 frente a los $1.39\,\text{A}$ sostenidos es exactamente ese transitorio.
+3. **Convierte el reparto de masa en un parámetro de diseño, no en un dato decorativo.** Los $107\,\text{g}$ que la V3 sumó sobre la V2 —Raspberry Pi 5 con carcasa, mástil del LiDAR y ultrasonido— se montaron **todos en la mitad trasera y en alto**. Eso empuja $f$ hacia arriba, lo que *mejora* la tracción, y a la vez eleva el centro de gravedad, lo que *empeora* la transferencia de carga en curva. Las dos cosas ocurren juntas.
+
+#### E. Lo que falta medir para cerrar este análisis
+
+Consecuente con el criterio del proyecto de no publicar como medido lo que es supuesto, estos dos valores **no están medidos**, y su ausencia está acotada arriba:
+
+| Medida pendiente | Procedimiento | Qué cerraría |
+| :--- | :--- | :--- |
+| **Reparto de masa por eje ($f$)** | Báscula digital bajo un solo eje, con el otro apoyado sobre un calzo de la misma altura para mantener el chasis horizontal. $f = \text{lectura} / 720\,\text{g}$. Dos minutos de banco. | Sustituye la tabla de tres escenarios del apartado D por una sola fila con el valor real. |
+| **Corriente del motor aislada** | Multímetro en serie con la rama del TB6612FNG únicamente, no con la batería. La medida actual de $0.78\,\text{A}$ (sección 4.4) incluye el servo de dirección. | Permitiría estimar el par realmente entregado en crucero y confirmar cuánto margen queda hasta el umbral de patinaje. |
+
+---
+
+### 7.6 Envolvente de Giro Medida con Marcadores
 
 Los radios de giro no se calcularon: se **dibujaron**. Se montaron cuatro marcadores en las cuatro esquinas del vehiculo, sobre vigas Technic que sobresalen del chasis, y se le hizo girar con el volante a tope sobre papel fijado a la pista. Cada esquina trazo su propia circunferencia, y esas cuatro circunferencias son la envolvente real del vehiculo girando.
 
@@ -1065,7 +1183,7 @@ Midiendo cada circunferencia sobre el papel salen estos valores. La anotacion or
 
 ---
 
-### 7.6 Materiales y Manufactura: por qué el chasis dejó de imprimirse
+### 7.7 Materiales y Manufactura: por qué el chasis dejó de imprimirse
 
 La decisión de materiales de este vehículo es poco común y conviene explicarla, porque va en dirección contraria a la de la mayoría: **el equipo empezó con un chasis monocasco impreso en 3D y lo abandonó**. No por dificultad de fabricación, sino por una medida.
 
