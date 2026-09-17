@@ -19,6 +19,12 @@ ExecStartPre=/bin/sleep 10
 ExecStart=/bin/bash /home/pi/correr_ronda.sh
 RemainAfterExit=yes
 
+# Parar el servicio a mano (systemctl stop) le manda SIGTERM al script
+# mientras espera el boton. Sin esto, systemd registra cada parada como
+# "Failed with result signal", y ese ruido en el log confunde justo
+# cuando hay que diagnosticar algo deprisa entre rondas.
+SuccessExitStatus=SIGTERM
+
 # SIN Restart. La unidad anterior tenia Restart=always, que relanzaba la
 # ronda ENTERA en cuanto terminaba: el robot volvia a salir del
 # estacionamiento solo, una y otra vez. Una carrera se lanza una vez.
